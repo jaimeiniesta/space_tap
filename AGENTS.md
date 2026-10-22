@@ -15,6 +15,8 @@ Specifications:
 
 We target TAP 1.1 and stay compatible with TAP 1.0 services. When a behaviour comes from the spec, cite the section in code comments or docs.
 
+Name things with the terms defined in `GLOSSARY.md`. Decisions with their reasoning and rejected options are recorded as ADRs in `docs/adr/`.
+
 ## Scope
 
 Stick to the scope of the version being worked on. If an idea belongs to a later version, suggest it instead of implementing it.
@@ -28,21 +30,26 @@ Stick to the scope of the version being worked on. If an idea belongs to a later
 
 ## Design decisions already made
 
-- Public entry point: `SpaceTAP.query(service_url, adql, opts)`, returning `{:ok, %SpaceTAP.Result{columns: [...], rows: [...]}}` or `{:error, reason}`. A struct rather than a list of maps, so column order is kept and conversion to dataframes is easy.
-- Sync queries POST to `<service_url>/sync` with `REQUEST=doQuery` (required by TAP 1.0, removed in 1.1, sent always for compatibility), `LANG=ADQL` and `FORMAT=csv`. Option `:maxrec` maps to `MAXREC`.
-- Services return errors as VOTable documents (`INFO name="QUERY_STATUS" value="ERROR"`) even when CSV was requested. Parse them with `:xmerl` from OTP.
+- Public entry point: `SpaceTAP.query(service_url, adql, opts)`, returning `{:ok, %SpaceTAP.Result{columns: [...], rows: [...]}}` or `{:error, %SpaceTAP.Error{}}`. A struct rather than a list of maps, so column order is kept and conversion to dataframes is easy.
+- Errors: one exception, `%SpaceTAP.Error{type, message, status}`, with types `:service_error`, `:http_error`, `:transport_error` and `:decode_error`. The response body decides the type before the HTTP status (`docs/adr/0001-one-error-struct-with-a-type.md`).
+- `service_url` is the base URL of the service, the TAP 1.1 §2.4 access URL. Trim a trailing `/` and append `/sync`, treating every `service_url` as a base URL, even one that already ends in `/sync`.
+- Sync queries POST `REQUEST=doQuery`, `LANG=ADQL` and `FORMAT=csv`. `REQUEST` is required by TAP 1.0 (§2.3.1), and a TAP 1.1 service must ignore it (§2.7). `FORMAT` goes alone and in lowercase: TAP 1.1 services must accept it as equivalent to `RESPONSEFORMAT`, sending both is undefined (§2.7.3), and parameter values are case sensitive (DALI §3.1).
+- Options: `:maxrec` maps to `MAXREC` and takes a non-negative integer; `0` is sent and returns the columns with no rows (DALI 1.1 §3.4.4). `:req_options` is merged into `Req.new/1`: tests inject `plug: {Req.Test, SpaceTAP}` through it, and users raise Req's default 15 s `receive_timeout` with it (long queries belong to async, 0.3). Unknown options raise `ArgumentError` via `Keyword.validate!/2`. No application config.
+- Services send error documents as VOTable even when CSV was requested. The error message is the trimmed content of the last `INFO name="QUERY_STATUS"` element (DALI §4.4, §4.4.1); services add other `INFO`s, so find it by name.
+- Parse XML with `:xmerl_sax_parser` and `disallow_entities`. `:xmerl_scan` would turn element and attribute names into atoms, and SAX is the shape VOTable TABLEDATA parsing needs in 0.2.
+- CSV: the first row is always the header, whatever the `header=` media-type parameter says (TAP 1.1 §3.2). An empty cell becomes `nil`: no spec defines NULL in CSV, and Gaia sends an empty field.
 - The client is stateless. No GenServer or supervision tree: async UWS jobs live on the server, and waiting for one is polling with backoff in the caller's process.
 - No Ecto-style query builder. Small ADQL helpers (cone search, value escaping) are planned for a later version.
-- The shape of `reason` in error tuples is not decided yet. Propose options before implementing it.
 
-Agreed dependencies: `req` and `nimble_csv`, plus `credo` for development (`only: [:dev, :test], runtime: false`). `explorer` will come later as an optional dependency. `dialyxir` may be added once the first public functions have specs. Discuss any other dependency before adding it.
+Agreed dependencies: `req` and `nimble_csv`, plus `credo` (`only: [:dev, :test], runtime: false`) and `ex_doc` (`only: :dev, runtime: false`) for development. `dialyxir` comes in 0.2, and `explorer` later as an optional dependency. Discuss any other dependency before adding it.
 
 ## Code and tests
 
 - Use `mix format`. Public functions get `@doc` and `@spec`. Add doctests when they don't need the network.
 - Unit tests use `Req.Test` stubs and never touch the network.
 - Integration tests hit real services, are tagged `@tag :integration` and are excluded by default in `test/test_helper.exs`. Run them with `mix test --include integration`. The default target is the Gaia archive (`https://gea.esac.esa.int/tap-server/tap`). Keep those queries small (`TOP 5` or similar) to be polite to the service.
-- Parity tests run the same queries through SpaceTAP and through pyvo (the IVOA client for Python, used as reference implementation) against live services, and compare the results. They are tagged `@tag :pyvo`, excluded by default, and run with `mix test --only pyvo`. They need a Python environment with pyvo (Docker or `uv`, to be decided when implemented). Until SpaceTAP parses VOTable with types (0.2), they compare column names and row counts; after that, values too.
+- Parity tests run the same queries through SpaceTAP and through pyvo (the IVOA client for Python, used as reference implementation) against live services, and compare the results. They are tagged `@tag :pyvo`, excluded by default, and run with `mix test --only pyvo`. They call a PEP 723 script through `uv run`, which pins pyvo and prints JSON; without `uv` they skip locally and fail when `CI` is set. Until SpaceTAP parses VOTable with types (0.2), they compare column names and row counts; after that, values too.
+- CI runs the lint checks and unit tests only. Run integration and parity tests locally before a release.
 - Before saying a change is done, run `mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix credo --strict` and `mix test`, and report the results.
 - After changing dependencies, run `mix hex.audit` to check that none has been retired.
 - Keep `CHANGELOG.md` up to date following Keep a Changelog.

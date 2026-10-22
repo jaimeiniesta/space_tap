@@ -1,18 +1,6 @@
 defmodule SpaceTAP do
   @moduledoc """
-  Documentation for `SpaceTAP`.
+  Elixir client for the IVOA Table Access Protocol (TAP), the HTTP protocol
+  astronomical archives use to expose tabular data.
   """
-
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> SpaceTAP.hello()
-      :world
-
-  """
-  def hello do
-    :world
-  end
 end

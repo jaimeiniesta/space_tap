@@ -1,6 +1,6 @@
 # One error struct with a type
 
-`SpaceTAP.query/3` returns `{:error, %SpaceTAP.Error{}}`, a single exception with a `:type` (`:service_error`, `:http_error`, `:transport_error` or `:decode_error`), a `:message`, and the HTTP `:status` when there was a response. Being an exception gives `Exception.message/1` for free and lets a later `query!/3` raise it unchanged. One module with a `:type` field keeps pattern matching simple (`%SpaceTAP.Error{type: :service_error}`) and matches Eurostatx. Transport failures are wrapped rather than returning `Req.TransportError`, so the public contract does not depend on the HTTP client.
+`SpaceTAP.query/3` returns `{:error, %SpaceTAP.Error{}}`, a single exception with a `:type` (`:service_error`, `:http_error`, `:transport_error` or `:decode_error`), a `:message`, and the HTTP `:status` when there was a response. Being an exception gives `Exception.message/1` for free and lets a later `query!/3` raise it unchanged. One module with a `:type` field keeps pattern matching simple (`%SpaceTAP.Error{type: :service_error}`). Transport failures are wrapped rather than returning `Req.TransportError`, so the public contract does not depend on the HTTP client.
 
 ## Considered Options
 

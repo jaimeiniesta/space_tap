@@ -1,0 +1,11 @@
+<VOTABLE version="1.2" xmlns="http://www.ivoa.net/xml/VOTable/v1.2">
+<RESOURCE type="results">
+<INFO name="QUERY_STATUS" value="ERROR">
+Cannot parse query 'SELECT TOP 3 source_id FROM gaiadr3.no_such_table' for job 'b564c57d-cec3-11f1-9d98-bc97e148b76b-O': 2 unresolved identifiers: no_such_table [l.1 c.29 - l.1 c.50], source_id [l.1 c.14 - l.1 c.23] !
+ - Unknown table "gaiadr3.no_such_table" !
+ - Unknown column "source_id" !
+</INFO>
+<INFO name="HttpErrorCode" value="400"/>
+<INFO name="Action" value="Handling request"/>
+</RESOURCE>
+</VOTABLE>

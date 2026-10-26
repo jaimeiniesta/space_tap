@@ -28,3 +28,6 @@ space_tap-*.tar
 
 # ASDF versions
 .tool-versions
+
+# Local Superpowers workflow artifacts
+docs/superpowers/

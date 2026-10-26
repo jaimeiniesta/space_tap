@@ -23,3 +23,19 @@ Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_do
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at <https://hexdocs.pm/space_tap>.
 
+## Testing
+
+Run the default unit test suite without network access:
+
+```sh
+mix test
+```
+
+Integration tests are excluded from the default suite. Run the Gaia live
+integration tests together with the default suite, with network access, using:
+
+```sh
+mix test --include integration
+```
+
+Run the integration tests locally before a release.

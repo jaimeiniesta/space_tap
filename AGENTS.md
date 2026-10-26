@@ -41,7 +41,7 @@ Stick to the scope of the version being worked on. If an idea belongs to a later
 - The client is stateless. No GenServer or supervision tree: async UWS jobs live on the server, and waiting for one is polling with backoff in the caller's process.
 - No Ecto-style query builder. Small ADQL helpers (cone search, value escaping) are planned for a later version.
 
-Agreed dependencies: `req` and `nimble_csv`, plus `credo` (`only: [:dev, :test], runtime: false`) and `ex_doc` (`only: :dev, runtime: false`) for development. `dialyxir` comes in 0.2, and `explorer` later as an optional dependency. Discuss any other dependency before adding it.
+Agreed dependencies: `req` and `nimble_csv`, plus `credo` (`only: [:dev, :test], runtime: false`) and `ex_doc` (`only: :dev, runtime: false`) for development, and `plug` (`only: :test`), which `Req.Test` needs. `dialyxir` comes in 0.2, and `explorer` later as an optional dependency. Discuss any other dependency before adding it.
 
 ## Code and tests
 

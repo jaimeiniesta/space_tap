@@ -31,7 +31,8 @@ defmodule SpaceTAP.MixProject do
       {:req, "~> 0.7.5"},
       {:nimble_csv, "~> 1.3"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.40", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.40", only: :dev, runtime: false},
+      {:plug, "~> 1.0", only: :test}
     ]
   end
 

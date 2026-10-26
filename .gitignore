@@ -25,3 +25,6 @@ space_tap-*.tar
 
 # Local Claude Code settings
 .claude/settings.local.json
+
+# ASDF versions
+.tool-versions

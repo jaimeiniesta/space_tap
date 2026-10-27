@@ -15,6 +15,7 @@ curl -sS -o <file> https://exoplanetarchive.ipac.caltech.edu/TAP/sync \
 | File | Query | HTTP | Content-Type |
 |---|---|---|---|
 | `planets.csv` | `SELECT TOP 3 pl_name, disc_year FROM ps` | 200 | `text/plain` |
+| `syntax_error.xml` | `SELEC TOP 3 table_name FROM TAP_SCHEMA.tables` | 400 | `application/xml` |
 
 The CSV comes as `text/plain` instead of `text/csv`, which SpaceTAP reads as CSV
 (`docs/adr/0003-csv-sent-as-plain-text-is-read-as-csv.md`). It has LF line

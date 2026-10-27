@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Produced with MAST VOTable encoder version 1.0 -->
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/v1.3">
+<RESOURCE type="results">
+<INFO name="QUERY_STATUS" value="OK"/>
+<INFO name="QUERY" value="SELECT TOP 3 table_name FROM TAP_SCHEMA.tables"/>
+<TABLE>
+<FIELD name="table_name" datatype="char" arraysize="*">
+<DESCRIPTION>Fully qualified table name</DESCRIPTION></FIELD>
+<DATA>
+<TABLEDATA>
+<TR><TD>tap_schema.schemas</TD></TR>
+<TR><TD>tap_schema.tables</TD></TR>
+<TR><TD>tap_schema.columns</TD></TR>
+</TABLEDATA>
+</DATA>
+</TABLE>
+</RESOURCE>
+</VOTABLE>

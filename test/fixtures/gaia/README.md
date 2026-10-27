@@ -37,3 +37,13 @@ The error documents are VOTable 1.2 with no XML declaration, and Gaia sends them
 although CSV was requested. `ok.xml` has a single `QUERY_STATUS` of `OK` before
 the table; `overflow.xml` is the same document with a second one, `OVERFLOW`,
 after it. Both carry their table data as BINARY2.
+
+`sync_get.xml` is Gaia's answer to a `GET /sync` with no parameters, which is
+what a client sends after Gaia redirects `http://` to `https://` with a 302 and
+the POST becomes a GET. It came back with HTTP 200 and
+`Content-Type: text/xml;charset=UTF-8`: an empty list of async jobs, which isn't
+a result. Captured on 2026-10-27 with:
+
+```bash
+curl -sS -o sync_get.xml https://gea.esac.esa.int/tap-server/tap/sync
+```

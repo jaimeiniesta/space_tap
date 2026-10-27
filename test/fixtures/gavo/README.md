@@ -16,6 +16,10 @@ curl -sS -o <file> https://dc.g-vo.org/tap/sync \
 | File | Query | HTTP | Content-Type |
 |---|---|---|---|
 | `syntax_error.xml` | `SELEC TOP 3 table_name FROM tap_schema.tables` | 500 | `text/xml` |
+| `hipparcos.csv` | `SELECT TOP 5 hipno, ra, dec, vmag, parallax, sptype FROM hipparcos.main WHERE hipno <= 5` | 200 | `text/csv;header=present` |
+
+`hipparcos.csv` has CRLF line endings, as RFC 4180 uses, and spells the `sptype`
+column `SpType`. Its `parallax` is in degrees.
 
 The error document is VOTable 1.5 and starts with an `xml-stylesheet`
 processing instruction and no XML declaration, which xmerl misreads as a broken

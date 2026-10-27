@@ -2,11 +2,20 @@ defmodule SpaceTAP do
   @moduledoc """
   Elixir client for the IVOA Table Access Protocol (TAP), the HTTP protocol
   astronomical archives use to expose tabular data.
+
+  `query/3` sends a query written in ADQL to a TAP service and returns its
+  result as a `SpaceTAP.Result`, or a `SpaceTAP.Error` when it fails.
+
+  SpaceTAP follows [TAP 1.1](https://www.ivoa.net/documents/TAP/20190927/REC-TAP-1.1.html)
+  and works with TAP 1.0 services.
   """
 
   alias SpaceTAP.{CSV, Error, Result, VOTable}
 
   @user_agent "space_tap/#{Mix.Project.config()[:version]}"
+
+  @typedoc "An option for `query/3`."
+  @type option :: {:maxrec, non_neg_integer()} | {:req_options, keyword()}
 
   @doc """
   Runs a sync query: sends `adql` to the TAP service at `service_url` and
@@ -14,8 +23,8 @@ defmodule SpaceTAP do
 
   `service_url` is the base URL of the service, such as
   `"https://gea.esac.esa.int/tap-server/tap"` for the Gaia archive. The query
-  goes to its `/sync` endpoint (TAP 1.1 §2.4), so pass the base URL even if
-  you know the endpoint.
+  goes to its `/sync` endpoint (TAP 1.1 §2.4), appended after trimming any
+  trailing `/`, so pass the base URL even if you know the endpoint.
 
       SpaceTAP.query(
         "https://gea.esac.esa.int/tap-server/tap",
@@ -32,11 +41,18 @@ defmodule SpaceTAP do
     * `:maxrec` - the maximum number of rows to return, a non-negative
       integer. The service may apply a lower limit of its own, and `0`
       returns the columns with no rows (DALI 1.1 §3.4.4).
-    * `:req_options` - options for `Req.new/1`, such as `:receive_timeout`
-      to wait longer than Req's default 15 seconds. They can't change the
-      TAP request itself: its URL, parameters, body decoding and user agent.
+    * `:req_options` - a keyword list of options for `Req.new/1`, such as
+      `:receive_timeout` to wait longer than Req's default 15 seconds.
+      SpaceTAP sets `:method`, `:url`, `:form`, `:user_agent`,
+      `:decode_body`, `:http_errors` and `:into` itself, and ignores them
+      here. Other options go to Req as given, and some change the request:
+      a `user-agent` in `:headers` replaces SpaceTAP's, and `:params` adds
+      parameters to the URL.
+
+  An unknown option, or a `:maxrec` or `:req_options` that isn't what the
+  list above says, raises `ArgumentError`.
   """
-  @spec query(String.t(), String.t(), keyword()) :: {:ok, Result.t()} | {:error, Error.t()}
+  @spec query(String.t(), String.t(), [option()]) :: {:ok, Result.t()} | {:error, Error.t()}
   def query(service_url, adql, opts \\ []) when is_binary(service_url) and is_binary(adql) do
     opts = Keyword.validate!(opts, [:maxrec, req_options: []])
 
@@ -45,16 +61,20 @@ defmodule SpaceTAP do
     # parameter values are case sensitive (DALI 1.1 §3.1).
     form = [REQUEST: "doQuery", LANG: "ADQL", FORMAT: "csv", QUERY: adql] ++ maxrec(opts[:maxrec])
 
-    # Req would decode the CSV body itself; CSV.parse/1 reads it instead.
+    # classify/1 reads the raw body of every response itself, so Req must
+    # not decode it, stream it elsewhere or raise on an error status.
     tap_options = [
       method: :post,
       url: String.trim_trailing(service_url, "/") <> "/sync",
       form: form,
+      user_agent: @user_agent,
       decode_body: false,
-      user_agent: @user_agent
+      http_errors: :return,
+      into: nil
     ]
 
     opts[:req_options]
+    |> req_options()
     |> Keyword.merge(tap_options)
     |> Req.new()
     |> Req.request()
@@ -72,6 +92,15 @@ defmodule SpaceTAP do
     raise ArgumentError, "expected :maxrec to be a non-negative integer, got: #{inspect(maxrec)}"
   end
 
+  defp req_options(req_options) do
+    if Keyword.keyword?(req_options) do
+      req_options
+    else
+      raise ArgumentError,
+            "expected :req_options to be a keyword list, got: #{inspect(req_options)}"
+    end
+  end
+
   # The body decides before the status: TAP 1.1 §3.3 lets a service send an
   # error document with 200 as well as 4xx or 5xx.
   defp classify({:error, exception}) do
@@ -81,7 +110,7 @@ defmodule SpaceTAP do
   defp classify({:ok, %Req.Response{status: status, body: body} = response}) do
     media_type = media_type(response)
 
-    case error_document(media_type, body) do
+    case service_error(media_type, body) do
       {:ok, message} -> error(:service_error, message, status)
       :error when status in 200..299 -> result(media_type, body, status)
       :error -> error(:http_error, http_error_message(media_type, body), status)
@@ -92,16 +121,18 @@ defmodule SpaceTAP do
   # shows that a TAP service wrote it: its query status is ERROR (DALI §4.4).
   # Plain text from a proxy or web server looks the same, so it makes an HTTP
   # error (docs/adr/0002-plain-text-is-an-http-error.md).
-  defp error_document(media_type, body) do
-    if xml?(media_type), do: votable_error(body), else: :error
-  end
-
-  defp votable_error(body) do
-    case VOTable.query_status(body) do
-      {:ok, {"ERROR", message}} -> {:ok, message}
+  defp service_error(media_type, body) do
+    with true <- xml?(media_type),
+         {:ok, {"ERROR", message}} <- VOTable.query_status(body) do
+      {:ok, service_error_message(message)}
+    else
       _other -> :error
     end
   end
+
+  # The message of an error document is optional (DALI 1.1 §4.4.2).
+  defp service_error_message(""), do: "the TAP service reported an error without a message"
+  defp service_error_message(message), do: message
 
   defp result("text/csv", body, status) do
     case CSV.parse(body) do
@@ -130,15 +161,19 @@ defmodule SpaceTAP do
   end
 
   # The type and subtype of a media type are case-insensitive, and parameters
-  # such as charset follow a semicolon (RFC 9110 §8.3.1).
+  # such as charset follow a semicolon (RFC 9110 §8.3.1). An empty
+  # Content-Type gives no media type, as a missing one does.
   defp media_type(response) do
-    case Req.Response.get_header(response, "content-type") do
-      [content_type | _rest] ->
-        content_type |> String.split(";", parts: 2) |> hd() |> String.trim() |> String.downcase()
+    media_type =
+      response
+      |> Req.Response.get_header("content-type")
+      |> List.first("")
+      |> String.split(";", parts: 2)
+      |> hd()
+      |> String.trim()
+      |> String.downcase()
 
-      [] ->
-        nil
-    end
+    if media_type == "", do: nil, else: media_type
   end
 
   # application/xml, text/xml and +xml types such as application/x-votable+xml

@@ -47,7 +47,7 @@ defmodule SpaceTAPIntegrationTest do
   test "returns columns and no rows when MAXREC is zero" do
     adql = "SELECT TOP 3 source_id, ra, dec FROM gaiadr3.gaia_source"
 
-    # DALI 1.1 section 3.4.4 defines MAXREC=0 as a metadata-only request.
+    # DALI 1.1 §3.4.4 defines MAXREC=0 as a metadata-only request.
     assert {:ok, %Result{columns: ["source_id", "ra", "dec"], rows: []}} =
              SpaceTAP.query(@service_url, adql, maxrec: 0)
   end

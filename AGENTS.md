@@ -32,25 +32,25 @@ Stick to the scope of the version being worked on. If an idea belongs to a later
 
 - Public entry point: `SpaceTAP.query(service_url, adql, opts)`, returning `{:ok, %SpaceTAP.Result{columns: [...], rows: [...]}}` or `{:error, %SpaceTAP.Error{}}`. A struct rather than a list of maps, so column order is kept and conversion to dataframes is easy.
 - Errors: one exception, `%SpaceTAP.Error{type, message, status}`, with types `:service_error`, `:http_error`, `:transport_error` and `:decode_error`. The response body decides the type before the HTTP status (`docs/adr/0001-one-error-struct-with-a-type.md`).
-- `service_url` is the base URL of the service, the TAP 1.1 §2.4 access URL. Trim a trailing `/` and append `/sync`, treating every `service_url` as a base URL, even one that already ends in `/sync`.
+- `service_url` is the base URL of the service, the TAP 1.1 §2.4 access URL. Trim trailing `/`s and append `/sync`, treating every `service_url` as a base URL, even one that already ends in `/sync`.
 - Sync queries POST `REQUEST=doQuery`, `LANG=ADQL` and `FORMAT=csv`. `REQUEST` is required by TAP 1.0 (§2.3.1), and a TAP 1.1 service must ignore it (§2.7). `FORMAT` goes alone and in lowercase: TAP 1.1 services must accept it as equivalent to `RESPONSEFORMAT`, sending both is undefined (§2.7.3), and parameter values are case sensitive (DALI §3.1).
-- Options: `:maxrec` maps to `MAXREC` and takes a non-negative integer; `0` is sent and returns the columns with no rows (DALI 1.1 §3.4.4). `:req_options` is merged into `Req.new/1`: tests inject `plug: {Req.Test, SpaceTAP}` through it, and users raise Req's default 15 s `receive_timeout` with it (long queries belong to async, 0.3). Unknown options raise `ArgumentError` via `Keyword.validate!/2`. No application config.
-- Services send error documents as VOTable even when CSV was requested. The error message is the trimmed content of the last `INFO name="QUERY_STATUS"` element (DALI §4.4, §4.4.1); services add other `INFO`s, so find it by name.
+- Options: `:maxrec` maps to `MAXREC` and takes a non-negative integer; `0` is sent and returns the columns with no rows (DALI 1.1 §3.4.4). `:req_options` is merged into `Req.new/1`: tests inject `plug: {Req.Test, SpaceTAP}` through it, and users raise Req's default 15 s `receive_timeout` with it (long queries belong to async, 0.3). SpaceTAP's own Req options win the merge, including `decode_body: false`, `http_errors: :return` and `into: nil`, which keep the `{:ok, _}`/`{:error, _}` contract; any other option, such as `:headers`, goes to Req as given. Unknown options raise `ArgumentError` via `Keyword.validate!/2`, and so does a `:req_options` that isn't a keyword list. No application config.
+- Services send error documents as VOTable even when CSV was requested. The error message is the trimmed content of the last `INFO name="QUERY_STATUS"` element, or a message of SpaceTAP's own when that content is empty, since it is optional (DALI §4.4, §4.4.2); services add other `INFO`s, so find it by name.
 - Parse XML with `:xmerl_sax_parser` and `disallow_entities`. `:xmerl_scan` would turn element and attribute names into atoms, and SAX is the shape VOTable TABLEDATA parsing needs in 0.2.
 - CSV: the first row is always the header, whatever the `header=` media-type parameter says (TAP 1.1 §3.2). An empty cell becomes `nil`: no spec defines NULL in CSV, and Gaia sends an empty field.
-- The client is stateless. No GenServer or supervision tree: async UWS jobs live on the server, and waiting for one is polling with backoff in the caller's process.
+- The client is stateless. No GenServer or supervision tree: async UWS jobs live on the TAP service, and waiting for one is polling with backoff in the caller's process.
 - No Ecto-style query builder. Small ADQL helpers (cone search, value escaping) are planned for a later version.
 
 Agreed dependencies: `req` and `nimble_csv`, plus `credo` (`only: [:dev, :test], runtime: false`) and `ex_doc` (`only: :dev, runtime: false`) for development, and `plug` (`only: :test`), which `Req.Test` needs. `dialyxir` comes in 0.2, and `explorer` later as an optional dependency. Discuss any other dependency before adding it.
 
 ## Code and tests
 
-- Use `mix format`. Public functions get `@doc` and `@spec`. Add doctests when they don't need the network.
+- Use `mix format`. Public functions get `@spec`, and those of documented modules get `@doc`; internal modules (`@moduledoc false`) explain themselves in comments. Public types get `@typedoc`. Add doctests when they don't need the network.
 - Unit tests use `Req.Test` stubs and never touch the network.
 - Integration tests hit real services, are tagged `@tag :integration` and are excluded by default in `test/test_helper.exs`. Run them with `mix test --include integration`. The default target is the Gaia archive (`https://gea.esac.esa.int/tap-server/tap`). Keep those queries small (`TOP 5` or similar) to be polite to the service.
 - Parity tests run the same queries through SpaceTAP and through pyvo (the IVOA client for Python, used as reference implementation) against live services, and compare the results. They are tagged `@tag :pyvo`, excluded by default, and run with `mix test --only pyvo`. They call a PEP 723 script through `uv run`, which pins pyvo and prints JSON; without `uv` they skip locally and fail when `CI` is set. Until SpaceTAP parses VOTable with types (0.2), they compare column names and row counts; after that, values too.
 - CI runs the lint checks and unit tests only. Run integration and parity tests locally before a release.
-- Before saying a change is done, run `mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix credo --strict` and `mix test`, and report the results.
+- Before saying a change is done, run `mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix credo --strict`, `mix test` and `mix docs --warnings-as-errors`, and report the results.
 - After changing dependencies, run `mix hex.audit` to check that none has been retired.
 - Keep `CHANGELOG.md` up to date following Keep a Changelog.
 

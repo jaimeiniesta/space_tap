@@ -154,6 +154,13 @@ mix test --only pyvo
 
 `mix test.all` runs all three suites. Run it before a release.
 
+## About
+
+SpaceTAP started as an exploration of the astronomy software ecosystem from
+Elixir: how libraries such as Python's [pyvo][pyvo] and [Astroquery][astroquery]
+work, and what Elixir can bring to it. It is written with AI coding tools; I
+review, test and answer for every change.
+
 ## Contributing
 
 Contributions made with AI tools are welcome, but a person must open, supervise
@@ -164,6 +171,7 @@ and answer for every issue and pull request. See [AGENTS.md](https://github.com/
 MIT. See [LICENSE](https://github.com/jaimeiniesta/space_tap/blob/main/LICENSE).
 
 [adql]: https://www.ivoa.net/documents/ADQL/
+[astroquery]: https://astroquery.readthedocs.io/
 [gaia]: https://gea.esac.esa.int/archive/
 [pyvo]: https://pyvo.readthedocs.io/
 [req]: https://hexdocs.pm/req/

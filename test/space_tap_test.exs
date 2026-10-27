@@ -6,7 +6,7 @@ defmodule SpaceTAPTest do
   @service_url "https://tap.example.org/tap"
   @adql "SELECT TOP 5 source_id FROM gaiadr3.gaia_source"
   @req_options [plug: {Req.Test, SpaceTAP}]
-  @fixtures Path.expand("fixtures/gaia", __DIR__)
+  @fixtures Path.expand("fixtures", __DIR__)
 
   describe "query/3 request" do
     test "POSTs the ADQL query as CSV to the sync endpoint of the service URL" do
@@ -166,6 +166,13 @@ defmodule SpaceTAPTest do
       assert message =~ ~r/\ACannot parse query 'SELEC TOP 3 source_id/
     end
 
+    test "returns a service error from GAVO's error document, which starts with an xml-stylesheet instruction" do
+      stub_service(500, "text/xml", fixture("syntax_error.xml", "gavo"))
+
+      assert {:error, %Error{type: :service_error, status: 500, message: message}} = query()
+      assert message =~ ~r/\AField query: Could not parse your query: Expected SELECT/
+    end
+
     test "returns a service error from an error document sent with HTTP 200" do
       stub_service(200, "application/xml;charset=UTF-8", fixture("unknown_table.xml"))
 
@@ -316,7 +323,7 @@ defmodule SpaceTAPTest do
   # Private functions #
   #####################
 
-  defp fixture(name), do: File.read!(Path.join(@fixtures, name))
+  defp fixture(name, service \\ "gaia"), do: File.read!(Path.join([@fixtures, service, name]))
 
   defp query(opts \\ []), do: query_at(@service_url, opts)
 

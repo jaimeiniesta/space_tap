@@ -24,7 +24,7 @@ defmodule SpaceTAP.VOTable do
       event_state: {nil, nil}
     ]
 
-    case :xmerl_sax_parser.stream(xml, options) do
+    case xml |> declare() |> :xmerl_sax_parser.stream(options) do
       {:ok, {last, nil}, rest} -> after_root(rest, last)
       {_tag, _location, reason, _end_tags, _state} -> {:error, "invalid XML: " <> reason(reason)}
     end
@@ -33,6 +33,21 @@ defmodule SpaceTAP.VOTable do
   #####################
   # Private functions #
   #####################
+
+  # An XML declaration is "<?xml" followed by whitespace (XML 1.0 §2.8). A
+  # document without one may start with a processing instruction whose target
+  # begins with "xml" instead (§2.6), such as the xml-stylesheet one GAVO DaCHS
+  # services put before their error documents. xmerl 2.1.7 (OTP 28) takes any
+  # "<?xml" at the start for a declaration while it detects the encoding, and
+  # fails. Prepending a declaration lets it read the instruction as one, and
+  # changes nothing else: with no encoding, the document stays UTF-8 (§4.3.3).
+  # A malformed declaration such as "<?xml?>" still fails, now as an
+  # instruction named "xml", which §2.6 forbids.
+  defp declare(<<"<?xml", char, _rest::binary>> = xml) when char not in ~c" \t\r\n" do
+    ~s(<?xml version="1.0"?>) <> xml
+  end
+
+  defp declare(xml), do: xml
 
   # stream/2 stops at the root's end tag and returns the rest unchecked. XML 1.0
   # §2.1 allows only Misc after the root: whitespace, comments and processing

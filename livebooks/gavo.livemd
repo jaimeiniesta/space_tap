@@ -1,0 +1,204 @@
+# GAVO Data Center
+
+```elixir
+Mix.install([
+  {:space_tap, path: Path.join(__DIR__, "..")},
+  {:kino, "~> 0.19.1"},
+  {:kino_vega_lite, "~> 0.1.13"}
+])
+```
+
+## The service
+
+The [GAVO Data Center](https://dc.g-vo.org) in Heidelberg publishes hundreds of tables, from historical catalogues to the IVOA Registry itself. It runs [DaCHS](https://docs.g-vo.org/DaCHS/), the software behind many TAP services, so it is a good second implementation to try SpaceTAP against.
+
+This notebook looks at what the service holds, draws the naked-eye sky from the Hipparcos catalogue, searches the Registry for other TAP services, and ends with the errors DaCHS sends.
+
+```elixir
+alias VegaLite, as: Vl
+
+gavo = "https://dc.g-vo.org/tap"
+
+to_maps = fn %SpaceTAP.Result{columns: columns, rows: rows} ->
+  Enum.map(rows, fn row -> columns |> Enum.zip(row) |> Map.new() end)
+end
+
+table = fn result, name ->
+  Kino.DataTable.new(to_maps.(result), keys: result.columns, name: name)
+end
+```
+
+## What the service holds
+
+Every TAP service describes its own tables and columns in `TAP_SCHEMA`, which you query with ADQL like any other table (TAP 1.1 §4). The schemas with the most tables:
+
+```elixir
+{:ok, schemas} =
+  SpaceTAP.query(gavo, """
+  SELECT TOP 15 schema_name, COUNT(*) AS n_tables
+  FROM tap_schema.tables
+  GROUP BY schema_name
+  ORDER BY n_tables DESC
+  """)
+
+table.(schemas, "Schemas")
+```
+
+The columns of a table, with their units, come from `tap_schema.columns`. Here, the Hipparcos catalogue:
+
+```elixir
+{:ok, columns} =
+  SpaceTAP.query(gavo, """
+  SELECT column_name, unit, description
+  FROM tap_schema.columns
+  WHERE table_name = 'hipparcos.main'
+  """)
+
+table.(columns, "hipparcos.main columns")
+```
+
+Look at the units before using a column: here `parallax` is in degrees, not in the milliarcseconds most catalogues use.
+
+## The naked-eye sky
+
+Hipparcos, an ESA satellite and Gaia's predecessor, measured about 118,000 stars. Those brighter than magnitude 4 are roughly the stars you can see from a city:
+
+```elixir
+{:ok, bright} =
+  SpaceTAP.query(gavo, """
+  SELECT hipno, ra, dec, vmag, sptype AS spectral_type
+  FROM hipparcos.main
+  WHERE vmag < 4
+  ORDER BY vmag
+  """)
+
+length(bright.rows)
+```
+
+`sptype AS spectral_type` names the column in the result. Without the alias, DaCHS writes the header as `SpType`: ADQL names that aren't in double quotes ignore case (ADQL 2.1 §2.1.7), so the service may spell them its own way.
+
+The first letter of the spectral type is the spectral class, from hot blue O stars to cool red M stars, so colour the dots by it:
+
+```elixir
+classes = ~w(O B A F G K M)
+
+stars =
+  for star <- to_maps.(bright) do
+    {vmag, ""} = Float.parse(star["vmag"])
+    {ra, ""} = Float.parse(star["ra"])
+    {dec, ""} = Float.parse(star["dec"])
+    class = String.first(star["spectral_type"] || "")
+
+    %{
+      "hip" => star["hipno"],
+      "ra" => ra,
+      "dec" => dec,
+      "vmag" => vmag,
+      "brightness" => 4.5 - vmag,
+      "class" => if(class in classes, do: class, else: "other")
+    }
+  end
+
+Vl.new(width: 700, height: 350, title: "Stars brighter than magnitude 4")
+|> Vl.data_from_values(stars)
+|> Vl.mark(:circle, opacity: 0.8)
+|> Vl.encode_field(:x, "ra", type: :quantitative, title: "RA (°)", scale: [domain: [360, 0]])
+|> Vl.encode_field(:y, "dec", type: :quantitative, title: "Dec (°)", scale: [domain: [-90, 90]])
+|> Vl.encode_field(:size, "brightness",
+  type: :quantitative,
+  legend: nil,
+  scale: [range: [5, 250]]
+)
+|> Vl.encode_field(:color, "class",
+  type: :nominal,
+  title: "Class",
+  scale: [
+    domain: classes ++ ["other"],
+    range: ~w(#5b7cfa #8fb0ff #d6e2ff #fff4d6 #ffe08a #ffb35c #ff7a45 #999999)
+  ]
+)
+|> Vl.encode(:tooltip, [
+  [field: "hip", type: :nominal, title: "HIP"],
+  [field: "vmag", type: :quantitative, title: "V"],
+  [field: "class", type: :nominal]
+])
+```
+
+Hover over a dot to see its HIP number and magnitude. The biggest, at RA 101° and Dec −17°, is Sirius, the brightest star in the night sky.
+
+## The nearest stars
+
+Sort by parallax to get the nearest stars. With the parallax in degrees, multiply by 3,600,000 to get milliarcseconds; the distance in parsecs is 1000 divided by that, and a parsec is 3.26 light years:
+
+```elixir
+{:ok, nearest} =
+  SpaceTAP.query(gavo, """
+  SELECT TOP 10 hipno, vmag, parallax, sptype AS spectral_type
+  FROM hipparcos.main
+  ORDER BY parallax DESC
+  """)
+
+nearest_stars =
+  for star <- to_maps.(nearest) do
+    {parallax_deg, ""} = Float.parse(star["parallax"])
+    parallax_mas = parallax_deg * 3_600_000
+    distance_pc = 1000 / parallax_mas
+
+    %{
+      "hip" => star["hipno"],
+      "vmag" => star["vmag"],
+      "spectral_type" => star["spectral_type"],
+      "parallax_mas" => Float.round(parallax_mas, 1),
+      "distance_ly" => Float.round(distance_pc * 3.2616, 2)
+    }
+  end
+
+Kino.DataTable.new(nearest_stars,
+  keys: ~w(hip vmag spectral_type parallax_mas distance_ly),
+  name: "Nearest Hipparcos stars"
+)
+```
+
+HIP 70890 is Proxima Centauri, and the next two are Alpha Centauri A and B. Proxima is faint (V = 11) although it is the nearest: it is a small red dwarf.
+
+## Searching the Registry for TAP services
+
+The IVOA Registry lists the services of the Virtual Observatory. GAVO serves it through TAP too, with the tables defined by [RegTAP](https://www.ivoa.net/documents/RegTAP/), so you can search it with ADQL. `ivo_hasword` is a RegTAP function for word searches in free text. TAP services whose description mentions a word:
+
+```elixir
+word = "Gaia"
+
+{:ok, services} =
+  SpaceTAP.query(gavo, """
+  SELECT res.res_title, intf.access_url
+  FROM rr.resource AS res
+  JOIN rr.capability AS cap ON cap.ivoid = res.ivoid
+  JOIN rr.interface AS intf ON intf.ivoid = cap.ivoid AND intf.cap_index = cap.cap_index
+  WHERE cap.standard_id = 'ivo://ivoa.net/std/tap'
+    AND intf.intf_role = 'std'
+    AND 1 = ivo_hasword(res.res_description, '#{word}')
+  ORDER BY res.res_title
+  """)
+
+table.(services, "TAP services that mention #{word}")
+```
+
+`access_url` is the service URL to pass to `SpaceTAP.query/3`. Many are registered with `http://`: if the service also answers on `https://`, use that, because a redirect from `http://` to `https://` loses the query (see the README).
+
+Interpolating `word` into the ADQL is fine for a word you typed yourself. ADQL has no bound parameters, so never interpolate text from someone else without escaping it.
+
+## Errors from DaCHS
+
+DaCHS answers invalid ADQL with HTTP 500 and a VOTable error document. The document starts with an `xml-stylesheet` processing instruction, so a browser can show it as a web page:
+
+```elixir
+SpaceTAP.query(gavo, "SELEC TOP 3 hipno FROM hipparcos.main")
+```
+
+An unknown column:
+
+```elixir
+SpaceTAP.query(gavo, "SELECT TOP 3 b_v FROM hipparcos.main")
+```
+
+Both are `:service_error`s with the message DaCHS wrote: the document says its query status is `ERROR` (DALI 1.1 §4.4), so the HTTP status doesn't decide the type.

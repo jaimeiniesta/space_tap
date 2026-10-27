@@ -1,0 +1,152 @@
+# Getting started with SpaceTAP
+
+```elixir
+Mix.install([
+  {:space_tap, path: Path.join(__DIR__, "..")},
+  {:kino, "~> 0.19.1"}
+])
+```
+
+## What SpaceTAP does
+
+[TAP](https://www.ivoa.net/documents/TAP/), the IVOA Table Access Protocol, is how astronomical archives expose their tables over HTTP. You write a query in [ADQL](https://www.ivoa.net/documents/ADQL/), a dialect of SQL with functions for positions on the sky, and the service runs it and sends the table back.
+
+`SpaceTAP.query/3` runs a sync query: one HTTP request, with the result in the response (TAP 1.1 §2.1). It POSTs the ADQL to the `/sync` endpoint of the service with `REQUEST=doQuery`, `LANG=ADQL` and `FORMAT=csv`, and reads the CSV that comes back.
+
+This notebook installs SpaceTAP from the checkout it lives in, so open it from the `livebooks/` folder of the repository. Every query goes to a live service, so the numbers you get may differ a little from the ones mentioned here.
+
+## A first query
+
+The service URL is the base URL of a TAP service, what TAP calls its access URL. This one is the Gaia archive at ESA. The query asks for the five brightest stars within one degree of the centre of the Pleiades:
+
+```elixir
+gaia = "https://gea.esac.esa.int/tap-server/tap"
+
+adql = """
+SELECT TOP 5 source_id, ra, dec, parallax, phot_g_mean_mag
+FROM gaiadr3.gaia_source
+WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1
+  AND parallax IS NOT NULL AND phot_g_mean_mag IS NOT NULL
+ORDER BY phot_g_mean_mag
+"""
+
+{:ok, result} = SpaceTAP.query(gaia, adql)
+```
+
+`CONTAINS(POINT(...), CIRCLE(...)) = 1` is how ADQL writes a cone search: it keeps the rows whose position falls inside a circle of 1° around right ascension 56.75° and declination 24.12°. `phot_g_mean_mag` is the brightness in Gaia's G band, and a smaller magnitude means a brighter star, so `ORDER BY phot_g_mean_mag` puts the brightest first.
+
+## Columns and rows
+
+The result is a `SpaceTAP.Result`. `columns` holds the column names in the order of the query:
+
+```elixir
+result.columns
+```
+
+Each row is a list with one value per column, in the same order:
+
+```elixir
+hd(result.rows)
+```
+
+Every value is a string, because CSV has no types. An empty cell would be `nil`. To work with maps instead, zip each row with the columns:
+
+```elixir
+stars = Enum.map(result.rows, fn row -> result.columns |> Enum.zip(row) |> Map.new() end)
+```
+
+`Kino.DataTable` shows them as a table you can sort. `keys:` keeps the columns in the order of the query, which a map doesn't:
+
+```elixir
+Kino.DataTable.new(stars, keys: result.columns, name: "Brightest stars in the Pleiades")
+```
+
+## From strings to numbers
+
+To compute anything, parse the values first. Parallax is in milliarcseconds, and the distance in parsecs is roughly 1000 divided by it:
+
+```elixir
+for star <- stars do
+  {parallax, ""} = Float.parse(star["parallax"])
+  %{source_id: star["source_id"], distance_pc: Float.round(1000 / parallax, 1)}
+end
+```
+
+`source_id` is a 64-bit integer. Keep it as a string, or use `String.to_integer/1`, but don't turn it into a float: floats can't hold every integer that large exactly.
+
+Typed values read from VOTable, the IVOA format for tables, are planned for a later version of SpaceTAP.
+
+## Options
+
+`:maxrec` asks the service to return at most that many rows (DALI 1.1 §3.4.4). The service may apply a lower limit of its own; Gaia stops at 50,000 rows.
+
+```elixir
+{:ok, result} =
+  SpaceTAP.query(gaia, "SELECT TOP 10 source_id FROM gaiadr3.gaia_source", maxrec: 3)
+
+length(result.rows)
+```
+
+A CSV result doesn't say whether the service cut it short. A VOTable would, with a query status of `OVERFLOW` (DALI 1.1 §4.4.1). If you get exactly as many rows as the limit, assume there are more.
+
+`maxrec: 0` asks for the columns with no rows, which is a quick way to see what a query returns:
+
+```elixir
+SpaceTAP.query(gaia, "SELECT TOP 10 source_id, ra, dec FROM gaiadr3.gaia_source", maxrec: 0)
+```
+
+`:req_options` goes to [Req](https://hexdocs.pm/req/), the HTTP client. Req waits 15 seconds for a response by default; raise it for slower queries:
+
+```elixir
+SpaceTAP.query(gaia, "SELECT TOP 1 source_id FROM gaiadr3.gaia_source",
+  req_options: [receive_timeout: 60_000]
+)
+```
+
+## When a query fails
+
+A failed query returns `{:error, %SpaceTAP.Error{}}`. A query that names a table Gaia doesn't have gives a service error, with the message Gaia wrote:
+
+```elixir
+{:error, error} = SpaceTAP.query(gaia, "SELECT TOP 3 source_id FROM gaiadr3.no_such_table")
+```
+
+`SpaceTAP.Error` is an exception, and its message starts with the HTTP status:
+
+```elixir
+Exception.message(error)
+```
+
+`:type` says what went wrong:
+
+| Type               | When                                                                                     |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| `:service_error`   | The service rejected the query, for example because of invalid ADQL or an unknown table. |
+| `:http_error`      | An HTTP error status without an error document from the service, such as a proxy's page. |
+| `:transport_error` | No response arrived: the connection failed or timed out.                                 |
+| `:decode_error`    | A successful response that can't be read as a result, such as one in another format.     |
+
+So you can decide what to do from the type alone:
+
+```elixir
+case SpaceTAP.query(gaia, "SELECT TOP 3 source_id FROM gaiadr3.no_such_table") do
+  {:ok, result} ->
+    "#{length(result.rows)} rows"
+
+  {:error, %SpaceTAP.Error{type: :service_error, message: message}} ->
+    "Fix the query: " <> (message |> String.split("\n") |> hd())
+
+  {:error, %SpaceTAP.Error{type: type}} when type in [:http_error, :transport_error] ->
+    "Try again later"
+
+  {:error, error} ->
+    raise error
+end
+```
+
+## Next
+
+* [The Pleiades with Gaia](gaia_pleiades.livemd): find the members of a star cluster by how they move, and draw their colour–magnitude diagram.
+* [GAVO Data Center](gavo.livemd): what a service holds, the Hipparcos catalogue, and the IVOA Registry.
+* [NASA Exoplanet Archive](nasa_exoplanet_archive.livemd): exoplanet discoveries over the years, and planets by size and orbit.
+* [A tour of TAP services](tap_services_tour.livemd): the same query against eleven services at once, and every kind of error.

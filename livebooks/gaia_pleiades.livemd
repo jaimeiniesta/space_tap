@@ -1,0 +1,164 @@
+# The Pleiades with Gaia
+
+```elixir
+Mix.install([
+  {:space_tap, path: Path.join(__DIR__, "..")},
+  {:kino, "~> 0.19.1"},
+  {:kino_vega_lite, "~> 0.1.13"}
+])
+```
+
+## The cluster
+
+The Pleiades (M45) is an open cluster: a few thousand stars born together about 100 million years ago, some 135 parsecs away. [Gaia](https://www.cosmos.esa.int/web/gaia) measures the position, parallax, proper motion and colour of nearly two billion stars, and its archive is a TAP service.
+
+This notebook asks Gaia for the stars around the cluster, picks out the members by how they move, and draws their colour–magnitude diagram, the observer's version of the Hertzsprung–Russell diagram.
+
+## Helpers
+
+SpaceTAP 0.1 reads results as CSV, so every value is a string and an empty cell is `nil`. These helpers turn rows into maps and parse the numeric columns:
+
+```elixir
+alias VegaLite, as: Vl
+
+defmodule Rows do
+  def to_maps(%SpaceTAP.Result{columns: columns, rows: rows}) do
+    Enum.map(rows, fn row -> columns |> Enum.zip(row) |> Map.new() end)
+  end
+
+  def parse_numbers(map, keys) do
+    Enum.reduce(keys, map, fn key, map -> Map.update!(map, key, &number/1) end)
+  end
+
+  defp number(nil), do: nil
+
+  defp number(string) do
+    {number, ""} = Float.parse(string)
+    number
+  end
+end
+```
+
+## The query
+
+A cone of 2° around the centre of the cluster. The parallax filter keeps stars between 100 and 200 parsecs away (parallaxes of 10 to 5 milliarcseconds), which drops most of the stars in front of and behind the cluster. `bp_rp` is the colour, the difference between Gaia's blue and red magnitudes, and the diagram needs it.
+
+```elixir
+gaia = "https://gea.esac.esa.int/tap-server/tap"
+
+adql = """
+SELECT source_id, ra, dec, parallax, pmra, pmdec, phot_g_mean_mag, bp_rp
+FROM gaiadr3.gaia_source
+WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 2.0)) = 1
+  AND parallax BETWEEN 5 AND 10
+  AND bp_rp IS NOT NULL
+"""
+
+{:ok, result} = SpaceTAP.query(gaia, adql, req_options: [receive_timeout: 60_000])
+length(result.rows)
+```
+
+```elixir
+numeric = ~w(ra dec parallax pmra pmdec phot_g_mean_mag bp_rp)
+stars = result |> Rows.to_maps() |> Enum.map(&Rows.parse_numbers(&1, numeric))
+hd(stars)
+```
+
+`source_id` stays a string: it is a 64-bit integer, and the charts below run in JavaScript, whose numbers can't hold every integer that large.
+
+## Who belongs to the cluster
+
+Stars in a cluster move through space together, so they share a proper motion, the motion across the sky in milliarcseconds per year. Field stars at the same distance move every which way. In a plot of proper motions the cluster is the tight clump:
+
+```elixir
+Vl.new(width: 500, height: 400, title: "Proper motions")
+|> Vl.data_from_values(stars, only: ["pmra", "pmdec"])
+|> Vl.mark(:circle, size: 10, opacity: 0.5)
+|> Vl.encode_field(:x, "pmra", type: :quantitative, title: "pmRA (mas/yr)")
+|> Vl.encode_field(:y, "pmdec", type: :quantitative, title: "pmDec (mas/yr)")
+```
+
+The clump sits near +20 mas/yr in right ascension and −45 mas/yr in declination. Take as members the stars within 5 mas/yr of that point:
+
+```elixir
+{pmra_cluster, pmdec_cluster} = {20.0, -45.5}
+
+member? = fn star ->
+  :math.sqrt((star["pmra"] - pmra_cluster) ** 2 + (star["pmdec"] - pmdec_cluster) ** 2) < 5
+end
+
+stars = Enum.map(stars, &Map.put(&1, "member", member?.(&1)))
+members = Enum.filter(stars, & &1["member"])
+
+%{stars: length(stars), members: length(members)}
+```
+
+```elixir
+Vl.new(width: 500, height: 400, title: "Proper motions, members in colour")
+|> Vl.data_from_values(stars, only: ["pmra", "pmdec", "member"])
+|> Vl.mark(:circle, size: 10, opacity: 0.5)
+|> Vl.encode_field(:x, "pmra", type: :quantitative, title: "pmRA (mas/yr)")
+|> Vl.encode_field(:y, "pmdec", type: :quantitative, title: "pmDec (mas/yr)")
+|> Vl.encode_field(:color, "member", type: :nominal, title: "Member")
+```
+
+## The colour–magnitude diagram
+
+The apparent magnitude depends on distance. The absolute magnitude, how bright a star would look from 10 parsecs, comes from the parallax ϖ in milliarcseconds:
+
+$$
+M_G = G + 5 \log_{10}(\varpi) - 10
+$$
+
+```elixir
+members =
+  Enum.map(members, fn star ->
+    Map.put(star, "abs_g", star["phot_g_mean_mag"] + 5 * :math.log10(star["parallax"]) - 10)
+  end)
+
+Vl.new(width: 500, height: 500, title: "The Pleiades: colour–magnitude diagram")
+|> Vl.data_from_values(members, only: ["bp_rp", "abs_g", "source_id"])
+|> Vl.mark(:circle, size: 12, opacity: 0.7)
+|> Vl.encode_field(:x, "bp_rp", type: :quantitative, title: "BP − RP (colour)")
+|> Vl.encode_field(:y, "abs_g", type: :quantitative, title: "M_G", scale: [reverse: true])
+|> Vl.encode_field(:tooltip, "source_id", type: :nominal)
+```
+
+Bright stars are at the top, since magnitudes grow as stars get fainter, and blue stars are on the left. Almost every member lies on one diagonal band, the main sequence: stars that burn hydrogen in their cores. The cluster is young, so even its hot, blue, massive stars at the top left are still on it. The faint red end at the bottom right is made of low-mass red dwarfs.
+
+## The cluster on the sky
+
+Right ascension grows to the east, which is to the left on a map of the sky, so the x axis is reversed. Brighter stars are drawn bigger:
+
+```elixir
+members_on_sky = Enum.map(members, &Map.put(&1, "brightness", 20 - &1["phot_g_mean_mag"]))
+
+Vl.new(width: 500, height: 500, title: "Members on the sky")
+|> Vl.data_from_values(members_on_sky, only: ["ra", "dec", "brightness"])
+|> Vl.mark(:circle, color: "#4c78a8", opacity: 0.6)
+|> Vl.encode_field(:x, "ra",
+  type: :quantitative,
+  title: "RA (°)",
+  scale: [reverse: true, zero: false]
+)
+|> Vl.encode_field(:y, "dec", type: :quantitative, title: "Dec (°)", scale: [zero: false])
+|> Vl.encode_field(:size, "brightness",
+  type: :quantitative,
+  legend: nil,
+  scale: [range: [2, 200]]
+)
+```
+
+The big dots near the centre are the stars you can see with the naked eye, such as Atlas, Electra, Maia and Taygeta. Two are missing. Alcyone, the brightest, has no parallax in Gaia DR3: the cell is empty, so `parallax BETWEEN 5 AND 10` drops it. Merope is in the result, but its proper motion is about 7 mas/yr from the cluster's, outside the 5 mas/yr circle. Very bright stars saturate Gaia's detectors, so their measurements are less precise.
+
+## How far away
+
+The distance in parsecs is 1000 divided by the parallax in milliarcseconds. The mean parallax of the members gives the distance to the cluster:
+
+```elixir
+mean_parallax = (members |> Enum.map(& &1["parallax"]) |> Enum.sum()) / length(members)
+
+%{mean_parallax_mas: Float.round(mean_parallax, 3), distance_pc: round(1000 / mean_parallax)}
+```
+
+Inverting a single noisy parallax gives a biased distance, but with hundreds of members, each with a precise parallax, the result is close to the published one, about 135 parsecs.

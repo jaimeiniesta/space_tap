@@ -1,0 +1,158 @@
+# A tour of TAP services
+
+```elixir
+Mix.install([
+  {:space_tap, path: Path.join(__DIR__, "..")},
+  {:kino, "~> 0.19.1"},
+  {:kino_vega_lite, "~> 0.1.13"}
+])
+```
+
+## Many archives, one protocol
+
+TAP is a standard, so the same client and the same query work against archives built by different teams with different software. This notebook sends one query to eleven services at once, then makes each kind of error happen on purpose.
+
+```elixir
+alias VegaLite, as: Vl
+
+services = [
+  {"Gaia (ESA)", "https://gea.esac.esa.int/tap-server/tap"},
+  {"GAVO Data Center", "https://dc.g-vo.org/tap"},
+  {"NASA Exoplanet Archive", "https://exoplanetarchive.ipac.caltech.edu/TAP"},
+  {"IRSA (IPAC)", "https://irsa.ipac.caltech.edu/TAP"},
+  {"NED (IPAC)", "https://ned.ipac.caltech.edu/tap"},
+  {"KOA (Keck)", "https://koa.ipac.caltech.edu/TAP"},
+  {"VizieR (CDS)", "https://tapvizier.cds.unistra.fr/TAPVizieR/tap"},
+  {"SIMBAD (CDS)", "https://simbad.cds.unistra.fr/simbad/sim-tap"},
+  {"ESO", "https://archive.eso.org/tap_obs"},
+  {"CADC", "https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus"},
+  {"MAST", "https://mast.stsci.edu/vo-tap/api/v0.1/caom"}
+]
+```
+
+## The same query everywhere
+
+Every TAP service describes its tables in `TAP_SCHEMA` (TAP 1.1 §4), so this query works on all of them: how many tables does each one publish?
+
+SpaceTAP keeps no state between queries: there is no process to start, and a query is a function call. Running them at the same time is a job for `Task.async_stream/3`:
+
+```elixir
+adql = "SELECT COUNT(*) AS n FROM TAP_SCHEMA.tables"
+
+run = fn {name, url} ->
+  {microseconds, response} =
+    :timer.tc(fn -> SpaceTAP.query(url, adql, req_options: [receive_timeout: 30_000]) end)
+
+  {name, div(microseconds, 1000), response}
+end
+
+responses =
+  services
+  |> Task.async_stream(run,
+    max_concurrency: length(services),
+    timeout: 60_000,
+    on_timeout: :kill_task
+  )
+  |> Enum.zip(services)
+  |> Enum.map(fn
+    {{:ok, {name, ms, {:ok, %SpaceTAP.Result{rows: [[n]]}}}}, _service} ->
+      %{
+        "service" => name,
+        "outcome" => "ok",
+        "tables" => String.to_integer(n),
+        "ms" => ms,
+        "message" => nil
+      }
+
+    {{:ok, {name, ms, {:error, error}}}, _service} ->
+      %{
+        "service" => name,
+        "outcome" => inspect(error.type),
+        "tables" => nil,
+        "ms" => ms,
+        "message" => error.message
+      }
+
+    {{:exit, :timeout}, {name, _url}} ->
+      %{"service" => name, "outcome" => "timeout", "tables" => nil, "ms" => nil, "message" => nil}
+  end)
+
+Kino.DataTable.new(responses,
+  keys: ~w(service outcome tables ms message),
+  name: "SELECT COUNT(*) FROM TAP_SCHEMA.tables"
+)
+```
+
+The whole batch takes about as long as the slowest service, not the sum of all of them. VizieR publishes tens of thousands of catalogues, so the chart needs a logarithmic scale:
+
+```elixir
+answered = Enum.filter(responses, &(&1["outcome"] == "ok"))
+
+Vl.new(width: 600, height: 300, title: "Tables per service")
+|> Vl.data_from_values(answered, only: ["service", "tables"])
+|> Vl.mark(:bar)
+|> Vl.encode_field(:y, "service", type: :nominal, sort: "-x", title: nil)
+|> Vl.encode_field(:x, "tables",
+  type: :quantitative,
+  scale: [type: :log],
+  title: "Tables (log scale)"
+)
+```
+
+Two things happened along the way:
+
+* **CADC answered through a redirect.** It answers the POST with HTTP 303 and the URL of a job, and SpaceTAP follows it with a GET. That is the POST-redirect-GET pattern TAP allows for sync queries (TAP 1.1 §2.1), and Req logs each redirect.
+* **MAST gave a `:decode_error`.** It sends VOTable whatever `FORMAT` asks for. TAP requires VOTable and only recommends CSV (TAP 1.1 §2.7.3), and SpaceTAP 0.1 reads CSV only, so MAST will work once SpaceTAP reads VOTable.
+
+## The same mistake everywhere
+
+Each service writes its own error message, but they all send it in a VOTable error document whose query status is `ERROR` (DALI 1.1 §4.4), so SpaceTAP returns a `:service_error` for all of them, with whatever HTTP status the service chose:
+
+```elixir
+broken = "SELEC TOP 3 * FROM TAP_SCHEMA.tables"
+
+services
+|> Enum.take(3)
+|> Kernel.++([List.keyfind(services, "SIMBAD (CDS)", 0)])
+|> Enum.map(fn {name, url} ->
+  {:error, error} = SpaceTAP.query(url, broken)
+  first_line = error.message |> String.split("\n") |> hd()
+
+  %{
+    "service" => name,
+    "type" => inspect(error.type),
+    "status" => error.status,
+    "message" => first_line
+  }
+end)
+|> Kino.DataTable.new(keys: ~w(service type status message), name: "Invalid ADQL")
+```
+
+GAVO's documents start with an `xml-stylesheet` processing instruction and no XML declaration, which the XML parser in OTP misreads unless SpaceTAP helps it. That was issue #10.
+
+## Errors that don't come from the service
+
+```elixir
+query = "SELECT TOP 1 table_name FROM TAP_SCHEMA.tables"
+
+[
+  {"http:// URL that redirects to https://", "http://gea.esac.esa.int/tap-server/tap"},
+  {"Wrong path", "https://gea.esac.esa.int/tap-server/no-such-service"},
+  {"Unknown host", "https://tap.invalid"}
+]
+|> Enum.map(fn {case_name, url} ->
+  {:error, error} = SpaceTAP.query(url, query)
+
+  %{
+    "case" => case_name,
+    "type" => inspect(error.type),
+    "status" => error.status,
+    "message" => error.message
+  }
+end)
+|> Kino.DataTable.new(keys: ~w(case type status message), name: "Other errors")
+```
+
+* **`http://` instead of `https://`.** Gaia redirects with a 302. Req, like curl and browsers, follows a 301 or 302 with a GET, as RFC 9110 allows (§15.4.2, §15.4.3), and the GET carries no query. Gaia answers it with its list of async jobs, which isn't a result, so the error is a `:decode_error`. Use the `https://` URL (issue #11).
+* **A wrong path.** The web server answers 404 with an HTML page. There is no error document from a TAP service, so it is an `:http_error`.
+* **An unknown host.** No response arrives at all, so it is a `:transport_error` with no status. The `.invalid` domain is reserved, so it never resolves (RFC 2606).

@@ -163,6 +163,10 @@ mix test --only pyvo
 
 `mix test.all` runs all three suites. Run it before a release.
 
+The [`livebooks`](https://github.com/jaimeiniesta/space_tap/tree/main/livebooks) folder has [Livebook](https://livebook.dev)
+notebooks that run SpaceTAP against Gaia, GAVO, the NASA Exoplanet Archive and
+other services, with tables and charts. They install SpaceTAP from the checkout.
+
 ## About
 
 SpaceTAP started as an exploration of the astronomy software ecosystem from

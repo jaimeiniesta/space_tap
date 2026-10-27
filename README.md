@@ -135,8 +135,29 @@ async queries for long-running and large results.
 
 ## Compatibility
 
-SpaceTAP follows [TAP 1.1][tap] and works with TAP 1.0 services. It is tested
-against the Gaia archive and the NASA Exoplanet Archive.
+SpaceTAP follows [TAP 1.1][tap] and works with TAP 1.0 services. It has been
+checked against these services, last on 27 October 2026:
+
+| Service | Service URL | Checked by | Notes |
+|---|---|---|---|
+| [Gaia archive][gaia] (ESA) | `https://gea.esac.esa.int/tap-server/tap` | Integration and parity tests, fixtures, livebooks | Redirects `http://` to `https://`, which loses the query: use `https://`. |
+| GAVO Data Center | `https://dc.g-vo.org/tap` | Fixtures, livebooks | Runs DaCHS. Sends error documents with HTTP 500. |
+| NASA Exoplanet Archive | `https://exoplanetarchive.ipac.caltech.edu/TAP` | Integration test, fixtures, livebooks | Labels CSV `text/plain`. Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a sorted result. |
+| IRSA (IPAC) | `https://irsa.ipac.caltech.edu/TAP` | Livebook | |
+| NED (IPAC) | `https://ned.ipac.caltech.edu/tap` | Livebook | |
+| KOA (Keck) | `https://koa.ipac.caltech.edu/TAP` | Livebook | Labels CSV `text/plain`. |
+| VizieR (CDS) | `https://tapvizier.cds.unistra.fr/TAPVizieR/tap` | Livebook | |
+| SIMBAD (CDS) | `https://simbad.cds.unistra.fr/simbad/sim-tap` | Livebook | |
+| ESO | `https://archive.eso.org/tap_obs` | Livebook | |
+| CADC | `https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus` | Livebook | Redirects each query to its result with a 303 (TAP 1.1 §2.1), which SpaceTAP follows. |
+| MAST | `https://mast.stsci.edu/vo-tap/api/v0.1/caom` | Livebook | **Doesn't work yet.** It sends VOTable even when CSV is requested, so queries give a `:decode_error`. |
+
+Integration and parity tests query the live service (see
+[Development](#development)), and fixtures are its responses, captured for the
+unit tests. The services marked "Livebook" only answered a `COUNT(*)` on
+`TAP_SCHEMA.tables` in the
+[tour of TAP services](https://github.com/jaimeiniesta/space_tap/blob/main/livebooks/tap_services_tour.livemd).
+Services change, so one that worked here may behave differently today.
 
 ## Development
 

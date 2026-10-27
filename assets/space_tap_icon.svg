@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="drop" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#cb5ffd"/>
+      <stop offset="0.55" stop-color="#7a45ec"/>
+      <stop offset="1" stop-color="#3b1a9f"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#9184fd"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#040724"/>
+  <g transform="rotate(-18 32 37)" fill="none" stroke="url(#ring)" stroke-linecap="round">
+    <path d="M8 37 A24 7 0 0 1 56 37" stroke-width="2.5"/>
+  </g>
+  <path d="M34 8 C29 16 19 25 19 37 A13 13 0 0 0 45 37 C45 25 38 17 34 8 Z" fill="url(#drop)"/>
+  <ellipse cx="27" cy="31" rx="2.6" ry="6" transform="rotate(25 27 31)" fill="#ffffff" opacity="0.4"/>
+  <g transform="rotate(-18 32 37)" fill="none" stroke="url(#ring)" stroke-linecap="round">
+    <path d="M56 37 A24 7 0 0 1 8 37" stroke-width="3.5"/>
+  </g>
+  <path d="M15 9 L16.2 12.8 L20 14 L16.2 15.2 L15 19 L13.8 15.2 L10 14 L13.8 12.8 Z" fill="#ffffff"/>
+  <path d="M51 46 L51.9 49.1 L55 50 L51.9 50.9 L51 54 L50.1 50.9 L47 50 L50.1 49.1 Z" fill="#ffffff"/>
+  <circle cx="50" cy="13" r="1.6" fill="#a98bf5"/>
+  <circle cx="12" cy="50" r="1.4" fill="#a98bf5"/>
+</svg>

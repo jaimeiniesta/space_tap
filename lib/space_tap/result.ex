@@ -11,6 +11,7 @@ defmodule SpaceTAP.Result do
   @enforce_keys [:columns, :rows]
   defstruct [:columns, :rows]
 
+  @typedoc "The column names, in order, and one list of values per row."
   @type t :: %__MODULE__{
           columns: [String.t()],
           rows: [[String.t() | nil]]

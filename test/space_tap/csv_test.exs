@@ -42,6 +42,11 @@ defmodule SpaceTAP.CSVTest do
       assert {:ok, %Result{rows: [["1", nil, "3"]]}} = CSV.parse("a,b,c\n1,,3\n")
     end
 
+    test "reads each blank line of Gaia's single-column result as a row with nil" do
+      assert CSV.parse(fixture("nulls_single_column.csv")) ==
+               {:ok, %Result{columns: ["parallax"], rows: [[nil], [nil], [nil]]}}
+    end
+
     test "accepts CRLF line endings" do
       assert {:ok, %Result{columns: ["a", "b"], rows: [["1", "2"], ["3", "4"]]}} =
                CSV.parse("a,b\r\n1,2\r\n3,4\r\n")

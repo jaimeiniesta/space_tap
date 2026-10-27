@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A README with usage, errors and the limits of CSV results, and HexDocs with the SpaceTAP icon.
 - `mix test.all`, which runs the unit, Gaia integration and Gaia/pyvo parity suites together.
 - Live parity tests that compare SpaceTAP with pyvo against the Gaia archive for a Pleiades query and positive `MAXREC`.
 - `SpaceTAP.Result`, the table a query returns: its columns in order and its rows, with CSV values as strings and empty cells as `nil`.

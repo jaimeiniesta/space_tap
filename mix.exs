@@ -7,6 +7,7 @@ defmodule SpaceTAP.MixProject do
   def project do
     [
       app: :space_tap,
+      name: "SpaceTAP",
       version: @version,
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
@@ -15,6 +16,7 @@ defmodule SpaceTAP.MixProject do
         "IVOA Table Access Protocol (TAP) client: run ADQL queries against astronomical archives.",
       package: package(),
       source_url: @source_url,
+      docs: docs(),
       aliases: aliases()
     ]
   end
@@ -48,6 +50,19 @@ defmodule SpaceTAP.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false},
       {:plug, "~> 1.0", only: :test}
+    ]
+  end
+
+  # The README shows the full logo from assets/, so ExDoc copies that
+  # directory; the sidebar and favicon use the icon alone.
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md": [title: "Overview"], "CHANGELOG.md": []],
+      assets: %{"assets" => "assets"},
+      logo: "assets/space_tap_icon.svg",
+      favicon: "assets/space_tap_icon.svg",
+      source_ref: "v#{@version}"
     ]
   end
 

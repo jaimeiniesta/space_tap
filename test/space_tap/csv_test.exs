@@ -5,8 +5,6 @@ defmodule SpaceTAP.CSVTest do
 
   @fixtures Path.expand("../fixtures/gaia", __DIR__)
 
-  defp fixture(name), do: File.read!(Path.join(@fixtures, name))
-
   describe "parse/1" do
     test "reads Gaia's header as columns and every following line as a row" do
       assert {:ok, %Result{columns: columns, rows: rows}} = CSV.parse(fixture("pleiades.csv"))
@@ -74,4 +72,10 @@ defmodule SpaceTAP.CSVTest do
       assert message =~ "invalid CSV"
     end
   end
+
+  #####################
+  # Private functions #
+  #####################
+
+  defp fixture(name), do: File.read!(Path.join(@fixtures, name))
 end

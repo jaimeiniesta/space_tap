@@ -30,6 +30,10 @@ defmodule SpaceTAP.MixProject do
     ]
   end
 
+  #####################
+  # Private functions #
+  #####################
+
   defp aliases do
     [
       "test.all": ["test --include integration --include pyvo"]

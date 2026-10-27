@@ -17,6 +17,10 @@ defmodule SpaceTAP.CSV do
     error in NimbleCSV.ParseError -> {:error, "invalid CSV: " <> Exception.message(error)}
   end
 
+  #####################
+  # Private functions #
+  #####################
+
   # RFC 4180 §2.4: every row has the same number of fields.
   defp build(columns, rows) do
     width = length(columns)

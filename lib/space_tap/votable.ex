@@ -30,6 +30,10 @@ defmodule SpaceTAP.VOTable do
     end
   end
 
+  #####################
+  # Private functions #
+  #####################
+
   # stream/2 stops at the root's end tag and returns the rest unchecked. XML 1.0
   # §2.1 allows only Misc after the root: whitespace, comments and processing
   # instructions (§2.8). Anything else, such as a second document, is an error

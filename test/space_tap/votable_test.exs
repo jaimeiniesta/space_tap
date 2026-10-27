@@ -3,7 +3,7 @@ defmodule SpaceTAP.VOTableTest do
 
   alias SpaceTAP.VOTable
 
-  @fixtures Path.expand("../fixtures/gaia", __DIR__)
+  @fixtures Path.expand("../fixtures", __DIR__)
 
   describe "query_status/1" do
     test "reads OK from Gaia's result when nothing was truncated" do
@@ -24,6 +24,26 @@ defmodule SpaceTAP.VOTableTest do
 
       assert message =~ ~s(- Unknown table "gaiadr3.no_such_table" !)
       assert message =~ ~r/- Unknown column "source_id" !\z/
+    end
+
+    test "reads GAVO's syntax error, which starts with an xml-stylesheet instruction and no XML declaration" do
+      assert VOTable.query_status(fixture("syntax_error.xml", "gavo")) ==
+               {:ok,
+                {"ERROR",
+                 "Field query: Could not parse your query: Expected SELECT, found 'S'  (at char 0), (line:1, col:1)"}}
+    end
+
+    test "reads a document that starts with another instruction whose target begins with xml" do
+      xml =
+        ~s(<?xml-model href="VOTable.xsd"?><VOTABLE><INFO name="QUERY_STATUS" value="ERROR">failed</INFO></VOTABLE>)
+
+      assert VOTable.query_status(xml) == {:ok, {"ERROR", "failed"}}
+    end
+
+    test "fails on an XML declaration without a version" do
+      xml = ~s(<?xml?><VOTABLE><INFO name="QUERY_STATUS" value="ERROR">failed</INFO></VOTABLE>)
+
+      assert {:error, "invalid XML: " <> _} = VOTable.query_status(xml)
     end
 
     test "returns the last QUERY_STATUS: OVERFLOW after the table, not OK before it" do
@@ -116,5 +136,5 @@ defmodule SpaceTAP.VOTableTest do
   # Private functions #
   #####################
 
-  defp fixture(name), do: File.read!(Path.join(@fixtures, name))
+  defp fixture(name, service \\ "gaia"), do: File.read!(Path.join([@fixtures, service, name]))
 end

@@ -5,8 +5,6 @@ defmodule SpaceTAP.VOTableTest do
 
   @fixtures Path.expand("../fixtures/gaia", __DIR__)
 
-  defp fixture(name), do: File.read!(Path.join(@fixtures, name))
-
   describe "query_status/1" do
     test "reads OK from Gaia's result when nothing was truncated" do
       assert VOTable.query_status(fixture("ok.xml")) == {:ok, {"OK", ""}}
@@ -113,4 +111,10 @@ defmodule SpaceTAP.VOTableTest do
       assert VOTable.query_status(xml) == {:ok, {"ERROR", "failed"}}
     end
   end
+
+  #####################
+  # Private functions #
+  #####################
+
+  defp fixture(name), do: File.read!(Path.join(@fixtures, name))
 end

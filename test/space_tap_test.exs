@@ -8,40 +8,6 @@ defmodule SpaceTAPTest do
   @req_options [plug: {Req.Test, SpaceTAP}]
   @fixtures Path.expand("fixtures/gaia", __DIR__)
 
-  defp fixture(name), do: File.read!(Path.join(@fixtures, name))
-
-  defp query(opts \\ []), do: query_at(@service_url, opts)
-
-  defp query_at(service_url, opts \\ []) do
-    SpaceTAP.query(service_url, @adql, Keyword.put_new(opts, :req_options, @req_options))
-  end
-
-  # Stands in for the TAP service: sends the request it gets to the test
-  # process, with the form parameters decoded, and answers with the given
-  # status, Content-Type (none when nil) and body.
-  defp stub_service(status, content_type, body) do
-    test = self()
-
-    Req.Test.stub(SpaceTAP, fn conn ->
-      {:ok, form, conn} = Plug.Conn.read_body(conn)
-      send(test, {:request, conn, URI.decode_query(form)})
-
-      conn
-      |> put_content_type(content_type)
-      |> Plug.Conn.send_resp(status, body)
-    end)
-  end
-
-  defp put_content_type(conn, nil), do: conn
-
-  defp put_content_type(conn, content_type) do
-    Plug.Conn.put_resp_header(conn, "content-type", content_type)
-  end
-
-  defp stub_csv, do: stub_service(200, "text/csv", fixture("pleiades.csv"))
-
-  defp user_agent, do: "space_tap/" <> to_string(Application.spec(:space_tap, :vsn))
-
   describe "query/3 request" do
     test "POSTs the ADQL query as CSV to the sync endpoint of the service URL" do
       stub_csv()
@@ -261,4 +227,42 @@ defmodule SpaceTAPTest do
                 %Error{type: :transport_error, status: nil, message: "connection refused"}}
     end
   end
+
+  #####################
+  # Private functions #
+  #####################
+
+  defp fixture(name), do: File.read!(Path.join(@fixtures, name))
+
+  defp query(opts \\ []), do: query_at(@service_url, opts)
+
+  defp query_at(service_url, opts \\ []) do
+    SpaceTAP.query(service_url, @adql, Keyword.put_new(opts, :req_options, @req_options))
+  end
+
+  # Stands in for the TAP service: sends the request it gets to the test
+  # process, with the form parameters decoded, and answers with the given
+  # status, Content-Type (none when nil) and body.
+  defp stub_service(status, content_type, body) do
+    test = self()
+
+    Req.Test.stub(SpaceTAP, fn conn ->
+      {:ok, form, conn} = Plug.Conn.read_body(conn)
+      send(test, {:request, conn, URI.decode_query(form)})
+
+      conn
+      |> put_content_type(content_type)
+      |> Plug.Conn.send_resp(status, body)
+    end)
+  end
+
+  defp put_content_type(conn, nil), do: conn
+
+  defp put_content_type(conn, content_type) do
+    Plug.Conn.put_resp_header(conn, "content-type", content_type)
+  end
+
+  defp stub_csv, do: stub_service(200, "text/csv", fixture("pleiades.csv"))
+
+  defp user_agent, do: "space_tap/" <> to_string(Application.spec(:space_tap, :vsn))
 end

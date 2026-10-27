@@ -35,6 +35,10 @@ defmodule SpaceTAPPyvoTest do
     assert_parity(adql, maxrec: 3)
   end
 
+  #####################
+  # Private functions #
+  #####################
+
   defp assert_parity(adql, opts \\ []) do
     assert {:ok, %Result{columns: columns, rows: rows}} =
              SpaceTAP.query(@service_url, adql, opts)

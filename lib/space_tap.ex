@@ -61,6 +61,10 @@ defmodule SpaceTAP do
     |> classify()
   end
 
+  #####################
+  # Private functions #
+  #####################
+
   defp maxrec(nil), do: []
   defp maxrec(maxrec) when is_integer(maxrec) and maxrec >= 0, do: [MAXREC: maxrec]
 

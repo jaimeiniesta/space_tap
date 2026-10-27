@@ -1,0 +1,6 @@
+table_name,column_name,datatype,unit,description
+fp_psc,ra,double,deg,right ascension (J2000 decimal deg)
+fp_psc,dec,double,deg,declination (J2000 decimal deg)
+fp_psc,err_maj,float,arcsec,Semi-major axis length of the one sigma position uncertainty ellipse
+fp_psc,err_min,float,arcsec,Semi-minor axis length of the one sigma position uncertainty ellipse
+fp_psc,err_ang,int,deg,angle of error ellipse major axis (E of N)

@@ -1,0 +1,166 @@
+# NASA Exoplanet Archive
+
+```elixir
+Mix.install([
+  {:space_tap, path: Path.join(__DIR__, "..")},
+  {:kino, "~> 0.19.1"},
+  {:kino_vega_lite, "~> 0.1.13"}
+])
+```
+
+## The service
+
+The [NASA Exoplanet Archive](https://exoplanetarchive.ipac.caltech.edu), run by IPAC at Caltech, keeps the catalogue of confirmed planets around other stars. Its table `pscomppars` has one row per planet, with the best value of each parameter.
+
+The archive sends its CSV with `Content-Type: text/plain` instead of the `text/csv` that TAP 1.1 §3.2 requires. SpaceTAP reads it as CSV anyway, because CSV is what it asked for (`docs/adr/0003-csv-sent-as-plain-text-is-read-as-csv.md`).
+
+```elixir
+alias VegaLite, as: Vl
+
+nasa = "https://exoplanetarchive.ipac.caltech.edu/TAP"
+
+to_maps = fn %SpaceTAP.Result{columns: columns, rows: rows} ->
+  Enum.map(rows, fn row -> columns |> Enum.zip(row) |> Map.new() end)
+end
+
+number = fn
+  nil ->
+    nil
+
+  string ->
+    {number, ""} = Float.parse(string)
+    number
+end
+```
+
+## Discoveries by method
+
+ADQL has `GROUP BY` and `COUNT`, so the service does the counting:
+
+```elixir
+{:ok, by_method} =
+  SpaceTAP.query(nasa, """
+  SELECT discoverymethod, COUNT(*) AS planets
+  FROM pscomppars
+  GROUP BY discoverymethod
+  ORDER BY planets DESC
+  """)
+
+Kino.DataTable.new(to_maps.(by_method), keys: by_method.columns, name: "Planets by method")
+```
+
+Most planets were found by the transit method, as they crossed in front of their star and dimmed it; Kepler and TESS found thousands that way. Radial velocity measures the wobble of the star as the planet pulls on it.
+
+## Discoveries per year
+
+```elixir
+{:ok, by_year} =
+  SpaceTAP.query(nasa, """
+  SELECT disc_year, discoverymethod, COUNT(*) AS planets
+  FROM pscomppars
+  GROUP BY disc_year, discoverymethod
+  """)
+
+discoveries =
+  for row <- to_maps.(by_year) do
+    %{
+      "year" => String.to_integer(row["disc_year"]),
+      "method" => row["discoverymethod"],
+      "planets" => String.to_integer(row["planets"])
+    }
+  end
+
+Vl.new(width: 700, height: 350, title: "Exoplanets discovered per year")
+|> Vl.data_from_values(discoveries)
+|> Vl.mark(:bar)
+|> Vl.encode_field(:x, "year", type: :ordinal, title: "Year")
+|> Vl.encode_field(:y, "planets", type: :quantitative, aggregate: :sum, title: "Planets")
+|> Vl.encode_field(:color, "method", type: :nominal, title: "Method")
+```
+
+The two tallest bars, 2016 and 2014, are the years when large batches of Kepler planets were confirmed at once.
+
+## Planets by size and orbit
+
+Each dot is a planet: its orbital period, how long its year lasts, against its radius in Earth radii. Both axes are logarithmic, because periods go from hours to centuries:
+
+```elixir
+{:ok, sizes} =
+  SpaceTAP.query(nasa, """
+  SELECT pl_name, pl_orbper, pl_rade, discoverymethod
+  FROM pscomppars
+  WHERE pl_orbper IS NOT NULL AND pl_rade IS NOT NULL
+  """)
+
+planets =
+  for row <- to_maps.(sizes) do
+    %{
+      "name" => row["pl_name"],
+      "period_days" => number.(row["pl_orbper"]),
+      "radius_earth" => number.(row["pl_rade"]),
+      "method" => row["discoverymethod"]
+    }
+  end
+
+Vl.new(width: 700, height: 450, title: "Orbital period and radius")
+|> Vl.data_from_values(planets)
+|> Vl.mark(:circle, size: 12, opacity: 0.5)
+|> Vl.encode_field(:x, "period_days",
+  type: :quantitative,
+  title: "Period (days)",
+  scale: [type: :log]
+)
+|> Vl.encode_field(:y, "radius_earth",
+  type: :quantitative,
+  title: "Radius (Earth = 1)",
+  scale: [type: :log]
+)
+|> Vl.encode_field(:color, "method", type: :nominal, title: "Method")
+|> Vl.encode_field(:tooltip, "name", type: :nominal)
+```
+
+The clump at the top left are hot Jupiters, giant planets that orbit their star in a few days. Most planets found by transit have short periods, because a planet has to cross its star while someone is watching.
+
+## The nearest planets, and a quirk of the service
+
+`sy_dist` is the distance to the planet's system in parsecs. In ADQL, `ORDER BY` sorts the rows before `TOP` keeps the first ones: ADQL 2.1 §4.10.1 applies `ORDER BY`, then `OFFSET`, then `TOP`. This service applies `TOP` first, so the query below returns ten planets that are not the nearest, sorted:
+
+```elixir
+{:ok, wrong} =
+  SpaceTAP.query(nasa, """
+  SELECT TOP 10 pl_name, sy_dist
+  FROM pscomppars
+  WHERE sy_dist IS NOT NULL
+  ORDER BY sy_dist
+  """)
+
+wrong.rows
+```
+
+`MAXREC` is applied to the final result, so leave out `TOP` and pass `:maxrec` instead:
+
+```elixir
+{:ok, nearest} =
+  SpaceTAP.query(
+    nasa,
+    """
+    SELECT pl_name, hostname, sy_dist, disc_year, discoverymethod
+    FROM pscomppars
+    WHERE sy_dist IS NOT NULL
+    ORDER BY sy_dist
+    """,
+    maxrec: 10
+  )
+
+Kino.DataTable.new(to_maps.(nearest), keys: nearest.columns, name: "Nearest planets")
+```
+
+Proxima Centauri, the nearest star to the Sun, has planets 1.3 parsecs away.
+
+## Errors
+
+The archive sends its error documents as VOTable, so they are `:service_error`s:
+
+```elixir
+SpaceTAP.query(nasa, "SELECT TOP 3 pl_name FROM no_such_table")
+```

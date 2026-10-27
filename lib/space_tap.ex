@@ -139,7 +139,11 @@ defmodule SpaceTAP do
   defp service_error_message(""), do: "the TAP service reported an error without a message"
   defp service_error_message(message), do: message
 
-  defp result("text/csv", body, status) do
+  # TAP 1.1 §3.2 says CSV comes as text/csv, but the NASA Exoplanet Archive
+  # and KOA send it as text/plain, although their /capabilities map csv to
+  # text/csv. Only CSV was requested, so text/plain is read as CSV too
+  # (docs/adr/0003-csv-sent-as-plain-text-is-read-as-csv.md).
+  defp result(media_type, body, status) when media_type in ["text/csv", "text/plain"] do
     case CSV.parse(body) do
       {:ok, result} -> {:ok, result}
       {:error, message} -> error(:decode_error, message, status)

@@ -60,4 +60,13 @@ defmodule SpaceTAPIntegrationTest do
 
     assert length(rows) == 3
   end
+
+  test "reads the NASA Exoplanet Archive's CSV, which it sends as text/plain" do
+    adql = "SELECT TOP 3 pl_name, disc_year FROM ps"
+
+    assert {:ok, %Result{columns: ["pl_name", "disc_year"], rows: rows}} =
+             SpaceTAP.query("https://exoplanetarchive.ipac.caltech.edu/TAP", adql)
+
+    assert length(rows) == 3
+  end
 end

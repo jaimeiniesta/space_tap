@@ -127,6 +127,8 @@ less than VOTable, the IVOA format for tables:
   Gaia stops at 50,000 rows.
 - **The service must support CSV.** TAP recommends CSV output but only requires
   VOTable. A service that answers in another format gives a `:decode_error`.
+  CSV labelled `text/plain` instead of `text/csv` is read as CSV: the NASA
+  Exoplanet Archive and KOA send it that way.
 
 Typed results read from VOTable are planned for a later version, along with
 async queries for long-running and large results.
@@ -134,7 +136,7 @@ async queries for long-running and large results.
 ## Compatibility
 
 SpaceTAP follows [TAP 1.1][tap] and works with TAP 1.0 services. It is tested
-against the Gaia archive.
+against the Gaia archive and the NASA Exoplanet Archive.
 
 ## Development
 

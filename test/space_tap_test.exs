@@ -159,6 +159,19 @@ defmodule SpaceTAPTest do
       assert length(rows) == 5
     end
 
+    test "reads a CSV result sent as text/plain, as the NASA Exoplanet Archive and KOA do" do
+      for content_type <- ["text/plain", "text/plain; charset=UTF-8"] do
+        stub_service(200, content_type, fixture("planets.csv", "exoplanet_archive"))
+
+        assert query() ==
+                 {:ok,
+                  %Result{
+                    columns: ["pl_name", "disc_year"],
+                    rows: [["WASP-39 b", "2011"], ["GJ 436 b", "2004"], ["HAT-P-1 b", "2006"]]
+                  }}
+      end
+    end
+
     test "returns a service error from Gaia's VOTable error document" do
       stub_service(400, "application/xml;charset=UTF-8", fixture("syntax_error.xml"))
 

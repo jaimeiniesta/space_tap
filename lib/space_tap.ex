@@ -26,6 +26,11 @@ defmodule SpaceTAP do
   goes to its `/sync` endpoint (TAP 1.1 §2.4), appended after trimming any
   trailing `/`, so pass the base URL even if you know the endpoint.
 
+  Use the `https://` URL when the service has one. Req follows a 301 or 302
+  redirect with a GET that drops the query (RFC 9110 §15.4.2, §15.4.3), so a
+  service that redirects `http://` to `https://` gets no query, and the
+  request fails.
+
       SpaceTAP.query(
         "https://gea.esac.esa.int/tap-server/tap",
         "SELECT TOP 3 source_id, ra, dec FROM gaiadr3.gaia_source"

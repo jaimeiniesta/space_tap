@@ -58,6 +58,13 @@ The service URL is the base URL of the service, what TAP calls its access URL.
 SpaceTAP sends the query to its `/sync` endpoint, so pass the base URL even if
 you know the endpoint.
 
+Use the `https://` URL when the service has one. Gaia, for example, redirects
+`http://` to `https://` with a 302. Req, like curl and pyvo, follows a 301 or
+302 with a GET, as RFC 9110 allows (§15.4.2, §15.4.3), and the GET carries no
+query. The request then fails, with an error that depends on the service: Gaia
+answers with its list of async jobs, which SpaceTAP returns as a
+`:decode_error`.
+
 The result is a `SpaceTAP.Result`: `columns` holds the column names in order,
 and each row is a list with one value per column, in the same order. To work
 with maps instead:

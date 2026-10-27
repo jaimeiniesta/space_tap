@@ -38,4 +38,11 @@ integration tests together with the default suite, with network access, using:
 mix test --include integration
 ```
 
-Run the integration tests locally before a release.
+Run the unit, Gaia integration and Gaia/pyvo parity suites together:
+
+```sh
+mix test.all
+```
+
+The complete suite requires network access and
+[`uv`](https://docs.astral.sh/uv/). Run it locally before a release.

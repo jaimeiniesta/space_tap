@@ -14,14 +14,25 @@ defmodule SpaceTAP.MixProject do
       description:
         "IVOA Table Access Protocol (TAP) client: run ADQL queries against astronomical archives.",
       package: package(),
-      source_url: @source_url
+      source_url: @source_url,
+      aliases: aliases()
     ]
+  end
+
+  def cli do
+    [preferred_envs: ["test.all": :test]]
   end
 
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
       extra_applications: [:logger, :xmerl]
+    ]
+  end
+
+  defp aliases do
+    [
+      "test.all": ["test --include integration --include pyvo"]
     ]
   end
 

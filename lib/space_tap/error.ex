@@ -22,6 +22,9 @@ defmodule SpaceTAP.Error do
       result, such as malformed CSV or a format other than the one
       requested.
 
+  Later versions may add types, so when you match on `:type`, keep a
+  clause for the rest.
+
   `:status` is the HTTP status of the response, and the message starts
   with it:
 

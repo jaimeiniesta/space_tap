@@ -144,15 +144,15 @@ checked against these services, last on 27 October 2026:
 | Service | Service URL | Checked by | Notes |
 |---|---|---|---|
 | [Gaia archive][gaia] (ESA) | `https://gea.esac.esa.int/tap-server/tap` | Integration and parity tests, fixtures, livebooks | Redirects `http://` to `https://`, which loses the query: use `https://`. |
-| GAVO Data Center | `https://dc.g-vo.org/tap` | Services tests, fixtures, livebooks | Runs DaCHS. Sends error documents with HTTP 500. |
-| NASA Exoplanet Archive | `https://exoplanetarchive.ipac.caltech.edu/TAP` | Integration tests, fixtures, livebooks | Labels CSV `text/plain`. Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a sorted result. |
-| IRSA (IPAC) | `https://irsa.ipac.caltech.edu/TAP` | Services tests, fixtures, livebook | |
-| NED (IPAC) | `https://ned.ipac.caltech.edu/tap` | Services tests, fixtures, livebook | |
-| KOA (Keck) | `https://koa.ipac.caltech.edu/TAP` | Services tests, fixtures, livebook | Labels CSV `text/plain`. Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a `:service_error`. |
-| VizieR (CDS) | `https://tapvizier.cds.unistra.fr/TAPVizieR/tap` | Services tests, fixtures, livebook | |
-| SIMBAD (CDS) | `https://simbad.cds.unistra.fr/simbad/sim-tap` | Services tests, fixtures, livebook | |
-| ESO | `https://archive.eso.org/tap_obs` | Services tests, fixtures, livebook | |
-| CADC | `https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus` | Services tests, fixtures, livebook | Redirects each query to its result with a 303 (TAP 1.1 §2.1), which SpaceTAP follows. Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a `:service_error`. |
+| GAVO Data Center | `https://dc.g-vo.org/tap` | Services and parity tests, fixtures, livebooks | Runs DaCHS. Sends error documents with HTTP 500. |
+| NASA Exoplanet Archive | `https://exoplanetarchive.ipac.caltech.edu/TAP` | Integration and parity tests, fixtures, livebooks | Labels CSV `text/plain`. Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a sorted result. |
+| IRSA (IPAC) | `https://irsa.ipac.caltech.edu/TAP` | Services and parity tests, fixtures, livebook | |
+| NED (IPAC) | `https://ned.ipac.caltech.edu/tap` | Services and parity tests, fixtures, livebook | |
+| KOA (Keck) | `https://koa.ipac.caltech.edu/TAP` | Services and parity tests, fixtures, livebook | Labels CSV `text/plain`. Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a `:service_error`. |
+| VizieR (CDS) | `https://tapvizier.cds.unistra.fr/TAPVizieR/tap` | Services and parity tests, fixtures, livebook | |
+| SIMBAD (CDS) | `https://simbad.cds.unistra.fr/simbad/sim-tap` | Services and parity tests, fixtures, livebook | |
+| ESO | `https://archive.eso.org/tap_obs` | Services and parity tests, fixtures, livebook | |
+| CADC | `https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus` | Services and parity tests, fixtures, livebook | Redirects each query to its result with a 303 (TAP 1.1 §2.1), which SpaceTAP follows. Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a `:service_error`. |
 | MAST | `https://mast.stsci.edu/vo-tap/api/v0.1/caom` | Services tests, fixtures, livebook | **Doesn't work yet.** It sends VOTable even when CSV is requested, so queries give a `:decode_error`. |
 
 Integration, services and parity tests query the live service (see
@@ -177,24 +177,26 @@ Archive, and are excluded by default:
 mix test --include integration
 ```
 
-Services tests send the queries of the fixtures to the other services in
-[Compatibility](#compatibility) and check that they still answer the same way.
-They are slow, and a failure is a reason to look into that service, not to hold
-a release, so they don't run with `mix test.all`:
-
-```sh
-mix test.services
-```
-
 Parity tests run the same queries through SpaceTAP and through
 [pyvo][pyvo], the IVOA client for Python, and compare the results. They need
-[`uv`][uv]:
+[`uv`][uv]. Those for Gaia and the NASA Exoplanet Archive run with:
 
 ```sh
 mix test --only pyvo
 ```
 
-`mix test.all` runs all three suites. Run it before a release.
+`mix test.all` runs the unit, integration and parity tests above. Run it before
+a release.
+
+Services tests send the queries of the fixtures to the other services in
+[Compatibility](#compatibility), check that they still answer the same way, and
+run the parity tests for those that send CSV. They are slow, and a failure is a
+reason to look into that service, not to hold a release, so `mix test.all`
+leaves them out:
+
+```sh
+mix test.services
+```
 
 The [`livebooks`](https://github.com/jaimeiniesta/space_tap/tree/main/livebooks) folder has [Livebook](https://livebook.dev)
 notebooks that run SpaceTAP against Gaia, GAVO, the NASA Exoplanet Archive and

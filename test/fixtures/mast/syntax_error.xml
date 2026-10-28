@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOTABLE version="1.4" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="http://www.ivoa.net/xml/VOTable/v1.3"
+  xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/v1.3">
+  <DESCRIPTION>MAST VO TAP Service</DESCRIPTION>
+  <RESOURCE type="results">
+  <INFO name="QUERY_STATUS" value="ERROR">
+  Exception translating ADQL:  Encountered &quot;SELEC&quot;. Was expecting one of: &quot;(&quot; &quot;SELECT&quot; &quot;WITH&quot;
+  </INFO>
+  </RESOURCE>
+</VOTABLE>

@@ -1,8 +1,8 @@
 defmodule SpaceTAPServicesTest do
   # Responses captured from the services in the README's Compatibility table,
   # served with the status and Content-Type each service sent. Each service
-  # folder in test/fixtures says how they were captured. The integration tests
-  # check that the services still answer this way.
+  # folder in test/fixtures says how they were captured. The integration and
+  # services tests check that the services still answer this way.
   use ExUnit.Case, async: true
 
   alias SpaceTAP.{Error, Result}
@@ -60,7 +60,9 @@ defmodule SpaceTAPServicesTest do
     {"ESO", "eso/syntax_error.xml", 400, "application/xml",
      ~s(Encountered "SELEC". Was expecting: "SELECT")},
     {"KOA", "koa/syntax_error.txt", 400, "text/plain; charset=UTF-8",
-     "Query is not a SELECT statemement."}
+     "Query is not a SELECT statemement."},
+    {"MAST", "mast/syntax_error.xml", 400, "text/xml; charset=utf-8",
+     ~s(Exception translating ADQL:  Encountered "SELEC". Was expecting one of: "(" "SELECT" "WITH")}
   ]
 
   describe "CSV results" do

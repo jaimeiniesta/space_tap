@@ -99,6 +99,9 @@ went wrong:
 | `:transport_error` | No response arrived: the connection failed or timed out. |
 | `:decode_error` | A successful response that can't be read as a result, such as malformed CSV. |
 
+Later versions may add types, so when you match on `:type`, keep a clause for
+the rest.
+
 `:status` holds the HTTP status, and `Exception.message/1` starts with it:
 
 ```elixir

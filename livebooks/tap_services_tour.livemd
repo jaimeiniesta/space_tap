@@ -130,6 +130,8 @@ end)
 
 GAVO's documents start with an `xml-stylesheet` processing instruction and no XML declaration, which the XML parser in OTP misreads unless SpaceTAP helps it. That was issue #10.
 
+KOA and CADC send their message as plain text instead, which DALI 1.1 §4.2 also allows, with HTTP 400. Plain text could come from a proxy as well, so SpaceTAP returns a `:service_error` for it only with a 400, the status for a bad request, and an `:http_error` with any other status (issue #17).
+
 ## Errors that don't come from the service
 
 ```elixir

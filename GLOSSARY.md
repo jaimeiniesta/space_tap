@@ -55,5 +55,5 @@ What a TAP service sends instead of a result when a query fails: a VOTable whose
 The `QUERY_STATUS` value of a VOTable: `OK`, `ERROR` or `OVERFLOW`. When a document has several, the last one counts.
 
 **Service error**:
-A failure the TAP service reports in a VOTable error document, such as invalid ADQL or an unknown table.
+A failure the TAP service reports in an error document, such as invalid ADQL or an unknown table.
 _Avoid_: query error, API error

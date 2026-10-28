@@ -227,12 +227,30 @@ defmodule SpaceTAPTest do
       assert query() == {:error, %Error{type: :http_error, status: 503, message: message}}
     end
 
-    test "returns an HTTP error for plain text with a 4xx status too, which carries no query status" do
+    test "returns a service error for plain text with HTTP 400, as KOA and CADC send" do
       stub_service(400, "text/plain;charset=UTF-8", "\nLANG=SQL is not supported\n")
 
       assert query() ==
                {:error,
-                %Error{type: :http_error, status: 400, message: "LANG=SQL is not supported"}}
+                %Error{type: :service_error, status: 400, message: "LANG=SQL is not supported"}}
+    end
+
+    test "returns a service error with a message of its own for an empty plain-text 400" do
+      stub_service(400, "text/plain", "")
+
+      assert query() ==
+               {:error,
+                %Error{
+                  type: :service_error,
+                  status: 400,
+                  message: "the TAP service reported an error without a message"
+                }}
+    end
+
+    test "returns an HTTP error for plain text with another 4xx status, such as a proxy's 403" do
+      stub_service(403, "text/plain", "Forbidden\n")
+
+      assert query() == {:error, %Error{type: :http_error, status: 403, message: "Forbidden"}}
     end
 
     test "returns an HTTP error for an empty plain-text body" do

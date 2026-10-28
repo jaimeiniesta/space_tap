@@ -145,11 +145,11 @@ checked against these services, last on 27 October 2026:
 | NASA Exoplanet Archive | `https://exoplanetarchive.ipac.caltech.edu/TAP` | Integration test, fixtures, livebooks | Labels CSV `text/plain`. Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a sorted result. |
 | IRSA (IPAC) | `https://irsa.ipac.caltech.edu/TAP` | Livebook | |
 | NED (IPAC) | `https://ned.ipac.caltech.edu/tap` | Livebook | |
-| KOA (Keck) | `https://koa.ipac.caltech.edu/TAP` | Livebook | Labels CSV `text/plain`. |
+| KOA (Keck) | `https://koa.ipac.caltech.edu/TAP` | Livebook | Labels CSV `text/plain`. Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a `:service_error`. |
 | VizieR (CDS) | `https://tapvizier.cds.unistra.fr/TAPVizieR/tap` | Livebook | |
 | SIMBAD (CDS) | `https://simbad.cds.unistra.fr/simbad/sim-tap` | Livebook | |
 | ESO | `https://archive.eso.org/tap_obs` | Livebook | |
-| CADC | `https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus` | Livebook | Redirects each query to its result with a 303 (TAP 1.1 §2.1), which SpaceTAP follows. |
+| CADC | `https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus` | Livebook | Redirects each query to its result with a 303 (TAP 1.1 §2.1), which SpaceTAP follows. Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a `:service_error`. |
 | MAST | `https://mast.stsci.edu/vo-tap/api/v0.1/caom` | Livebook | **Doesn't work yet.** It sends VOTable even when CSV is requested, so queries give a `:decode_error`. |
 
 Integration and parity tests query the live service (see

@@ -58,7 +58,9 @@ defmodule SpaceTAPServicesTest do
     {"SIMBAD", "simbad/syntax_error.xml", 400, "application/xml;charset=UTF-8",
      ~s(Incorrect ADQL query:  Encountered "SELEC". Was expecting: "SELECT")},
     {"ESO", "eso/syntax_error.xml", 400, "application/xml",
-     ~s(Encountered "SELEC". Was expecting: "SELECT")}
+     ~s(Encountered "SELEC". Was expecting: "SELECT")},
+    {"KOA", "koa/syntax_error.txt", 400, "text/plain; charset=UTF-8",
+     "Query is not a SELECT statemement."}
   ]
 
   describe "CSV results" do
@@ -120,19 +122,10 @@ defmodule SpaceTAPServicesTest do
       end
     end
 
-    # KOA and CADC send plain text, an HTTP error under ADR 0002 (issue #17).
-    test "returns KOA's plain-text error as an HTTP error" do
-      assert respond("koa/syntax_error.txt", 400, "text/plain; charset=UTF-8") ==
-               {:error,
-                %Error{
-                  type: :http_error,
-                  status: 400,
-                  message: "Query is not a SELECT statemement."
-                }}
-    end
-
+    # CADC sends its error as plain text with HTTP 400 after its redirect. The
+    # message is a CSV field, quotes included, because CSV was requested.
     @tag :capture_log
-    test "returns CADC's plain-text error, sent after its redirect, as an HTTP error" do
+    test "returns CADC's plain-text error, sent after its redirect, as a service error" do
       Req.Test.stub(SpaceTAP, fn
         %Plug.Conn{method: "POST"} = conn ->
           redirect(conn, 303, "https://tap.example.org/tap/sync/job/run")
@@ -141,7 +134,7 @@ defmodule SpaceTAPServicesTest do
           send_fixture(conn, "cadc/syntax_error.txt", 400, "text/plain")
       end)
 
-      assert {:error, %Error{type: :http_error, status: 400, message: message}} = query()
+      assert {:error, %Error{type: :service_error, status: 400, message: message}} = query()
       assert message =~ ~r/\A"ADQL syntax error: Encountered "" <S_IDENTIFIER> ""SELEC """"/
     end
   end

@@ -19,6 +19,8 @@ curl -sS -L -o <file> https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus/sync \
 
 CADC answers the POST with HTTP 303 and the URL of the job's result, which is
 how TAP 1.1 §2.1 allows a sync query to answer. `-L` follows it, and the files
-are the responses to the GET. The error is plain text, with the message written
-as a single CSV field (in quotes, with doubled `"`), so SpaceTAP returns it as an
-`:http_error` (issue #17).
+are the responses to the GET. The error is plain text with HTTP 400, which
+SpaceTAP returns as a `:service_error`
+(`docs/adr/0004-plain-text-with-400-is-a-service-error.md`). The message is
+written as a single CSV field (in quotes, with doubled `"`), and SpaceTAP keeps
+it that way.

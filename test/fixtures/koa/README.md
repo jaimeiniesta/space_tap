@@ -19,4 +19,5 @@ curl -sS -L -o <file> https://koa.ipac.caltech.edu/TAP/sync \
 
 The CSV comes as `text/plain`, which SpaceTAP reads as CSV
 (`docs/adr/0003-csv-sent-as-plain-text-is-read-as-csv.md`). The error is plain
-text, not a VOTable, so SpaceTAP returns it as an `:http_error` (issue #17).
+text with HTTP 400, which SpaceTAP returns as a `:service_error`
+(`docs/adr/0004-plain-text-with-400-is-a-service-error.md`).

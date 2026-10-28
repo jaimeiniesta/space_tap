@@ -115,18 +115,23 @@ defmodule SpaceTAP do
   defp classify({:ok, %Req.Response{status: status, body: body} = response}) do
     media_type = media_type(response)
 
-    case service_error(media_type, body) do
+    case service_error(media_type, status, body) do
       {:ok, message} -> error(:service_error, message, status)
       :error when status in 200..299 -> result(media_type, body, status)
       :error -> error(:http_error, http_error_message(media_type, body), status)
     end
   end
 
-  # DALI 1.1 §4.2 allows a plain-text error document too, but only a VOTable
+  # DALI 1.1 §4.2 allows a VOTable or a plain-text error document. A VOTable
   # shows that a TAP service wrote it: its query status is ERROR (DALI §4.4).
-  # Plain text from a proxy or web server looks the same, so it makes an HTTP
-  # error (docs/adr/0002-plain-text-is-an-http-error.md).
-  defp service_error(media_type, body) do
+  # Plain text from a proxy or web server looks the same, so plain text is a
+  # service error only with a 400, the status for a bad request, as KOA and
+  # CADC send (docs/adr/0004-plain-text-with-400-is-a-service-error.md).
+  defp service_error("text/plain", 400, body) do
+    {:ok, body |> String.trim() |> service_error_message()}
+  end
+
+  defp service_error(media_type, _status, body) do
     with true <- xml?(media_type),
          {:ok, {"ERROR", message}} <- VOTable.query_status(body) do
       {:ok, service_error_message(message)}

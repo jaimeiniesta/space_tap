@@ -200,7 +200,8 @@ mix test.services
 
 The [`livebooks`](https://github.com/jaimeiniesta/space_tap/tree/main/livebooks) folder has [Livebook](https://livebook.dev)
 notebooks that run SpaceTAP against Gaia, GAVO, the NASA Exoplanet Archive and
-other services, with tables and charts. They install SpaceTAP from the checkout.
+other services, with tables and charts. They install SpaceTAP from Hex, and each
+one has a "Run in Livebook" button on HexDocs.
 
 ## About
 

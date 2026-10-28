@@ -60,16 +60,27 @@ defmodule SpaceTAP.MixProject do
   end
 
   # The README shows the full logo from assets/, so ExDoc copies that
-  # directory; the sidebar and favicon use the icon alone.
+  # directory; the sidebar and favicon use the icon alone. ExDoc publishes each
+  # livebook next to its page, and the page's "Run in Livebook" button opens
+  # that copy.
   defp docs do
     [
       main: "readme",
-      extras: ["README.md": [title: "Overview"], "CHANGELOG.md": []],
+      extras: ["README.md": [title: "Overview"], "CHANGELOG.md": []] ++ livebooks(),
+      groups_for_extras: [Livebooks: livebooks()],
       assets: %{"assets" => "assets"},
       logo: "assets/space_tap_icon.svg",
       favicon: "assets/space_tap_icon.svg",
       source_ref: "v#{@version}"
     ]
+  end
+
+  # In the order of livebooks/README.md.
+  defp livebooks do
+    Enum.map(
+      ~w(getting_started gaia_pleiades gavo nasa_exoplanet_archive tap_services_tour),
+      &"livebooks/#{&1}.livemd"
+    )
   end
 
   defp package do

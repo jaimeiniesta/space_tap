@@ -2,7 +2,7 @@
 
 ```elixir
 Mix.install([
-  {:space_tap, path: Path.join(__DIR__, "..")},
+  {:space_tap, "~> 0.1.0"},
   {:kino, "~> 0.19.1"}
 ])
 ```
@@ -13,7 +13,7 @@ Mix.install([
 
 `SpaceTAP.query/3` runs a sync query: one HTTP request, with the result in the response (TAP 1.1 §2.1). It POSTs the ADQL to the `/sync` endpoint of the service with `REQUEST=doQuery`, `LANG=ADQL` and `FORMAT=csv`, and reads the CSV that comes back.
 
-This notebook installs SpaceTAP from the checkout it lives in, so open it from the `livebooks/` folder of the repository. Every query goes to a live service, so the numbers you get may differ a little from the ones mentioned here.
+This notebook installs SpaceTAP from Hex. Every query goes to a live service, so the numbers you get may differ a little from the ones mentioned here.
 
 ## A first query
 

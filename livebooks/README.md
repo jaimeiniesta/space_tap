@@ -13,10 +13,12 @@ services, with tables and charts.
 
 ## Running them
 
-Open a notebook from this folder in Livebook. Each one installs SpaceTAP from
-this checkout with `{:space_tap, path: Path.join(__DIR__, "..")}`, so it runs the
-code you have, plus [Kino](https://hexdocs.pm/kino) for tables and
-[Kino VegaLite](https://hexdocs.pm/kino_vega_lite) for charts.
+Open a notebook in Livebook, or use the "Run in Livebook" button on its HexDocs
+page. Each one installs SpaceTAP from Hex with `{:space_tap, "~> 0.1.0"}`, plus
+[Kino](https://hexdocs.pm/kino) for tables and
+[Kino VegaLite](https://hexdocs.pm/kino_vega_lite) for charts. To run the code
+you have instead, open the notebook from this folder and replace that line with
+`{:space_tap, path: Path.join(__DIR__, "..")}`.
 
 Every query goes to a live service, so results change as the archives do, and a
 service may be slow or down. The queries are small, to be polite to the

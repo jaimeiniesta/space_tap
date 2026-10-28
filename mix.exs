@@ -10,6 +10,7 @@ defmodule SpaceTAP.MixProject do
       name: "SpaceTAP",
       version: @version,
       elixir: "~> 1.18",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description:
@@ -22,7 +23,7 @@ defmodule SpaceTAP.MixProject do
   end
 
   def cli do
-    [preferred_envs: ["test.all": :test, "test.services": :test]]
+    [preferred_envs: ["test.release": :test, "test.services": :test]]
   end
 
   # Run "mix help compile.app" to learn about applications.
@@ -36,9 +37,13 @@ defmodule SpaceTAP.MixProject do
   # Private functions #
   #####################
 
+  # The services and parity tests share the modules in test/support.
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_env), do: ["lib"]
+
   defp aliases do
     [
-      "test.all": ["test --include integration --include pyvo"],
+      "test.release": ["test --include integration --include pyvo"],
       "test.services": ["test --only services"]
     ]
   end

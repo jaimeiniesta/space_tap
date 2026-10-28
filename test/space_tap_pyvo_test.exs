@@ -1,7 +1,7 @@
 defmodule SpaceTAPPyvoTest do
-  # Parity tests for Gaia and the NASA Exoplanet Archive, which `mix test.all`
-  # runs before a release. The other services have theirs in
-  # SpaceTAPServicesPyvoTest.
+  # Parity tests for Gaia and the NASA Exoplanet Archive, which
+  # `mix test.release` runs before a release. The other services have theirs
+  # in SpaceTAPServicesPyvoTest.
   use ExUnit.Case, async: false
 
   alias SpaceTAP.Test.Pyvo

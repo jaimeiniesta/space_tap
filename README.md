@@ -185,13 +185,13 @@ Parity tests run the same queries through SpaceTAP and through
 mix test --only pyvo
 ```
 
-`mix test.all` runs the unit, integration and parity tests above. Run it before
-a release.
+`mix test.release` runs the unit, integration and parity tests above. Run it
+before a release.
 
 Services tests send the queries of the fixtures to the other services in
 [Compatibility](#compatibility), check that they still answer the same way, and
 run the parity tests for those that send CSV. They are slow, and a failure is a
-reason to look into that service, not to hold a release, so `mix test.all`
+reason to look into that service, not to hold a release, so `mix test.release`
 leaves them out:
 
 ```sh

@@ -69,4 +69,13 @@ defmodule SpaceTAPIntegrationTest do
 
     assert length(rows) == 3
   end
+
+  test "returns the NASA Exoplanet Archive's error document as a service error" do
+    adql = "SELEC TOP 3 table_name FROM TAP_SCHEMA.tables"
+
+    assert {:error, %Error{type: :service_error, status: 400, message: message}} =
+             SpaceTAP.query("https://exoplanetarchive.ipac.caltech.edu/TAP", adql)
+
+    assert message =~ "Query is not a SELECT statemement."
+  end
 end

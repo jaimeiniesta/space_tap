@@ -141,7 +141,7 @@ defmodule SpaceTAP.Test.Services do
   def all, do: @services
 
   # MAST answers with VOTable, which SpaceTAP doesn't read yet, so there is
-  # no result to compare with pyvo's.
+  # no result to compare with PyVO's.
   @spec with_result() :: [t()]
   def with_result, do: Enum.filter(@services, &match?(%{result: {_adql, {:ok, _columns}}}, &1))
 

@@ -59,7 +59,7 @@ SpaceTAP sends the query to its `/sync` endpoint, so pass the base URL even if
 you know the endpoint.
 
 Use the `https://` URL when the service has one. Gaia, for example, redirects
-`http://` to `https://` with a 302. Req, like curl and pyvo, follows a 301 or
+`http://` to `https://` with a 302. Req, like curl and PyVO, follows a 301 or
 302 with a GET, as RFC 9110 allows (§15.4.2, §15.4.3), and the GET carries no
 query. The request then fails, with an error that depends on the service: Gaia
 answers with its list of async jobs, which SpaceTAP returns as a
@@ -178,8 +178,9 @@ mix test --include integration
 ```
 
 Parity tests run the same queries through SpaceTAP and through
-[pyvo][pyvo], the IVOA client for Python, and compare the results. They need
-[`uv`][uv]. Those for Gaia and the NASA Exoplanet Archive run with:
+[PyVO][pyvo], an Astropy-affiliated Python client for IVOA services, and
+compare the results. They need [`uv`][uv]. Those for Gaia and the NASA
+Exoplanet Archive run with:
 
 ```sh
 mix test --only pyvo
@@ -206,7 +207,7 @@ one has a "Run in Livebook" button on HexDocs.
 ## About
 
 SpaceTAP started as an exploration of the astronomy software ecosystem from
-Elixir: how libraries such as Python's [pyvo][pyvo] and [Astroquery][astroquery]
+Elixir: how libraries such as Python's [PyVO][pyvo] and [Astroquery][astroquery]
 work, and what Elixir can bring to it. It is written with AI coding tools; I
 review, test and answer for every change.
 

@@ -10,4 +10,4 @@ DALI 1.1 §4.2 lets a TAP service send its error document as a VOTable or as pla
 
 ## Consequences
 
-A plain-text 400 written by a proxy or web server comes back as a `:service_error`. None has been seen so far. CADC's message keeps its CSV quoting, and an empty plain-text 400 gets SpaceTAP's own message, as a VOTable error document without one does. pyvo raises the `DALServiceError` it raises for any HTTP error, so for these two services SpaceTAP's error type no longer matches pyvo's.
+A plain-text 400 written by a proxy or web server comes back as a `:service_error`. None has been seen so far. CADC's message keeps its CSV quoting, and an empty plain-text 400 gets SpaceTAP's own message, as a VOTable error document without one does. PyVO raises the `DALServiceError` it raises for any HTTP error, so for these two services SpaceTAP's error type no longer matches PyVO's.

@@ -17,7 +17,7 @@ defmodule SpaceTAPServicesPyvoTest do
     @moduletag skip: reason
   end
 
-  test "matches pyvo for the query of its fixture", %{url: url, result: {adql, _expected}} do
+  test "matches PyVO for the query of its fixture", %{url: url, result: {adql, _expected}} do
     Pyvo.assert_parity(url, adql, req_options: Services.req_options())
   end
 end

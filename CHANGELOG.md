@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A livebook that runs the queries of the parity tests through SpaceTAP in Elixir cells and through PyVO in Python cells, with Pythonx, and compares the results. It also shows the same row as each client reads it, and the overflow that PyVO reads and CSV can't carry.
+
 ## [0.1.0] - 2026-10-28
 
 ### Added

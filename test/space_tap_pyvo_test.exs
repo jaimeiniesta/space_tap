@@ -15,7 +15,7 @@ defmodule SpaceTAPPyvoTest do
   @gaia_url "https://gea.esac.esa.int/tap-server/tap"
   @exoplanet_archive_url "https://exoplanetarchive.ipac.caltech.edu/TAP"
 
-  test "matches pyvo for a Pleiades cone search on Gaia" do
+  test "matches PyVO for a Pleiades cone search on Gaia" do
     adql = """
     SELECT TOP 5 source_id, designation, ra, dec, parallax, phot_g_mean_mag
     FROM gaiadr3.gaia_source
@@ -31,13 +31,13 @@ defmodule SpaceTAPPyvoTest do
     Pyvo.assert_parity(@gaia_url, adql)
   end
 
-  test "matches pyvo when MAXREC limits rows on Gaia" do
+  test "matches PyVO when MAXREC limits rows on Gaia" do
     adql = "SELECT TOP 10 source_id FROM gaiadr3.gaia_source"
 
     Pyvo.assert_parity(@gaia_url, adql, maxrec: 3)
   end
 
-  test "matches pyvo for the NASA Exoplanet Archive's CSV, which it sends as text/plain" do
+  test "matches PyVO for the NASA Exoplanet Archive's CSV, which it sends as text/plain" do
     adql = "SELECT TOP 3 pl_name, disc_year FROM ps"
 
     Pyvo.assert_parity(@exoplanet_archive_url, adql)

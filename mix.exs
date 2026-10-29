@@ -78,7 +78,7 @@ defmodule SpaceTAP.MixProject do
   # In the order of livebooks/README.md.
   defp livebooks do
     Enum.map(
-      ~w(getting_started gaia_pleiades gavo nasa_exoplanet_archive tap_services_tour),
+      ~w(getting_started gaia_pleiades gavo nasa_exoplanet_archive tap_services_tour pyvo_parity),
       &"livebooks/#{&1}.livemd"
     )
   end

@@ -4,7 +4,7 @@ status: superseded by ADR-0004
 
 # Plain text is an HTTP error, not a service error
 
-DALI 1.1 §4.2 lets a TAP service send its error document as a VOTable or as plain text, but only the VOTable shows that the service wrote it: its last query status is `ERROR` (DALI §4.4). Plain text looks the same when a proxy or web server in front of the service writes it, such as a 503 "upstream connect error" or a 404 for a mistyped service URL. So `SpaceTAP.query/3` returns a `:service_error` only for a VOTable error document, and plain text with an HTTP error status is an `:http_error` whose message is the text. pyvo does the same: it takes the text as the message and raises the `DALServiceError` it raises for any other HTTP error.
+DALI 1.1 §4.2 lets a TAP service send its error document as a VOTable or as plain text, but only the VOTable shows that the service wrote it: its last query status is `ERROR` (DALI §4.4). Plain text looks the same when a proxy or web server in front of the service writes it, such as a 503 "upstream connect error" or a 404 for a mistyped service URL. So `SpaceTAP.query/3` returns a `:service_error` only for a VOTable error document, and plain text with an HTTP error status is an `:http_error` whose message is the text. PyVO does the same: it takes the text as the message and raises the `DALServiceError` it raises for any other HTTP error.
 
 ## Considered Options
 

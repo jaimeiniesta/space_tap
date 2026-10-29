@@ -1,0 +1,213 @@
+# Parity with PyVO
+
+```elixir
+Mix.install([
+  {:space_tap, "~> 0.1.0"},
+  {:pythonx, "~> 0.4.11"},
+  {:kino, "~> 0.19.1"}
+])
+```
+
+```pyproject.toml
+[project]
+name = "pyvo_parity"
+version = "0.0.0"
+requires-python = "==3.13.*"
+dependencies = [
+  "pyvo==1.9.1"
+]
+```
+
+## What this notebook compares
+
+[PyVO](https://pyvo.readthedocs.io/) is an Astropy-affiliated Python client for IVOA services, and SpaceTAP uses it as a reference implementation: its parity tests run the same query through both clients against a live service and compare the results. This notebook makes those comparisons in the open, with the query in an Elixir cell and PyVO in a Python cell next to it.
+
+The two clients don't ask for the same format. SpaceTAP 0.1 asks for CSV and reads every value as a string. PyVO asks for none, and when a query names neither `FORMAT` nor `RESPONSEFORMAT` the service sends VOTable (TAP 1.1 §2.7.3), which PyVO reads with a type for each column. So, like the parity tests, the comparisons here check what both sides can agree on: the column names, which come from the CSV header on one side and from the VOTable `FIELD`s on the other, and the number of rows.
+
+Python cells need Livebook 0.16 or later. The setup installs [Pythonx](https://hexdocs.pm/pythonx), which runs a Python interpreter inside the Elixir runtime ([Embedding Python in Elixir, it's Fine](https://dashbit.co/blog/running-python-in-elixir-its-fine) explains how). The `pyproject.toml` cell under it tells [uv](https://docs.astral.sh/uv/) what to install: Python 3.13 and PyVO 1.9.1, the version the parity tests pin, with its dependencies, such as astropy and numpy. The first run downloads all of it and takes a while; later runs use uv's cache.
+
+## How the two languages share variables
+
+A Python cell sees the Elixir variables it names, and the variables it assigns come back to Elixir. Pythonx converts values on the way:
+
+* An Elixir string arrives as `bytes`, not `str`, because an Elixir binary doesn't have to be valid UTF-8. Python code calls `.decode()` on it.
+* What Python assigns comes back as a `%Pythonx.Object{}`. `Pythonx.decode/1` turns the built-in Python types (`None`, booleans, numbers, strings, lists, tuples, dicts and sets) into Elixir terms. Anything else, such as a PyVO result or a numpy number, stays an object.
+
+```elixir
+greeting = "Hello from Elixir"
+```
+
+```python
+shout = greeting.decode().upper()
+type(greeting), type(shout)
+```
+
+```elixir
+{shout, Pythonx.decode(shout)}
+```
+
+## Helpers
+
+`pyvo_query` runs a query with PyVO. The function is a Python object too, so it comes back to Elixir like any other variable, and the Python cells below that call it get it from there:
+
+```python
+import pyvo
+
+
+def pyvo_query(service_url, adql, maxrec=None):
+    service = pyvo.dal.TAPService(service_url.decode())
+    return service.search(adql.decode(), maxrec=maxrec)
+```
+
+`Parity.compare/3` makes the comparison of the parity tests, which live in [`test/support/pyvo.ex`](https://github.com/jaimeiniesta/space_tap/blob/main/test/support/pyvo.ex):
+
+```elixir
+defmodule Parity do
+  def compare(%SpaceTAP.Result{columns: columns, rows: rows}, pyvo_columns, pyvo_row_count) do
+    pyvo_columns = Pythonx.decode(pyvo_columns)
+    pyvo_row_count = Pythonx.decode(pyvo_row_count)
+
+    %{
+      same?: columns == pyvo_columns and length(rows) == pyvo_row_count,
+      spacetap: %{columns: columns, row_count: length(rows)},
+      pyvo: %{columns: pyvo_columns, row_count: pyvo_row_count}
+    }
+  end
+end
+```
+
+## The Pleiades on Gaia
+
+The five brightest stars within one degree of the centre of the Pleiades. The service URL and the query are Elixir variables, defined once and used by both clients:
+
+```elixir
+gaia = "https://gea.esac.esa.int/tap-server/tap"
+
+adql = """
+SELECT TOP 5 source_id, designation, ra, dec, parallax, phot_g_mean_mag
+FROM gaiadr3.gaia_source
+WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1
+  AND parallax IS NOT NULL
+  AND phot_g_mean_mag IS NOT NULL
+ORDER BY phot_g_mean_mag
+"""
+
+{:ok, pleiades} = SpaceTAP.query(gaia, adql)
+pleiades
+```
+
+PyVO returns a `TAPResults`. Its `fieldnames` are the names of the VOTable fields, and its length is the number of rows:
+
+```python
+pyvo_pleiades = pyvo_query(gaia, adql)
+pyvo_columns = list(pyvo_pleiades.fieldnames)
+pyvo_row_count = len(pyvo_pleiades)
+pyvo_pleiades
+```
+
+```elixir
+Parity.compare(pleiades, pyvo_columns, pyvo_row_count)
+```
+
+## The same row on both sides
+
+The comparison stops at names and counts because the values aren't alike yet. This is the first row as each client reads it, next to the `datatype` that each `FIELD` of the VOTable declares. A numpy number becomes a plain Python number first, which `Pythonx.decode/1` can turn into an Elixir one:
+
+```python
+import numpy
+
+pyvo_row = pyvo_pleiades[0]
+
+
+def plain(value):
+    return value.item() if isinstance(value, numpy.generic) else value
+
+
+pyvo_fields = [
+    (field.name, field.datatype, type(pyvo_row[field.name]).__name__, plain(pyvo_row[field.name]))
+    for field in pyvo_pleiades.fielddescs
+]
+```
+
+```elixir
+[spacetap_row | _] = pleiades.rows
+
+pyvo_fields
+|> Pythonx.decode()
+|> Enum.zip_with(spacetap_row, fn {name, datatype, pyvo_type, pyvo_value}, spacetap_value ->
+  %{
+    "column" => name,
+    "datatype" => datatype,
+    "SpaceTAP" => inspect(spacetap_value),
+    "PyVO type" => pyvo_type,
+    "PyVO value in Elixir" => inspect(pyvo_value)
+  }
+end)
+|> Kino.DataTable.new(
+  name: "First row",
+  keys: ["column", "datatype", "SpaceTAP", "PyVO type", "PyVO value in Elixir"]
+)
+```
+
+Every SpaceTAP value is the text of a CSV cell. PyVO gives each one the type its `FIELD` declares (VOTable 1.4 §6):
+
+* `source_id` is a `long`, a 64-bit integer. PyVO reads a `numpy.int64`, which arrives in Elixir as an integer.
+* `designation` is `char`, text, and is a string on both sides.
+* `ra`, `dec` and `parallax` are `double`, 64-bit floats like Elixir's, and arrive unchanged.
+* `phot_g_mean_mag` is a `float`, a 32-bit float. PyVO keeps a `numpy.float32`, and Elixir, whose floats all have 64 bits, receives it widened, with digits Gaia never sent: `3.6157946586608887` where the CSV says `3.6157947`. Both are the same 32-bit number, so a comparison of values has to compare a `float` column at 32-bit precision.
+
+SpaceTAP 0.2 is planned to read VOTable too, with a `format: :votable` option: rows with values of the declared types, nulls and overflow. CSV will stay the default, so the cells above won't change, but with the new option the parity tests, and this notebook, will compare values as well as names and counts.
+
+## MAXREC on Gaia
+
+`MAXREC` caps the number of rows the service sends (DALI 1.1 §3.4.4). The query asks for ten rows and `maxrec`, another Elixir variable both clients use, lets three through:
+
+```elixir
+adql = "SELECT TOP 10 source_id FROM gaiadr3.gaia_source"
+maxrec = 3
+
+{:ok, truncated} = SpaceTAP.query(gaia, adql, maxrec: maxrec)
+truncated
+```
+
+```python
+pyvo_truncated = pyvo_query(gaia, adql, maxrec=maxrec)
+pyvo_columns = list(pyvo_truncated.fieldnames)
+pyvo_row_count = len(pyvo_truncated)
+pyvo_truncated.query_status
+```
+
+```elixir
+Parity.compare(truncated, pyvo_columns, pyvo_row_count)
+```
+
+Both get three rows, but only PyVO knows there were more. When `MAXREC` cuts a result, the service says so in the VOTable with `<INFO name="QUERY_STATUS" value="OVERFLOW"/>` (DALI 1.1 §4.4.1), and PyVO shows it as `query_status`. CSV has nowhere to put it, so SpaceTAP 0.1 can't tell a cut result from a complete one.
+
+## The NASA Exoplanet Archive
+
+The NASA Exoplanet Archive labels its CSV `text/plain`, and SpaceTAP reads it as CSV all the same ([ADR 0003](https://github.com/jaimeiniesta/space_tap/blob/main/docs/adr/0003-csv-sent-as-plain-text-is-read-as-csv.md)). PyVO gets VOTable from it, as from Gaia:
+
+```elixir
+exoplanet_archive = "https://exoplanetarchive.ipac.caltech.edu/TAP"
+adql = "SELECT TOP 3 pl_name, disc_year FROM ps"
+
+{:ok, planets} = SpaceTAP.query(exoplanet_archive, adql)
+planets
+```
+
+```python
+pyvo_planets = pyvo_query(exoplanet_archive, adql)
+pyvo_columns = list(pyvo_planets.fieldnames)
+pyvo_row_count = len(pyvo_planets)
+pyvo_planets
+```
+
+```elixir
+Parity.compare(planets, pyvo_columns, pyvo_row_count)
+```
+
+`disc_year` is an `int` in the VOTable, a 32-bit integer: `2011` for PyVO, `"2011"` for SpaceTAP.
+
+## The parity tests
+
+The parity tests make these comparisons without Livebook. `test/support/pyvo.ex` calls a script that runs the query with PyVO through `uv run` and prints the column names and row count as JSON. Those for Gaia and the NASA Exoplanet Archive run with `mix test --only pyvo`, and those for the other services that send CSV with `mix test.services`.

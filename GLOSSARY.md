@@ -46,13 +46,32 @@ _Avoid_: truncation (when naming the condition)
 **VOTable**:
 The IVOA XML format for tables, used for results and for error documents.
 
+**Field**:
+The description of one column of a VOTable: its name, datatype, arraysize, unit, UCD and other metadata.
+_Avoid_: column metadata, column info
+
+**Datatype**:
+The primitive type of a field's values, one of the twelve VOTable defines, such as `int`, `double` or `char`. With the arraysize, it says how each value is written.
+_Avoid_: type (alone, since a field also has an xtype)
+
+**Xtype**:
+An extended type that gives a field's values a meaning beyond their datatype, such as `timestamp` or `point` (DALI).
+
+**Null**:
+A cell with no value. VOTable marks it with an empty cell, a null flag, a declared null value, or NaN in a floating-point field.
+_Avoid_: missing value
+
+**Serialization**:
+How a VOTable writes the rows of its table: TABLEDATA (one XML element per cell), BINARY or BINARY2 (packed binary in base64), or FITS. The TAP service chooses it.
+_Avoid_: encoding (which names the character encoding of the document, or the base64 of a binary stream)
+
 ### Errors
 
 **Error document**:
 What a TAP service sends instead of a result when a query fails: a VOTable whose query status is `ERROR`, or plain text.
 
 **Query status**:
-The `QUERY_STATUS` value of a VOTable: `OK`, `ERROR` or `OVERFLOW`. When a document has several, the last one counts.
+The `QUERY_STATUS` value a TAP service puts in the results resource of a VOTable: `OK`, `ERROR` or `OVERFLOW`. A document may carry two, `OK` before the table and `ERROR` or `OVERFLOW` after it.
 
 **Service error**:
 A failure the TAP service reports in an error document, such as invalid ADQL or an unknown table.

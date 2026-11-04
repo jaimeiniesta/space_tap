@@ -19,21 +19,27 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: erlef/setup-beam@v1
+        id: beam
         with:
           otp-version: "29"
           elixir-version: "1.20"
 
+      # _build holds the Dialyzer PLTs too (see dialyzer/0 in mix.exs). The
+      # key has the exact OTP and Elixir versions setup-beam installed, so a
+      # new patch release builds them again.
       - uses: actions/cache@v6
         with:
           path: |
             deps
             _build
-          key: lint-otp29-elixir1.20-${{ hashFiles('mix.lock') }}
+          key: lint-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
 
       - run: mix deps.get
       - run: mix format --check-formatted
       - run: mix compile --warnings-as-errors
       - run: mix credo --strict
+      - run: mix dialyzer --format github --list-unused-filters
+      - run: mix docs --warnings-as-errors
       - run: mix hex.audit
 
   test:
@@ -53,6 +59,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: erlef/setup-beam@v1
+        id: beam
         with:
           otp-version: ${{ matrix.otp }}
           elixir-version: ${{ matrix.elixir }}
@@ -62,7 +69,7 @@ jobs:
           path: |
             deps
             _build
-          key: test-otp${{ matrix.otp }}-elixir${{ matrix.elixir }}-${{ hashFiles('mix.lock') }}
+          key: test-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
 
       - run: mix deps.get
       - run: mix test

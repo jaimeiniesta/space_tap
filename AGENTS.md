@@ -42,7 +42,7 @@ Stick to the scope of the version being worked on. If an idea belongs to a later
 - The client is stateless. No GenServer or supervision tree: async UWS jobs live on the TAP service, and waiting for one is polling with backoff in the caller's process.
 - No Ecto-style query builder. Small ADQL helpers (cone search, value escaping) are planned for a later version.
 
-Agreed dependencies: `req` and `nimble_csv`, plus `credo` (`only: [:dev, :test], runtime: false`) and `ex_doc` (`only: :dev, runtime: false`) for development, and `plug` (`only: :test`), which `Req.Test` needs. `dialyxir` comes in 0.2, and `explorer` later as an optional dependency. Discuss any other dependency before adding it.
+Agreed dependencies: `req` and `nimble_csv`, plus `credo`, `dialyxir` and `ex_doc` (`only: [:dev, :test], runtime: false`) for development, and `plug` (`only: :test`), which `Req.Test` needs. `explorer` comes later as an optional dependency. Discuss any other dependency before adding it.
 
 ## Code and tests
 
@@ -52,7 +52,8 @@ Agreed dependencies: `req` and `nimble_csv`, plus `credo` (`only: [:dev, :test],
 - Services tests send the queries of each service's fixtures to the other services in the README's Compatibility table and check that they still answer the same way. They are tagged `:services`, excluded by default and run with `mix test.services`. A failure there is a reason to look into that service, not a release blocker, so `mix test.release` leaves them out. When a service changes how it answers, capture its fixture again and update both tests; a SpaceTAP bug it reveals gets its own issue.
 - Parity tests run the same queries through SpaceTAP and through PyVO (an Astropy-affiliated Python client for IVOA services, used as reference implementation) against live services, and compare the results. Those for Gaia and the NASA Exoplanet Archive are tagged `@tag :pyvo`, excluded by default, and run with `mix test --only pyvo` and `mix test.release`; those for the other services that send CSV are tagged `:services` and run with `mix test.services`, so an outage at one of them doesn't hold a release. Both read their services and queries from `test/support`, shared with the services tests. They call a PEP 723 script through `uv run`, which pins PyVO and prints JSON; without `uv` they skip locally and fail when `CI` is set. Until SpaceTAP parses VOTable with types (0.2), they compare column names and row counts; after that, values too.
 - CI runs the lint checks and unit tests only. Run integration and parity tests locally before a release.
-- Before saying a change is done, run `mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix credo --strict`, `mix test` and `mix docs --warnings-as-errors`, and report the results.
+- Fix Dialyzer warnings in the code. `.dialyzer_ignore.exs` holds only ExUnit idioms in `test/support`.
+- Before saying a change is done, run `mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix credo --strict`, `mix dialyzer`, `mix test` and `mix docs --warnings-as-errors`, and report the results.
 - After changing dependencies, run `mix hex.audit` to check that none has been retired.
 - Keep `CHANGELOG.md` up to date following Keep a Changelog.
 

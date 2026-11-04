@@ -18,6 +18,7 @@ defmodule SpaceTAP.MixProject do
       package: package(),
       source_url: @source_url,
       docs: docs(),
+      dialyzer: dialyzer(),
       aliases: aliases()
     ]
   end
@@ -54,8 +55,22 @@ defmodule SpaceTAP.MixProject do
       {:req, "~> 0.7.5"},
       {:nimble_csv, "~> 1.3"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.40", only: :dev, runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.40", only: [:dev, :test], runtime: false},
       {:plug, "~> 1.0", only: :test}
+    ]
+  end
+
+  # The core PLTs (OTP and Elixir) go in _build with the project PLT, so the
+  # CI cache of _build keeps them all. In the test environment the modules in
+  # test/support are compiled too, and SpaceTAP.PyVO imports ExUnit.Assertions.
+  # :extra_return and :missing_return check every @spec against what the
+  # function returns.
+  defp dialyzer do
+    [
+      plt_core_path: "_build/#{Mix.env()}",
+      plt_add_apps: [:ex_unit],
+      flags: [:unmatched_returns, :extra_return, :missing_return]
     ]
   end
 

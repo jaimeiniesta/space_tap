@@ -5,6 +5,7 @@ VOTable gives each field one of twelve datatypes (VOTable 1.5 §2.1), and SpaceT
 - NaN is `nil`. BINARY has no other way to mark a null float, VOTable §5.5 doesn't require telling NaN from null, and a BEAM float can't be NaN. astropy masks NaN too.
 - +Inf and -Inf are `:infinity` and `:neg_infinity`, the atoms Explorer uses, since a BEAM float can't be infinite either.
 - A `float` is the exact value of its 32 bits, also when TABLEDATA writes it as text: `3.6157947` in TABLEDATA and the same four bytes in BINARY2 both give `3.6157946586608887`, as PyVO does.
+- An integer written in hexadecimal is the bits BINARY would hold: `0xFFFF` in a `short` is `-1`, as its two bytes are there. TABLEDATA limits the hexadigits of each datatype (§6) but doesn't say whether they carry a sign.
 - A null, an empty cell and a zero-length string or array are all `nil`. TABLEDATA can't tell them apart (§5.5), and BINARY has no null flag, so NED sends its null strings empty. Only BINARY2 could keep an empty string.
 - The xtype is not interpreted (§4.3), so a `timestamp` stays a string. An astronomical time never carries a time zone (DALI 1.1 §3.3.3), and its time scale, such as TT or TDB, is declared in a `TIMESYS` element (VOTable §3.5): a UTC `DateTime` would misstate it.
 
@@ -12,6 +13,7 @@ VOTable gives each field one of twelve datatypes (VOTable 1.5 §2.1), and SpaceT
 
 - NaN as an atom such as `:nan`: a null `double` from NED would differ from a null `double` from Gaia.
 - A `float` as the shortest decimal that gives back the same 32 bits, `3.6157947`: it reads better, but Erlang only has that algorithm for 64-bit floats, and parity with PyVO would need a tolerance.
+- Hexadecimal as an unsigned number, `65535` for `0xFFFF` in a `short`: it is out of the range of a `short`, and the same bits in BINARY give `-1`.
 - Each serialization read on its own terms, such as TABLEDATA text parsed as a 64-bit float or `""` from BINARY2: a query would give different values when a service changes its default serialization.
 - Timestamps as `DateTime`: wrong for every time scale but UTC.
 

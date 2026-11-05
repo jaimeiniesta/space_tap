@@ -31,3 +31,6 @@ space_tap-*.tar
 
 # Local Superpowers workflow artifacts
 docs/superpowers/
+
+# Benchmark data, downloaded by the scripts in bench/
+/bench/data/

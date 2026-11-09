@@ -43,7 +43,8 @@ defmodule SpaceTAP.VOTable.Value do
   # A string is an array of characters, written with no separator and with
   # its white space (§5.1). A fixed arraysize is the most characters it holds,
   # since §5.1 writes Apple in an arraysize of 10. A char is ASCII (§6), and a
-  # unicodeChar is counted in characters, the UCS-2 units of BINARY.
+  # unicodeChar is counted in UTF-16 units, the two bytes it takes in BINARY,
+  # so a character beyond U+FFFF counts twice (ADR 0007).
   def parse_text(text, %Field{datatype: datatype} = field)
       when datatype in @string_datatypes do
     with {:ok, null} <- null(field), do: text_string(text, null, field)
@@ -118,7 +119,7 @@ defmodule SpaceTAP.VOTable.Value do
   defp text_string(text, null, %Field{datatype: datatype} = field) do
     cond do
       datatype == :char and not ascii?(text) -> invalid(text, field)
-      field.arraysize == nil and characters(text) != 1 -> invalid(text, field)
+      field.arraysize == nil and units(text, datatype) != 1 -> invalid(text, field)
       field.arraysize == nil -> {:ok, unless_null(text, null)}
       true -> with {:ok, shape} <- shape(field), do: string(text, shape, null, field)
     end
@@ -127,25 +128,43 @@ defmodule SpaceTAP.VOTable.Value do
   defp string(text, {[], last}, null, field) do
     last = if is_integer(last), do: {:at_most, last}, else: last
 
-    if fits_last?(characters(text), last),
+    if fits_last?(units(text, field.datatype), last),
       do: {:ok, unless_null(text, null)},
       else: doesnt_fit(text, field)
   end
 
-  defp string(text, {[size | fixed], _last} = shape, null, field) do
-    characters = String.codepoints(text)
+  # The strings are cut where BINARY would cut them, so a character beyond
+  # U+FFFF split between two of them is a lone surrogate in each, an error.
+  defp string(text, {[size | fixed], _last} = shape, null, %Field{datatype: datatype} = field) do
+    unit = Map.fetch!(@element_bytes, datatype)
+    encoded = encode(text, datatype)
 
-    if fits?(length(characters), shape) do
-      strings =
-        characters
-        |> Enum.chunk_every(size)
-        |> Enum.map(&unless_null(Enum.join(&1), null))
-
-      {:ok, nest(strings, fixed)}
+    if fits?(div(byte_size(encoded), unit), shape) do
+      case text_strings(encoded, size * unit, null, datatype, []) do
+        {:ok, strings} -> {:ok, nest(strings, fixed)}
+        :error -> invalid(text, field)
+      end
     else
       doesnt_fit(text, field)
     end
   end
+
+  defp text_strings(<<>>, _bytes, _null, _datatype, strings), do: {:ok, Enum.reverse(strings)}
+
+  defp text_strings(encoded, bytes, null, datatype, strings) do
+    {string, rest} = :erlang.split_binary(encoded, bytes)
+
+    with {:ok, string} <- text(string, datatype),
+         do: text_strings(rest, bytes, null, datatype, [unless_null(string, null) | strings])
+  end
+
+  # A string in the elements of its datatype: one byte for each char, which
+  # is ASCII, and a UTF-16 unit of two bytes for each unicodeChar.
+  defp encode(text, :char), do: text
+  defp encode(text, :unicodeChar), do: :unicode.characters_to_binary(text, :utf8, {:utf16, :big})
+
+  defp units(text, datatype),
+    do: div(byte_size(encode(text, datatype)), Map.fetch!(@element_bytes, datatype))
 
   # The null value is one TABLEDATA value of the datatype (§4.7). It is read
   # like a cell, so 0x8000 and -32768 are the same null of a short. A field
@@ -246,8 +265,6 @@ defmodule SpaceTAP.VOTable.Value do
 
   defp ascii?(<<char, rest::binary>>) when char < 128, do: ascii?(rest)
   defp ascii?(rest), do: rest == ""
-
-  defp characters(text), do: text |> String.to_charlist() |> length()
 
   defp element(token, :boolean), do: boolean(token)
 

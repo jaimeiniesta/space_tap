@@ -156,6 +156,23 @@ defmodule SpaceTAP.VOTable.ValueTest do
       assert parse("Ярослав", :unicodeChar, arraysize: "7") == {:ok, "Ярослав"}
     end
 
+    test "counts a unicodeChar in UTF-16 units, as BINARY does, so a character beyond U+FFFF takes two (ADR 0007)" do
+      assert parse("𝄞", :unicodeChar, arraysize: "2") == {:ok, "𝄞"}
+
+      assert parse("𝄞", :unicodeChar, arraysize: "1") ==
+               {:error, ~s(field "col": "𝄞" doesn't fit arraysize "1")}
+
+      assert {:error, _} = parse("𝄞𝄞", :unicodeChar, arraysize: "3*")
+      assert parse("𝄞", :unicodeChar) == {:error, ~s(field "col": "𝄞" is not a valid unicodeChar)}
+    end
+
+    test "cuts a multidimensional unicodeChar array in UTF-16 units, as BINARY does" do
+      assert parse("𝄞𝄞AB", :unicodeChar, arraysize: "2x*") == {:ok, ["𝄞", "𝄞", "AB"]}
+
+      assert parse("A𝄞B", :unicodeChar, arraysize: "2x*") ==
+               {:error, ~s(field "col": "A𝄞B" is not a valid unicodeChar)}
+    end
+
     test "rejects a char that isn't ASCII, and takes it as a unicodeChar (§6)" do
       assert parse("Málaga", :char, arraysize: "*") ==
                {:error, ~s(field "col": "Málaga" is not a valid char)}
@@ -512,6 +529,15 @@ defmodule SpaceTAP.VOTable.ValueTest do
                {:error, ~s(field "col": <<216, 52>> is not a valid unicodeChar)}
 
       assert {:error, _} = parse_bytes(<<0xDD, 0x1E, 0x00, 0x41>>, :unicodeChar, arraysize: "2")
+    end
+
+    test "gives a unicodeChar array the value TABLEDATA gives, beyond U+FFFF too (ADR 0005)" do
+      utf16 = :unicode.characters_to_binary("𝄞𝄞AB", :utf8, {:utf16, :big})
+
+      assert parse_bytes(<<3::32, utf16::binary>>, :unicodeChar, arraysize: "2x*") ==
+               {:ok, ["𝄞", "𝄞", "AB"], ""}
+
+      assert parse("𝄞𝄞AB", :unicodeChar, arraysize: "2x*") == {:ok, ["𝄞", "𝄞", "AB"]}
     end
 
     test "rejects a char that isn't ASCII (§6)" do

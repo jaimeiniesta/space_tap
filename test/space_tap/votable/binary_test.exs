@@ -27,6 +27,31 @@ defmodule SpaceTAP.VOTable.BinaryTest do
                {:error, ~s(field "sptype": the data ends in the middle of the cell)}
     end
 
+    test "reads the rows GAVO sent, as astropy 8.0.2 reads them" do
+      # The STREAM GAVO sent on 9 November 2026 for SELECT TOP 3 hipno, ra,
+      # dec, vmag, parallax, sptype FROM hipparcos.main WHERE hipno <= 3.
+      stream =
+        "AAAAAT9N4Sb25M5LP/FsmTsk7yNBEZmaNYP7EwAAAAJGNQAAAAI/bxupfr73zcAzf7PPpcUhQRRR7DbMH28" <>
+          "AAAADSzNWAAAAAz90gzdXhSITQENt/RYVwQdA04UfNVGHXwAAAAJCOQ=="
+
+      fields = [
+        %Field{name: "hipno", datatype: :int, null: "-2147483648"},
+        %Field{name: "ra", datatype: :double},
+        %Field{name: "dec", datatype: :double},
+        %Field{name: "vmag", datatype: :float},
+        %Field{name: "parallax", datatype: :float},
+        %Field{name: "SpType", datatype: :char, arraysize: "*"}
+      ]
+
+      assert Binary.rows(Base.decode64!(stream), fields, :binary) ==
+               {:ok,
+                [
+                  [1, 0.00091185, 1.08901332, 9.100000381469727, 9.833332796915784e-7, "F5"],
+                  [2, 0.00379737, -19.49883745, 9.270000457763672, 6.083333119022427e-6, "K3V"],
+                  [3, 0.00500795, 38.85928608, 6.610000133514404, 7.805555810591613e-7, "B9"]
+                ]}
+    end
+
     test "rejects bytes for a table without fields, which hold no row" do
       assert Binary.rows("", [], :binary) == {:ok, []}
       assert Binary.rows(<<0>>, [], :binary) == {:error, "the table has data but no fields"}

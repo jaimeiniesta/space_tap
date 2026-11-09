@@ -263,6 +263,13 @@ defmodule SpaceTAP.VOTable.ValueTest do
       assert {:error, _} = parse("5", :short, null: "1 2")
       assert {:error, _} = parse("5", :short, arraysize: "*", null: "1 2")
     end
+
+    test "rejects a null value of a char that isn't ASCII, as its cells would be (§4.7, §6)" do
+      assert parse("abc", :char, arraysize: "*", null: "Málaga") ==
+               {:error, ~s(field "col": the null value "Málaga" is not a valid char)}
+
+      assert parse("abc", :unicodeChar, arraysize: "*", null: "Málaga") == {:ok, "abc"}
+    end
   end
 
   describe "parse_text/2 with integers" do
@@ -555,6 +562,14 @@ defmodule SpaceTAP.VOTable.ValueTest do
 
       assert {:error, _} = parse_bytes(<<0::32>>, :short, arraysize: "*", null: "abc")
     end
+
+    test "rejects a null value of a char that isn't ASCII, as its cells would be (§4.7, §6)" do
+      assert parse_bytes(<<3::32, "abc">>, :char, arraysize: "*", null: "Málaga") ==
+               {:error, ~s(field "col": the null value "Málaga" is not a valid char)}
+
+      assert parse_bytes(<<2::32, 0, ?a, 0, ?b>>, :unicodeChar, arraysize: "*", null: "Málaga") ==
+               {:ok, "ab", ""}
+    end
   end
 
   describe "skip_binary/2" do
@@ -581,6 +596,7 @@ defmodule SpaceTAP.VOTable.ValueTest do
       assert {:error, _} = skip_bytes(<<3::32, 1, 2, 3>>, :unsignedByte, arraysize: "2*")
       assert {:error, _} = skip_bytes(<<0>>, :int, arraysize: "3x")
       assert {:error, _} = skip_bytes(<<0, 0>>, :short, null: "abc")
+      assert {:error, _} = skip_bytes(<<"abc">>, :char, arraysize: "3", null: "Málaga")
       assert {:error, _} = skip_bytes(<<0>>, :bit)
     end
   end

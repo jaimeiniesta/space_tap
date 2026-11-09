@@ -45,13 +45,8 @@ defmodule SpaceTAP.VOTable.Value do
   # since §5.1 writes Apple in an arraysize of 10. A char is ASCII (§6), and a
   # unicodeChar is counted in characters, the UCS-2 units of BINARY.
   def parse_text(text, %Field{datatype: datatype} = field)
-      when datatype in [:char, :unicodeChar] do
-    cond do
-      datatype == :char and not ascii?(text) -> invalid(text, field)
-      field.arraysize == nil and characters(text) != 1 -> invalid(text, field)
-      field.arraysize == nil -> {:ok, unless_null(text, field.null)}
-      true -> with {:ok, shape} <- shape(field), do: string(text, shape, field)
-    end
+      when datatype in @string_datatypes do
+    with {:ok, null} <- null(field), do: text_string(text, null, field)
   end
 
   def parse_text(text, %Field{arraysize: nil} = field) do
@@ -120,22 +115,31 @@ defmodule SpaceTAP.VOTable.Value do
   # §4.7 says the null value is never an array, but a string is an array of
   # characters, so the null value of a string field is compared with each
   # whole string.
-  defp string(text, {[], last}, field) do
+  defp text_string(text, null, %Field{datatype: datatype} = field) do
+    cond do
+      datatype == :char and not ascii?(text) -> invalid(text, field)
+      field.arraysize == nil and characters(text) != 1 -> invalid(text, field)
+      field.arraysize == nil -> {:ok, unless_null(text, null)}
+      true -> with {:ok, shape} <- shape(field), do: string(text, shape, null, field)
+    end
+  end
+
+  defp string(text, {[], last}, null, field) do
     last = if is_integer(last), do: {:at_most, last}, else: last
 
     if fits_last?(characters(text), last),
-      do: {:ok, unless_null(text, field.null)},
+      do: {:ok, unless_null(text, null)},
       else: doesnt_fit(text, field)
   end
 
-  defp string(text, {[size | fixed], _last} = shape, field) do
+  defp string(text, {[size | fixed], _last} = shape, null, field) do
     characters = String.codepoints(text)
 
     if fits?(length(characters), shape) do
       strings =
         characters
         |> Enum.chunk_every(size)
-        |> Enum.map(&unless_null(Enum.join(&1), field.null))
+        |> Enum.map(&unless_null(Enum.join(&1), null))
 
       {:ok, nest(strings, fixed)}
     else
@@ -146,7 +150,11 @@ defmodule SpaceTAP.VOTable.Value do
   # The null value is one TABLEDATA value of the datatype (§4.7). It is read
   # like a cell, so 0x8000 and -32768 are the same null of a short. A field
   # without one gets nil, which turns nothing into nil. The null value of a
-  # string is its text, compared with each whole string.
+  # string is its text, compared with each whole string, and that of a char
+  # is ASCII, like its cells (§6).
+  defp null(%Field{datatype: :char, null: text} = field) when is_binary(text),
+    do: if(ascii?(text), do: {:ok, text}, else: invalid_null(text, field))
+
   defp null(%Field{datatype: datatype, null: text}) when datatype in @string_datatypes,
     do: {:ok, text}
 
@@ -157,11 +165,14 @@ defmodule SpaceTAP.VOTable.Value do
          {:ok, value} <- element(token, datatype) do
       {:ok, value}
     else
-      _other ->
-        {:error,
-         "field #{inspect(field.name)}: the null value #{inspect(text)} is not a valid #{datatype}"}
+      _other -> invalid_null(text, field)
     end
   end
+
+  defp invalid_null(text, %Field{name: name, datatype: datatype}),
+    do:
+      {:error,
+       "field #{inspect(name)}: the null value #{inspect(text)} is not a valid #{datatype}"}
 
   defp unless_null(value, null), do: if(value == null, do: nil, else: value)
 
@@ -399,7 +410,7 @@ defmodule SpaceTAP.VOTable.Value do
   defp element_count(bytes, {fixed, last}, _field) when is_integer(last),
     do: {:ok, Enum.product(fixed) * last, bytes}
 
-  defp element_count(<<length::32, rest::binary>>, {fixed, last}, field) do
+  defp element_count(<<length::unsigned-big-32, rest::binary>>, {fixed, last}, field) do
     if fits_last?(length, last) do
       {:ok, Enum.product(fixed) * length, rest}
     else

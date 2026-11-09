@@ -310,7 +310,290 @@ defmodule SpaceTAP.VOTable.ValueTest do
     end
   end
 
+  describe "parse_binary/2" do
+    test "returns the value and the bytes after the cell" do
+      assert parse_bytes(<<0, 42, 1, 2>>, :short) == {:ok, 42, <<1, 2>>}
+    end
+
+    test "rejects bit and the complex datatypes" do
+      assert parse_bytes(<<0>>, :bit) ==
+               {:error, ~s(field "col": the bit datatype is not supported)}
+
+      for datatype <- [:bit, :floatComplex, :doubleComplex] do
+        assert {:error, _} = parse_bytes(<<0::64>>, datatype, arraysize: "*")
+      end
+    end
+
+    test "rejects a cell the bytes end in the middle of" do
+      assert parse_bytes(<<0, 0, 0>>, :int) ==
+               {:error, ~s(field "col": the data ends in the middle of the cell)}
+
+      for {datatype, bytes} <- [
+            boolean: "",
+            unsignedByte: "",
+            short: <<0>>,
+            long: <<0::56>>,
+            char: "",
+            unicodeChar: <<0>>,
+            float: <<0::24>>,
+            double: <<0::56>>
+          ] do
+        assert {:error, _} = parse_bytes(bytes, datatype), "expected #{datatype} to be rejected"
+      end
+    end
+  end
+
+  describe "parse_binary/2 with integers" do
+    test "reads big-endian two's complement, and an unsignedByte from 0 to 255 (§6)" do
+      assert parse_bytes(<<0xFF>>, :unsignedByte) == {:ok, 255, ""}
+      assert parse_bytes(<<0xFF, 0xFF>>, :short) == {:ok, -1, ""}
+      assert parse_bytes(<<0x80, 0x00>>, :short) == {:ok, -32_768, ""}
+      assert parse_bytes(<<0x7F, 0xFF, 0xFF, 0xFF>>, :int) == {:ok, 2_147_483_647, ""}
+      assert parse_bytes(<<0, 0, 1, 0>>, :int) == {:ok, 256, ""}
+      assert parse_bytes(<<0x80, 0::56>>, :long) == {:ok, -9_223_372_036_854_775_808, ""}
+    end
+  end
+
+  describe "parse_binary/2 with floats and doubles" do
+    test "reads big-endian IEEE 754, a float as the exact value of its 32 bits (§6, ADR 0007)" do
+      assert parse_bytes(<<0x3F, 0xC0, 0, 0>>, :float) == {:ok, 1.5, ""}
+      assert parse_bytes(<<0x3D, 0xCC, 0xCC, 0xCD>>, :float) == {:ok, 0.10000000149011612, ""}
+
+      assert parse_bytes(<<0x3F, 0xB9, 0x99, 0x99, 0x99, 0x99, 0x99, 0x9A>>, :double) ==
+               {:ok, 0.1, ""}
+    end
+
+    test "reads every NaN as nil and the infinities as atoms (ADR 0007)" do
+      assert parse_bytes(<<0x7F, 0xC0, 0, 0>>, :float) == {:ok, nil, ""}
+      assert parse_bytes(<<0xFF, 0x80, 0, 1>>, :float) == {:ok, nil, ""}
+      assert parse_bytes(<<0x7F, 0x80, 0, 0>>, :float) == {:ok, :infinity, ""}
+      assert parse_bytes(<<0xFF, 0x80, 0, 0>>, :float) == {:ok, :neg_infinity, ""}
+      assert parse_bytes(<<0x7F, 0xF8, 0::48>>, :double) == {:ok, nil, ""}
+      assert parse_bytes(<<0xFF, 0xF0, 0::40, 1>>, :double) == {:ok, nil, ""}
+      assert parse_bytes(<<0x7F, 0xF0, 0::48>>, :double) == {:ok, :infinity, ""}
+      assert parse_bytes(<<0xFF, 0xF0, 0::48>>, :double) == {:ok, :neg_infinity, ""}
+    end
+  end
+
+  describe "parse_binary/2 with booleans" do
+    test "reads the ASCII characters T, t and 1 as true, and F, f and 0 as false (§6)" do
+      for byte <- [?T, ?t, ?1], do: assert(parse_bytes(<<byte>>, :boolean) == {:ok, true, ""})
+      for byte <- [?F, ?f, ?0], do: assert(parse_bytes(<<byte>>, :boolean) == {:ok, false, ""})
+    end
+
+    test "reads NUL, a space and a question mark as nil (§6)" do
+      for byte <- [0x00, 0x20, ??], do: assert(parse_bytes(<<byte>>, :boolean) == {:ok, nil, ""})
+    end
+
+    test "rejects any other byte, the byte 1 among them" do
+      assert parse_bytes(<<1>>, :boolean) ==
+               {:error, ~s(field "col": <<1>> is not a valid boolean)}
+
+      for byte <- [?Y, ?y, 2, 0xFF] do
+        assert {:error, _} = parse_bytes(<<byte>>, :boolean)
+      end
+    end
+  end
+
+  describe "parse_binary/2 with arrays" do
+    test "reads the elements of a fixed arraysize one after another (§5.3)" do
+      assert parse_bytes(<<1::32, -2::32, 3::32, "rest">>, :int, arraysize: "3") ==
+               {:ok, [1, -2, 3], "rest"}
+    end
+
+    test "reads the length of a variable arraysize from the 4 bytes before its elements (§5.3)" do
+      assert parse_bytes(<<2::32, 1::16, 2::16, "rest">>, :short, arraysize: "*") ==
+               {:ok, [1, 2], "rest"}
+
+      assert parse_bytes(<<3::32, ?T, ?F, ??>>, :boolean, arraysize: "5*") ==
+               {:ok, [true, false, nil], ""}
+    end
+
+    test "reads each element by its datatype" do
+      assert parse_bytes(<<0x3FC00000::32, 0x7FC00000::32, 0xFF800000::32>>, :float,
+               arraysize: "3"
+             ) == {:ok, [1.5, nil, :neg_infinity], ""}
+    end
+
+    test "rejects an array with an element that isn't of its datatype" do
+      assert parse_bytes(<<?T, ?x>>, :boolean, arraysize: "2") ==
+               {:error, ~s(field "col": "x" is not a valid boolean)}
+    end
+
+    test "reads an array with no elements as nil (ADR 0007)" do
+      assert parse_bytes(<<0::32, "rest">>, :double, arraysize: "*") == {:ok, nil, "rest"}
+    end
+
+    test "rejects a longer array than a variable arraysize holds (§2.2)" do
+      assert parse_bytes(<<3::32, 1, 2, 3>>, :unsignedByte, arraysize: "2*") ==
+               {:error, ~s(field "col": a length of 3 doesn't fit arraysize "2*")}
+    end
+
+    test "rejects an array the bytes end in the middle of" do
+      assert parse_bytes(<<1::32, 2::32>>, :int, arraysize: "3") ==
+               {:error, ~s(field "col": the data ends in the middle of the cell)}
+
+      assert {:error, _} = parse_bytes(<<3::32, 1::32>>, :int, arraysize: "*")
+      assert {:error, _} = parse_bytes(<<0, 0, 0>>, :int, arraysize: "*")
+    end
+
+    test "nests a multidimensional array, the first dimension changing fastest (§2.2)" do
+      assert parse_bytes(<<1, 2, 3, 4, 5, 6>>, :unsignedByte, arraysize: "2x3") ==
+               {:ok, [[1, 2], [3, 4], [5, 6]], ""}
+    end
+
+    test "counts arrays of the fixed dimensions in the length of a variable one, as astropy does" do
+      assert parse_bytes(<<2::32, 1, 2, 3, 4, 5, 6>>, :unsignedByte, arraysize: "3x*") ==
+               {:ok, [[1, 2, 3], [4, 5, 6]], ""}
+
+      assert parse_bytes(<<1::32, 1, 2, 3, 4>>, :unsignedByte, arraysize: "2x2x*") ==
+               {:ok, [[[1, 2], [3, 4]]], ""}
+
+      assert {:error, _} =
+               parse_bytes(<<3::32, 1, 2, 3, 4, 5, 6>>, :unsignedByte, arraysize: "3x2*")
+    end
+
+    test "rejects an arraysize that §2.2 doesn't define" do
+      assert parse_bytes(<<1>>, :unsignedByte, arraysize: "3x") ==
+               {:error, ~s(field "col": "3x" is not a valid arraysize)}
+    end
+  end
+
+  describe "parse_binary/2 with characters" do
+    test "reads a field without arraysize as one character (§2.1)" do
+      assert parse_bytes("AB", :char) == {:ok, "A", "B"}
+      assert parse_bytes(<<0x04, 0x2F>>, :unicodeChar) == {:ok, "Я", ""}
+    end
+
+    test "reads a string with a fixed arraysize up to its first NUL, whatever follows it (§6)" do
+      assert parse_bytes(<<"Apple", 0, 0xFF, "xyz", "rest">>, :char, arraysize: "10") ==
+               {:ok, "Apple", "rest"}
+
+      assert parse_bytes("Orange", :char, arraysize: "6") == {:ok, "Orange", ""}
+
+      assert parse_bytes(<<0x04, 0x2F, 0, 0, 0xD8, 0x00>>, :unicodeChar, arraysize: "3") ==
+               {:ok, "Я", ""}
+    end
+
+    test "looks for the NUL of a unicodeChar on a character boundary" do
+      assert parse_bytes(<<0x01, 0x00, 0x00, 0x41>>, :unicodeChar, arraysize: "2") ==
+               {:ok, "ĀA", ""}
+    end
+
+    test "reads a string with a variable arraysize to its length, NULs included, as astropy does" do
+      assert parse_bytes(<<3::32, "K3V", "rest">>, :char, arraysize: "*") == {:ok, "K3V", "rest"}
+
+      assert parse_bytes(<<3::32, "a", 0, "b">>, :char, arraysize: "*") ==
+               {:ok, <<"a", 0, "b">>, ""}
+
+      assert parse_bytes(<<2::32, 0x04, 0x2F, 0x04, 0x30>>, :unicodeChar, arraysize: "8*") ==
+               {:ok, "Яа", ""}
+    end
+
+    test "reads a string with no characters as nil (ADR 0007)" do
+      assert parse_bytes(<<0::32>>, :char, arraysize: "*") == {:ok, nil, ""}
+      assert parse_bytes(<<0, "Apple">>, :char, arraysize: "6") == {:ok, nil, ""}
+      assert parse_bytes(<<0>>, :char) == {:ok, nil, ""}
+      assert parse_bytes(<<0, 0>>, :unicodeChar) == {:ok, nil, ""}
+    end
+
+    test "reads a surrogate pair as one character and rejects a lone surrogate (ADR 0007)" do
+      assert parse_bytes(<<0xD8, 0x34, 0xDD, 0x1E>>, :unicodeChar, arraysize: "2") ==
+               {:ok, "𝄞", ""}
+
+      assert parse_bytes(<<1::32, 0xD8, 0x34>>, :unicodeChar, arraysize: "*") ==
+               {:error, ~s(field "col": <<216, 52>> is not a valid unicodeChar)}
+
+      assert {:error, _} = parse_bytes(<<0xDD, 0x1E, 0x00, 0x41>>, :unicodeChar, arraysize: "2")
+    end
+
+    test "rejects a char that isn't ASCII (§6)" do
+      assert parse_bytes(<<7::32, "Málaga">>, :char, arraysize: "*") ==
+               {:error, ~s(field "col": "Málaga" is not a valid char)}
+    end
+
+    test "rejects a longer string than a variable arraysize holds (§2.2)" do
+      assert parse_bytes(<<6::32, "Orange">>, :char, arraysize: "5*") ==
+               {:error, ~s(field "col": a length of 6 doesn't fit arraysize "5*")}
+    end
+
+    test "reads a multidimensional array of characters as a list of strings, each up to its first NUL" do
+      assert parse_bytes(<<"Apple", "Orang", "Kiwi", 0>>, :char, arraysize: "5x3") ==
+               {:ok, ["Apple", "Orang", "Kiwi"], ""}
+
+      assert parse_bytes(<<2::32, "Apple", 0::40>>, :char, arraysize: "5x*") ==
+               {:ok, ["Apple", nil], ""}
+
+      assert parse_bytes(<<0::32>>, :char, arraysize: "5x*") == {:ok, nil, ""}
+    end
+  end
+
+  describe "parse_binary/2 with the null value of the field" do
+    test "reads the null value as nil, the only null of an integer in BINARY (§5.5)" do
+      assert parse_bytes(<<0x80, 0x00>>, :short, null: "-32768") == {:ok, nil, ""}
+      assert parse_bytes(<<0x80, 0x00>>, :short, null: "0x8000") == {:ok, nil, ""}
+      assert parse_bytes(<<0x80, 0, 0, 0>>, :int, null: "-2147483648") == {:ok, nil, ""}
+      assert parse_bytes(<<0, 5>>, :short, null: "-32768") == {:ok, 5, ""}
+    end
+
+    test "applies to each element of an array (§5.5)" do
+      assert parse_bytes(<<3::32, 1::32, -999::32, 3::32>>, :int, arraysize: "*", null: "-999") ==
+               {:ok, [1, nil, 3], ""}
+    end
+
+    test "compares a string as a whole, once cut at its NUL" do
+      assert parse_bytes(<<3::32, "N/A">>, :char, arraysize: "*", null: "N/A") == {:ok, nil, ""}
+      assert parse_bytes(<<"N/A", 0, 0>>, :char, arraysize: "5", null: "N/A") == {:ok, nil, ""}
+
+      assert parse_bytes(<<"AppleN/A", 0, 0>>, :char, arraysize: "5x2", null: "N/A") ==
+               {:ok, ["Apple", nil], ""}
+    end
+
+    test "rejects a null value that isn't one value of the datatype (§4.7)" do
+      assert parse_bytes(<<0, 5>>, :short, null: "abc") ==
+               {:error, ~s(field "col": the null value "abc" is not a valid short)}
+
+      assert {:error, _} = parse_bytes(<<0::32>>, :short, arraysize: "*", null: "abc")
+    end
+  end
+
+  describe "skip_binary/2" do
+    test "returns the bytes after the cell without reading its elements, which §5.4 doesn't fix for a null" do
+      assert skip_bytes(<<0x7F, 0xC0, 0, 0, "rest">>, :float) == {:ok, "rest"}
+      assert skip_bytes(<<?x, "rest">>, :boolean) == {:ok, "rest"}
+      assert skip_bytes(<<0xD8, 0x00, "rest">>, :unicodeChar) == {:ok, "rest"}
+      assert skip_bytes(<<0xFF, 0xFF, 0xFF, "rest">>, :char, arraysize: "3") == {:ok, "rest"}
+      assert skip_bytes(<<0::48, "rest">>, :short, arraysize: "3") == {:ok, "rest"}
+    end
+
+    test "reads the length of a variable arraysize to find the end of the cell (§5.3)" do
+      assert skip_bytes(<<0::32, "rest">>, :int, arraysize: "*") == {:ok, "rest"}
+      assert skip_bytes(<<2::32, 1::64, 2::64, "rest">>, :double, arraysize: "*") == {:ok, "rest"}
+
+      assert skip_bytes(<<2::32, 0::48, "rest">>, :unsignedByte, arraysize: "3x*") ==
+               {:ok, "rest"}
+    end
+
+    test "rejects the cells and fields parse_binary/2 rejects for their layout" do
+      assert skip_bytes(<<0, 0, 0>>, :int) ==
+               {:error, ~s(field "col": the data ends in the middle of the cell)}
+
+      assert {:error, _} = skip_bytes(<<3::32, 1, 2, 3>>, :unsignedByte, arraysize: "2*")
+      assert {:error, _} = skip_bytes(<<0>>, :int, arraysize: "3x")
+      assert {:error, _} = skip_bytes(<<0, 0>>, :short, null: "abc")
+      assert {:error, _} = skip_bytes(<<0>>, :bit)
+    end
+  end
+
   defp parse(text, datatype, attributes \\ []) do
     Value.parse_text(text, struct!(Field, [name: "col", datatype: datatype] ++ attributes))
+  end
+
+  defp parse_bytes(bytes, datatype, attributes \\ []) do
+    Value.parse_binary(bytes, struct!(Field, [name: "col", datatype: datatype] ++ attributes))
+  end
+
+  defp skip_bytes(bytes, datatype, attributes \\ []) do
+    Value.skip_binary(bytes, struct!(Field, [name: "col", datatype: datatype] ++ attributes))
   end
 end

@@ -1,10 +1,17 @@
 defmodule SpaceTAP.VOTable.Value do
   @moduledoc false
 
-  # Turns the text of one TABLEDATA cell into an Elixir value, following the
-  # datatype and arraysize of its field (VOTable 1.5 §5.1 and §6) and ADR 0007.
+  # Turns one cell into an Elixir value, following the datatype and arraysize
+  # of its field (VOTable 1.5 §6) and ADR 0007: the text of a TABLEDATA cell
+  # (§5.1), or the bytes of a BINARY or BINARY2 one (§5.3, §5.4).
 
   alias SpaceTAP.Field
+
+  # No service in the README's Compatibility table has sent these, and a
+  # complex number would need an Elixir value ADR 0007 doesn't choose.
+  @unsupported [:bit, :floatComplex, :doubleComplex]
+
+  @string_datatypes [:char, :unicodeChar]
 
   # The white space of §5.1, which matters only in strings.
   @whitespace [" ", "\t", "\n", "\r"]
@@ -13,14 +20,23 @@ defmodule SpaceTAP.VOTable.Value do
   # hexadigits it may have (§6).
   @integer_bits %{unsignedByte: 8, short: 16, int: 32, long: 64}
 
+  # The bytes of one element of each datatype in BINARY and BINARY2 (§2.1).
+  @element_bytes %{
+    boolean: 1,
+    unsignedByte: 1,
+    short: 2,
+    int: 4,
+    long: 8,
+    char: 1,
+    unicodeChar: 2,
+    float: 4,
+    double: 8
+  }
+
   @spec parse_text(String.t(), Field.t()) :: {:ok, term()} | {:error, String.t()}
 
-  # No service in the README's Compatibility table has sent these, and a
-  # complex number would need an Elixir value ADR 0007 doesn't choose.
-  def parse_text(_text, %Field{datatype: datatype} = field)
-      when datatype in [:bit, :floatComplex, :doubleComplex] do
-    {:error, "field #{inspect(field.name)}: the #{datatype} datatype is not supported"}
-  end
+  def parse_text(_text, %Field{datatype: datatype} = field) when datatype in @unsupported,
+    do: unsupported(field)
 
   def parse_text("", %Field{}), do: {:ok, nil}
 
@@ -63,6 +79,27 @@ defmodule SpaceTAP.VOTable.Value do
         tokens -> array(tokens, shape, null, text, field)
       end
     end
+  end
+
+  # BINARY writes the cells of a row one after another, with no separator,
+  # and their numbers big-endian (§5.3). BINARY2 adds the null flags of each
+  # row, which Binary.rows/3 reads (§5.4). Returns the bytes after the cell.
+  @spec parse_binary(binary(), Field.t()) :: {:ok, term(), binary()} | {:error, String.t()}
+
+  def parse_binary(bytes, %Field{} = field) do
+    with {:ok, cell, rest, shape, null} <- split_cell(bytes, field),
+         {:ok, value} <- binary_value(cell, shape, null, field),
+         do: {:ok, value, rest}
+  end
+
+  # BINARY2 flags a null cell, but its bytes are still there, and §5.4 only
+  # recommends what they hold: NaN or zeros, and a length of 0 for a
+  # variable-length array. So they are skipped without reading them, though
+  # the field and the layout of the cell are checked as in parse_binary/2.
+  @spec skip_binary(binary(), Field.t()) :: {:ok, binary()} | {:error, String.t()}
+
+  def skip_binary(bytes, %Field{} = field) do
+    with {:ok, _cell, rest, _shape, _null} <- split_cell(bytes, field), do: {:ok, rest}
   end
 
   #####################
@@ -108,7 +145,11 @@ defmodule SpaceTAP.VOTable.Value do
 
   # The null value is one TABLEDATA value of the datatype (§4.7). It is read
   # like a cell, so 0x8000 and -32768 are the same null of a short. A field
-  # without one gets nil, which turns nothing into nil.
+  # without one gets nil, which turns nothing into nil. The null value of a
+  # string is its text, compared with each whole string.
+  defp null(%Field{datatype: datatype, null: text}) when datatype in @string_datatypes,
+    do: {:ok, text}
+
   defp null(%Field{null: nil}), do: {:ok, nil}
 
   defp null(%Field{null: text, datatype: datatype} = field) do
@@ -327,6 +368,183 @@ defmodule SpaceTAP.VOTable.Value do
 
   defp range(_bits, :unsignedByte), do: {0, 255}
   defp range(bits, _datatype), do: {-Bitwise.bsl(1, bits - 1), Bitwise.bsl(1, bits - 1) - 1}
+
+  # The bytes of the elements of a cell, its shape and the null value of its
+  # field, with the bytes after it.
+  defp split_cell(_bytes, %Field{datatype: datatype} = field) when datatype in @unsupported,
+    do: unsupported(field)
+
+  defp split_cell(bytes, %Field{datatype: datatype} = field) do
+    with {:ok, shape} <- binary_shape(field),
+         {:ok, null} <- null(field),
+         {:ok, count, bytes} <- element_count(bytes, shape, field),
+         {:ok, cell, rest} <- take(bytes, count * Map.fetch!(@element_bytes, datatype), field),
+         do: {:ok, cell, rest, shape, null}
+  end
+
+  # The bytes of a cell, split off without copying them.
+  defp take(bytes, size, _field) when byte_size(bytes) >= size do
+    {cell, rest} = :erlang.split_binary(bytes, size)
+    {:ok, cell, rest}
+  end
+
+  defp take(_bytes, _size, field),
+    do: {:error, "field #{inspect(field.name)}: the data ends in the middle of the cell"}
+
+  # §5.3: a variable-length array starts with its length, a 4-byte integer.
+  # Only the last dimension may vary (§2.2), so in "3x*" the length counts
+  # arrays of 3 elements, as astropy reads it.
+  defp element_count(bytes, :scalar, _field), do: {:ok, 1, bytes}
+
+  defp element_count(bytes, {fixed, last}, _field) when is_integer(last),
+    do: {:ok, Enum.product(fixed) * last, bytes}
+
+  defp element_count(<<length::32, rest::binary>>, {fixed, last}, field) do
+    if fits_last?(length, last) do
+      {:ok, Enum.product(fixed) * length, rest}
+    else
+      {:error,
+       "field #{inspect(field.name)}: a length of #{length} doesn't fit arraysize #{inspect(field.arraysize)}"}
+    end
+  end
+
+  defp element_count(_bytes, _shape, field), do: take(<<>>, 4, field)
+
+  # A field without arraysize holds one element (§2.1).
+  defp binary_shape(%Field{arraysize: nil}), do: {:ok, :scalar}
+  defp binary_shape(field), do: shape(field)
+
+  # One character is a string of one, cut at a NUL like any fixed one.
+  defp binary_value(cell, :scalar, null, %Field{datatype: datatype} = field)
+       when datatype in @string_datatypes,
+       do: binary_string(before_nul(cell, datatype), null, field)
+
+  defp binary_value(cell, :scalar, null, field) do
+    with {:ok, [value]} <- binary_elements(cell, field, null, []), do: {:ok, value}
+  end
+
+  # An array with no elements and a string with no characters are nil
+  # (ADR 0007).
+  defp binary_value(<<>>, _shape, _null, _field), do: {:ok, nil}
+
+  # A string ends where the length of a variable arraysize says, so only a
+  # fixed one is cut at a NUL, as astropy reads them.
+  defp binary_value(cell, {[], last}, null, %Field{datatype: datatype} = field)
+       when datatype in @string_datatypes do
+    if is_integer(last),
+      do: binary_string(before_nul(cell, datatype), null, field),
+      else: binary_string(cell, null, field)
+  end
+
+  # Each string of a multidimensional array takes the whole first dimension,
+  # so it is a fixed one.
+  defp binary_value(cell, {[size | fixed], _last}, null, %Field{datatype: datatype} = field)
+       when datatype in @string_datatypes do
+    bytes = size * Map.fetch!(@element_bytes, datatype)
+
+    with {:ok, strings} <- binary_strings(cell, bytes, null, field, []),
+         do: {:ok, nest(strings, fixed)}
+  end
+
+  defp binary_value(cell, {fixed, _last}, null, field) do
+    with {:ok, values} <- binary_elements(cell, field, null, []), do: {:ok, nest(values, fixed)}
+  end
+
+  defp binary_strings(<<>>, _bytes, _null, _field, strings), do: {:ok, Enum.reverse(strings)}
+
+  defp binary_strings(cell, bytes, null, field, strings) do
+    {string, rest} = :erlang.split_binary(cell, bytes)
+
+    with {:ok, string} <- binary_string(before_nul(string, field.datatype), null, field),
+         do: binary_strings(rest, bytes, null, field, [string | strings])
+  end
+
+  defp binary_elements(<<>>, _field, _null, values), do: {:ok, Enum.reverse(values)}
+
+  defp binary_elements(bytes, field, null, values) do
+    case binary_element(bytes, field.datatype) do
+      {:ok, value, rest} ->
+        binary_elements(rest, field, null, [unless_null(value, null) | values])
+
+      :error ->
+        invalid(binary_part(bytes, 0, Map.fetch!(@element_bytes, field.datatype)), field)
+    end
+  end
+
+  # A boolean is one of the ASCII characters of §6, so the byte 1 isn't true.
+  defp binary_element(<<byte, rest::binary>>, :boolean) when byte in [?T, ?t, ?1],
+    do: {:ok, true, rest}
+
+  defp binary_element(<<byte, rest::binary>>, :boolean) when byte in [?F, ?f, ?0],
+    do: {:ok, false, rest}
+
+  defp binary_element(<<byte, rest::binary>>, :boolean) when byte in [0x00, ?\s, ??],
+    do: {:ok, nil, rest}
+
+  defp binary_element(<<_byte, _rest::binary>>, :boolean), do: :error
+
+  # Integers are two's complement but unsignedByte (§6).
+  defp binary_element(<<value, rest::binary>>, :unsignedByte), do: {:ok, value, rest}
+  defp binary_element(<<value::signed-16, rest::binary>>, :short), do: {:ok, value, rest}
+  defp binary_element(<<value::signed-32, rest::binary>>, :int), do: {:ok, value, rest}
+  defp binary_element(<<value::signed-64, rest::binary>>, :long), do: {:ok, value, rest}
+
+  # IEEE 754 (§6): an exponent of all ones is an infinity when the fraction
+  # is zero and NaN otherwise, bits that no BEAM float matches. Any other
+  # four bytes of a float give the exact value of its 32 bits (ADR 0007).
+  defp binary_element(<<sign::1, 0xFF::8, fraction::23, rest::binary>>, :float),
+    do: {:ok, special(sign, fraction), rest}
+
+  defp binary_element(<<value::float-32, rest::binary>>, :float), do: {:ok, value, rest}
+
+  defp binary_element(<<sign::1, 0x7FF::11, fraction::52, rest::binary>>, :double),
+    do: {:ok, special(sign, fraction), rest}
+
+  defp binary_element(<<value::float-64, rest::binary>>, :double), do: {:ok, value, rest}
+
+  defp special(_sign, fraction) when fraction > 0, do: nil
+  defp special(0, 0), do: :infinity
+  defp special(1, 0), do: :neg_infinity
+
+  # §6: a char string follows the FITS rules, so a fixed one may end with a
+  # NUL before its arraysize, and what comes after isn't defined. A
+  # unicodeChar NUL is two zero bytes, on a character boundary.
+  defp before_nul(bytes, :char) do
+    case :binary.match(bytes, <<0>>) do
+      {at, 1} -> binary_part(bytes, 0, at)
+      :nomatch -> bytes
+    end
+  end
+
+  defp before_nul(bytes, :unicodeChar), do: binary_part(bytes, 0, nul_at(bytes, 0))
+
+  defp nul_at(<<0, 0, _rest::binary>>, at), do: at
+  defp nul_at(<<_character::binary-2, rest::binary>>, at), do: nul_at(rest, at + 2)
+  defp nul_at(<<>>, at), do: at
+
+  # A char is ASCII. §6 calls the two bytes of a unicodeChar UCS-2, which
+  # holds no character beyond U+FFFF; they are read as UTF-16, as astropy
+  # does, so a surrogate pair is one character and a lone surrogate is an
+  # error (ADR 0007). A string with no characters is nil (ADR 0007).
+  defp binary_string(bytes, null, field) do
+    case text(bytes, field.datatype) do
+      {:ok, ""} -> {:ok, nil}
+      {:ok, string} -> {:ok, unless_null(string, null)}
+      :error -> invalid(bytes, field)
+    end
+  end
+
+  defp text(bytes, :char), do: if(ascii?(bytes), do: {:ok, bytes}, else: :error)
+
+  defp text(bytes, :unicodeChar) do
+    case :unicode.characters_to_binary(bytes, {:utf16, :big}) do
+      string when is_binary(string) -> {:ok, string}
+      _invalid_or_incomplete -> :error
+    end
+  end
+
+  defp unsupported(%Field{name: name, datatype: datatype}),
+    do: {:error, "field #{inspect(name)}: the #{datatype} datatype is not supported"}
 
   defp invalid(text, %Field{name: name, datatype: datatype}) do
     {:error, "field #{inspect(name)}: #{inspect(text)} is not a valid #{datatype}"}

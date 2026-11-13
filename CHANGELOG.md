@@ -9,10 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `format: :votable` in `SpaceTAP.query/3`, which asks the TAP service for VOTable and reads its rows in the serialization the service sends, TABLEDATA, BINARY or BINARY2, into typed values: integers, floats, booleans, strings and lists, with `nil` for a null cell or NaN. CSV stays the default.
+- `SpaceTAP.Result` gains `fields`, a `SpaceTAP.Field` describing each column (name, datatype, arraysize, xtype, unit, UCD, utype, description and null value), and `overflow`, `true` when the service truncated the result. Both are `nil` for CSV.
 - A livebook that runs the queries of the parity tests through SpaceTAP in Elixir cells and through PyVO in Python cells, with Pythonx, and compares the results. It also shows the same row as each client reads it, and the overflow that PyVO reads and CSV can't carry.
 
 ### Changed
 
+- A VOTable sent when CSV was requested, as MAST sends, is still a `:decode_error`, and its message now says to pass `format: :votable`.
 - SpaceTAP reads XML with Saxy, a new dependency, instead of xmerl.
 - A VOTable error document is a `:service_error` only when its `QUERY_STATUS` is directly inside the `RESOURCE` of type `results`, where DALI 1.1 §4.4 puts it, rather than anywhere in the document. Every service SpaceTAP has been checked against puts it there.
 

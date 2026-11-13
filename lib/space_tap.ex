@@ -15,7 +15,8 @@ defmodule SpaceTAP do
   @user_agent "space_tap/#{Mix.Project.config()[:version]}"
 
   @typedoc "An option for `query/3`."
-  @type option :: {:maxrec, non_neg_integer()} | {:req_options, keyword()}
+  @type option ::
+          {:format, :csv | :votable} | {:maxrec, non_neg_integer()} | {:req_options, keyword()}
 
   @doc """
   Runs a sync query: sends `adql` to the TAP service at `service_url` and
@@ -37,12 +38,27 @@ defmodule SpaceTAP do
       )
       #=> {:ok, %SpaceTAP.Result{columns: ["source_id", "ra", "dec"], rows: [...]}}
 
-  The result comes as CSV, so every value is a string and an empty cell is
-  `nil` (see `SpaceTAP.Result`). Errors come as `{:error, %SpaceTAP.Error{}}`,
-  whose `:type` says what went wrong.
+  The result comes as CSV by default, so every value is a string and an
+  empty cell is `nil`. With `format: :votable` it comes as VOTable, so each
+  value has the type its column declares, and the result describes each
+  column and says whether the service truncated it (see `SpaceTAP.Result`):
+
+      SpaceTAP.query(
+        "https://gea.esac.esa.int/tap-server/tap",
+        "SELECT TOP 3 source_id, ra, dec FROM gaiadr3.gaia_source",
+        format: :votable
+      )
+      #=> {:ok, %SpaceTAP.Result{columns: ["source_id", "ra", "dec"], rows: [...], fields: [...], overflow: false}}
+
+  Errors come as `{:error, %SpaceTAP.Error{}}`, whose `:type` says what went
+  wrong.
 
   ## Options
 
+    * `:format` - the format to ask the service for, `:csv` (the default) or
+      `:votable`, sent as `FORMAT` (TAP 1.1 §2.7.3). The format decides the
+      value types, so a VOTable sent when CSV was asked for, as MAST sends, is
+      a `:decode_error` that says to pass `format: :votable`.
     * `:maxrec` - the maximum number of rows to return, a non-negative
       integer. The service may apply a lower limit of its own, and `0`
       returns the columns with no rows (DALI 1.1 §3.4.4).
@@ -54,19 +70,21 @@ defmodule SpaceTAP do
       a `user-agent` in `:headers` replaces SpaceTAP's, and `:params` adds
       parameters to the URL.
 
-  An unknown option, or a `:maxrec` or `:req_options` that isn't what the
-  list above says, raises `ArgumentError`.
+  An unknown option, or a `:format`, `:maxrec` or `:req_options` that isn't
+  what the list above says, raises `ArgumentError`.
   """
   @spec query(String.t(), String.t(), [option()]) :: {:ok, Result.t()} | {:error, Error.t()}
   def query(service_url, adql, opts \\ []) when is_binary(service_url) and is_binary(adql) do
-    opts = Keyword.validate!(opts, [:maxrec, req_options: []])
+    opts = Keyword.validate!(opts, [:maxrec, format: :csv, req_options: []])
 
     # REQUEST is required by TAP 1.0 (§2.3.1) and ignored by TAP 1.1 (§2.7).
     # TAP 1.1 services must accept FORMAT as RESPONSEFORMAT (§2.7.3), and
     # parameter values are case sensitive (DALI 1.1 §3.1).
-    form = [REQUEST: "doQuery", LANG: "ADQL", FORMAT: "csv", QUERY: adql] ++ maxrec(opts[:maxrec])
+    form =
+      [REQUEST: "doQuery", LANG: "ADQL", FORMAT: format(opts[:format]), QUERY: adql] ++
+        maxrec(opts[:maxrec])
 
-    # classify/1 reads the raw body of every response itself, so Req must
+    # classify/2 reads the raw body of every response itself, so Req must
     # not decode it, stream it elsewhere or raise on an error status.
     tap_options = [
       method: :post,
@@ -83,12 +101,18 @@ defmodule SpaceTAP do
     |> Keyword.merge(tap_options)
     |> Req.new()
     |> Req.request()
-    |> classify()
+    |> classify(opts[:format])
   end
 
   #####################
   # Private functions #
   #####################
+
+  defp format(format) when format in [:csv, :votable], do: Atom.to_string(format)
+
+  defp format(format) do
+    raise ArgumentError, "expected :format to be :csv or :votable, got: #{inspect(format)}"
+  end
 
   defp maxrec(nil), do: []
   defp maxrec(maxrec) when is_integer(maxrec) and maxrec >= 0, do: [MAXREC: maxrec]
@@ -108,11 +132,11 @@ defmodule SpaceTAP do
 
   # The body decides before the status: TAP 1.1 §3.3 lets a service send an
   # error document with 200 as well as 4xx or 5xx.
-  defp classify({:error, exception}) do
+  defp classify({:error, exception}, _format) do
     error(:transport_error, Exception.message(exception), nil)
   end
 
-  defp classify({:ok, %Req.Response{status: status, body: body} = response}) do
+  defp classify({:ok, %Req.Response{status: status, body: body} = response}, format) do
     media_type = media_type(response)
 
     case read_body(media_type, body) do
@@ -128,19 +152,47 @@ defmodule SpaceTAP do
       {:plain_text, text} when status == 400 ->
         error(:service_error, text |> String.trim() |> service_error_message(), status)
 
-      # TAP 1.1 §3.2 says CSV comes as text/csv, but the NASA Exoplanet Archive
-      # and KOA send it as text/plain, although their /capabilities map csv to
-      # text/csv. Only CSV was requested, so text/plain is read as CSV too
-      # (docs/adr/0003-csv-sent-as-plain-text-is-read-as-csv.md).
-      {type, csv} when type in [:csv, :plain_text] and status in 200..299 ->
-        csv_result(csv, status)
-
-      _body when status in 200..299 ->
-        error(:decode_error, "expected text/csv, got #{media_type || "no Content-Type"}", status)
+      body when status in 200..299 ->
+        result(body, format, media_type, status)
 
       body ->
         error(:http_error, http_error_message(body, media_type), status)
     end
+  end
+
+  # A successful response that isn't an error document holds a result in the
+  # format asked for, or can't be read.
+  defp result({:votable, {:ok, table}}, :votable, _media_type, _status) do
+    {:ok, votable_result(table)}
+  end
+
+  defp result({:votable, {:error, message}}, :votable, _media_type, status) do
+    error(:decode_error, message, status)
+  end
+
+  # The format decides the value types, so a VOTable sent for CSV, as MAST
+  # sends, isn't read (docs/adr/0006-the-format-option-decides-the-value-types.md).
+  defp result({:votable, {:ok, _table}}, :csv, media_type, status) do
+    message =
+      "expected text/csv, got #{media_type}: the response is a VOTable, pass format: :votable to read it"
+
+    error(:decode_error, message, status)
+  end
+
+  # TAP 1.1 §3.2 says CSV comes as text/csv, but the NASA Exoplanet Archive
+  # and KOA send it as text/plain, although their /capabilities map csv to
+  # text/csv. Only CSV was requested, so text/plain is read as CSV too
+  # (docs/adr/0003-csv-sent-as-plain-text-is-read-as-csv.md).
+  defp result({type, csv}, :csv, _media_type, status) when type in [:csv, :plain_text] do
+    csv_result(csv, status)
+  end
+
+  defp result(_body, format, media_type, status) do
+    error(
+      :decode_error,
+      "expected #{expected(format)}, got #{media_type || "no Content-Type"}",
+      status
+    )
   end
 
   # The only place that tells media types apart. XML is read as a VOTable
@@ -152,9 +204,19 @@ defmodule SpaceTAP do
     if xml?(media_type), do: {:votable, VOTable.parse(body)}, else: :other
   end
 
+  # Any XML media type can carry a VOTable: KOA and MAST send text/xml, and
+  # the NASA Exoplanet Archive application/xml.
+  defp expected(:csv), do: "text/csv"
+  defp expected(:votable), do: "a VOTable"
+
   # The message of an error document is optional (DALI 1.1 §4.4.2).
   defp service_error_message(""), do: "the TAP service reported an error without a message"
   defp service_error_message(message), do: message
+
+  defp votable_result(%{fields: fields, rows: rows, overflow: overflow}) do
+    columns = Enum.map(fields, & &1.name)
+    %Result{columns: columns, rows: rows, fields: fields, overflow: overflow}
+  end
 
   defp csv_result(csv, status) do
     case CSV.parse(csv) do

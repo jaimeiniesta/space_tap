@@ -19,8 +19,8 @@ defmodule SpaceTAP.Error do
     * `:transport_error` - no response arrived: the connection failed or
       timed out, or the redirects never ended. `:status` is `nil`.
     * `:decode_error` - a successful response that can't be read as a
-      result, such as malformed CSV or a format other than the one
-      requested.
+      result, such as malformed CSV, a VOTable SpaceTAP can't read, or a
+      format other than the one requested.
 
   Later versions may add types, so when you match on `:type`, keep a
   clause for the rest.

@@ -35,6 +35,42 @@ defmodule SpaceTAPIntegrationTest do
     assert length(rows) == 5
   end
 
+  test "reads Gaia's VOTable with typed values" do
+    adql = """
+    SELECT TOP 5 source_id, designation, ra, dec, parallax, phot_g_mean_mag
+    FROM gaiadr3.gaia_source
+    WHERE CONTAINS(
+      POINT('ICRS', ra, dec),
+      CIRCLE('ICRS', 56.75, 24.12, 1.0)
+    ) = 1
+    AND parallax IS NOT NULL
+    AND phot_g_mean_mag IS NOT NULL
+    ORDER BY phot_g_mean_mag
+    """
+
+    assert {:ok, %Result{columns: columns, rows: rows, fields: fields, overflow: false}} =
+             SpaceTAP.query(@service_url, adql, format: :votable)
+
+    assert columns == ["source_id", "designation", "ra", "dec", "parallax", "phot_g_mean_mag"]
+    assert Enum.map(fields, & &1.datatype) == [:long, :char, :double, :double, :double, :float]
+    assert length(rows) == 5
+
+    for [source_id, designation, ra, dec, parallax, magnitude] <- rows do
+      assert is_integer(source_id)
+      assert designation == "Gaia DR3 #{source_id}"
+      assert Enum.all?([ra, dec, parallax, magnitude], &is_float/1)
+    end
+  end
+
+  test "sets overflow when Gaia stops at MAXREC" do
+    adql = "SELECT TOP 10 source_id FROM gaiadr3.gaia_source"
+
+    assert {:ok, %Result{rows: rows, overflow: true}} =
+             SpaceTAP.query(@service_url, adql, format: :votable, maxrec: 3)
+
+    assert length(rows) == 3
+  end
+
   test "returns a service error for invalid ADQL" do
     adql = "SELEC TOP 3 source_id FROM gaiadr3.gaia_source"
 

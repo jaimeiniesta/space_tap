@@ -47,3 +47,11 @@ a result. Captured on 2026-10-27 with:
 ```bash
 curl -sS -o sync_get.xml https://gea.esac.esa.int/tap-server/tap/sync
 ```
+
+The VOTable result was captured on 2026-11-10 with the same request and `FORMAT=votable` instead of `csv`:
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `pleiades.xml` | `SELECT TOP 5 source_id, designation, ra, dec, parallax, phot_g_mean_mag FROM gaiadr3.gaia_source WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1 AND parallax IS NOT NULL AND phot_g_mean_mag IS NOT NULL ORDER BY phot_g_mean_mag` | 200 | `application/x-votable+xml` |
+
+Its rows are BINARY2. Besides the table, its results `RESOURCE` holds `PARAM`s, each with a `DESCRIPTION`, and a nested `RESOURCE`, and a `RESOURCE` of type `meta` with DataLink service descriptors follows it.

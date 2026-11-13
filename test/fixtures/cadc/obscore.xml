@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOTABLE xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.4">
+  <RESOURCE type="results">
+    <INFO name="QUERY_STATUS" value="OK" />
+    <INFO name="QUERY_TIMESTAMP" value="2026-11-10T13:00:22.714" />
+    <INFO name="QUERY" value="SELECT TOP 5 obs_id, obs_collection, target_name, s_ra, s_dec, instrument_name, em_min FROM ivoa.ObsCore WHERE CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', 56.75, 24.12, 0.5)) = 1" />
+    <TABLE>
+      <FIELD name="obs_id" datatype="char" arraysize="128*" ucd="meta.id" utype="obscore:DataID.observationID">
+        <DESCRIPTION>internal dataset identifier</DESCRIPTION>
+      </FIELD>
+      <FIELD name="obs_collection" datatype="char" arraysize="128*" ucd="meta.id" utype="obscore:DataID.Collection">
+        <DESCRIPTION>short name for the data colection</DESCRIPTION>
+      </FIELD>
+      <FIELD name="target_name" datatype="char" arraysize="32*" ucd="meta.id;src" utype="obscore:Target.Name">
+        <DESCRIPTION>name of intended target</DESCRIPTION>
+      </FIELD>
+      <FIELD name="s_ra" datatype="double" ucd="pos.eq.ra" unit="deg" utype="obscore:Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C1">
+        <DESCRIPTION>RA of central coordinates</DESCRIPTION>
+      </FIELD>
+      <FIELD name="s_dec" datatype="double" ucd="pos.eq.dec" unit="deg" utype="obscore:Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C2">
+        <DESCRIPTION>DEC of central coordinates</DESCRIPTION>
+      </FIELD>
+      <FIELD name="instrument_name" datatype="char" arraysize="128*" ucd="meta.id;instr" utype="obscore:Provenance.ObsConfig.Instrument.name">
+        <DESCRIPTION>instrument name</DESCRIPTION>
+      </FIELD>
+      <FIELD name="em_min" datatype="double" ucd="em.wl;stat.min" unit="m" utype="obscore:Char.SpectralAxis.Coverage.Bounds.Limits.LoLimit">
+        <DESCRIPTION>start spectral coordinate value</DESCRIPTION>
+      </FIELD>
+      <DATA>
+        <TABLEDATA>
+<TR><TD>u63e0204r</TD><TD>HST</TD><TD>NPL38</TD><TD>56.96050459498824</TD><TD>23.913671015486443</TD><TD>WFPC2/PC</TD><TD>7.9373E-7</TD></TR>
+<TR><TD>u63e0204r</TD><TD>HST</TD><TD>NPL38</TD><TD>56.96050459498824</TD><TD>23.913671015486443</TD><TD>WFPC2/PC</TD><TD>7.9373E-7</TD></TR>
+<TR><TD>u63e0204r</TD><TD>HST</TD><TD>NPL38</TD><TD>56.96050459498824</TD><TD>23.913671015486443</TD><TD>WFPC2/PC</TD><TD>7.9373E-7</TD></TR>
+<TR><TD>hst_8701_02_wfpc2_pc_f814w_u63e0202</TD><TD>HST</TD><TD>NPL38</TD><TD>56.971377254675865</TD><TD>23.916483663589716</TD><TD>WFPC2/PC</TD><TD>7.1351E-7</TD></TR>
+<TR><TD>u63e0203r</TD><TD>HST</TD><TD>NPL38</TD><TD>56.96050459498824</TD><TD>23.913671015486443</TD><TD>WFPC2/PC</TD><TD>7.9373E-7</TD></TR></TABLEDATA>
+      </DATA>
+    </TABLE>
+    <INFO name="placeholder" value="ignore" />
+  </RESOURCE>
+</VOTABLE>

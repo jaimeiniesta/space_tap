@@ -18,3 +18,11 @@ curl -sS -L -o <file> https://archive.eso.org/tap_obs/sync \
 | `syntax_error.xml` | `SELEC TOP 3 table_name FROM TAP_SCHEMA.tables` | 400 | `application/xml` |
 
 The error document has CRLF line endings.
+
+The VOTable result was captured on 2026-11-10 with the same request and `FORMAT=votable` instead of `csv`:
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `obscore.xml` | `SELECT TOP 5 obs_id, target_name, s_ra, s_dec, instrument_name, dataproduct_type, em_min FROM ivoa.ObsCore WHERE CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', 56.75, 24.12, 0.5)) = 1` | 200 | `application/x-votable+xml` |
+
+Its rows are TABLEDATA.

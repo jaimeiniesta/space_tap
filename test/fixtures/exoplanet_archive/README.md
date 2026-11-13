@@ -20,3 +20,5 @@ curl -sS -o <file> https://exoplanetarchive.ipac.caltech.edu/TAP/sync \
 The CSV comes as `text/plain` instead of `text/csv`, which SpaceTAP reads as CSV
 (`docs/adr/0003-csv-sent-as-plain-text-is-read-as-csv.md`). It has LF line
 endings and quotes every string value.
+
+On 2026-11-10 the archive answered `FORMAT=votable` with HTTP 503 and a maintenance page, so there is no VOTable result yet.

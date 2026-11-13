@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VOTABLE version="1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:stc="http://www.ivoa.net/xml/STC/v1.30" xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/STC/v1.30 http://www.ivoa.net/xml/STC/v1.30">
+  <RESOURCE type="results">
+    <INFO name="QUERY_STATUS" value="OK"/>
+    <TABLE>
+      <FIELD name="table_name" datatype="char" arraysize="*" ID="col_0">
+        <DESCRIPTION>the table this column belongs to</DESCRIPTION>
+      </FIELD>
+      <FIELD name="column_name" datatype="char" arraysize="*" ID="col_1">
+        <DESCRIPTION>the column name</DESCRIPTION>
+      </FIELD>
+      <FIELD name="datatype" datatype="char" arraysize="*" ID="col_2">
+        <DESCRIPTION>lists the ADQL datatype of columns in the tableset</DESCRIPTION>
+      </FIELD>
+      <FIELD name="unit" datatype="char" arraysize="*" ID="col_3">
+        <DESCRIPTION>list the unit used for column values in the tableset</DESCRIPTION>
+      </FIELD>
+      <FIELD name="description" datatype="char" arraysize="*" ID="col_4">
+        <DESCRIPTION>describes the columns in the tableset</DESCRIPTION>
+      </FIELD>
+      <DATA>
+        <TABLEDATA>
+          <TR>
+            <TD>fp_psc</TD>
+            <TD>ra</TD>
+            <TD>double</TD>
+            <TD>deg</TD>
+            <TD>right ascension (J2000 decimal deg)</TD>
+          </TR>
+          <TR>
+            <TD>fp_psc</TD>
+            <TD>dec</TD>
+            <TD>double</TD>
+            <TD>deg</TD>
+            <TD>declination (J2000 decimal deg)</TD>
+          </TR>
+          <TR>
+            <TD>fp_psc</TD>
+            <TD>err_maj</TD>
+            <TD>float</TD>
+            <TD>arcsec</TD>
+            <TD>Semi-major axis length of the one sigma position uncertainty ellipse</TD>
+          </TR>
+          <TR>
+            <TD>fp_psc</TD>
+            <TD>err_min</TD>
+            <TD>float</TD>
+            <TD>arcsec</TD>
+            <TD>Semi-minor axis length of the one sigma position uncertainty ellipse</TD>
+          </TR>
+          <TR>
+            <TD>fp_psc</TD>
+            <TD>err_ang</TD>
+            <TD>int</TD>
+            <TD>deg</TD>
+            <TD>angle of error ellipse major axis (E of N)</TD>
+          </TR>
+        </TABLEDATA>
+      </DATA>
+    </TABLE>
+  </RESOURCE>
+</VOTABLE>

@@ -21,3 +21,11 @@ The CSV comes as `text/plain`, which SpaceTAP reads as CSV
 (`docs/adr/0003-csv-sent-as-plain-text-is-read-as-csv.md`). The error is plain
 text with HTTP 400, which SpaceTAP returns as a `:service_error`
 (`docs/adr/0004-plain-text-with-400-is-a-service-error.md`).
+
+The VOTable result was captured on 2026-11-10 with the same request and `FORMAT=votable` instead of `csv`:
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `hires.xml` | `SELECT TOP 5 koaid, instrume, targname, ra, dec, date_obs, progtitl FROM koa_hires` | 200 | `text/xml` |
+
+Its rows are TABLEDATA. KOA writes each string cell and each `DESCRIPTION` in a CDATA section, the descriptions with a space at each end.

@@ -22,5 +22,13 @@ curl -sS -o <file> https://dc.g-vo.org/tap/sync \
 column `SpType`. Its `parallax` is in degrees.
 
 The error document is VOTable 1.5 and starts with an `xml-stylesheet`
-processing instruction and no XML declaration, which xmerl misreads as a broken
-declaration (see `SpaceTAP.VOTable`).
+processing instruction and no XML declaration, which xmerl misread as a broken
+declaration (issue #10). Saxy reads it.
+
+The VOTable result was captured on 2026-11-10 with the same request and `FORMAT=votable` instead of `csv`:
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `hipparcos.xml` | `SELECT TOP 5 hipno, ra, dec, vmag, parallax, sptype FROM hipparcos.main WHERE hipno <= 5` | 200 | `application/x-votable+xml` |
+
+Its rows are BINARY, and `hipno` has `VALUES null="-2147483648"`.

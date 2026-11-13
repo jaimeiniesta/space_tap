@@ -194,7 +194,9 @@ defmodule SpaceTAPTest do
     end
 
     test "returns a service error with a message of its own when the error document has none" do
-      xml = ~s(<VOTABLE><RESOURCE><INFO name="QUERY_STATUS" value="ERROR"/></RESOURCE></VOTABLE>)
+      xml =
+        ~s(<VOTABLE><RESOURCE type="results"><INFO name="QUERY_STATUS" value="ERROR"/></RESOURCE></VOTABLE>)
+
       stub_service(400, "application/x-votable+xml", xml)
 
       assert query() ==
@@ -305,6 +307,19 @@ defmodule SpaceTAPTest do
       assert query() ==
                {:error,
                 %Error{type: :http_error, status: 502, message: "unexpected text/html response"}}
+    end
+
+    test "returns an HTTP error for a QUERY_STATUS outside the RESOURCE of type results (DALI §4.4)" do
+      xml = ~s(<VOTABLE><INFO name="QUERY_STATUS" value="ERROR">failed</INFO></VOTABLE>)
+      stub_service(400, "application/x-votable+xml", xml)
+
+      assert query() ==
+               {:error,
+                %Error{
+                  type: :http_error,
+                  status: 400,
+                  message: "unexpected application/x-votable+xml response"
+                }}
     end
 
     test "returns an HTTP error for an XML document that isn't an error document" do

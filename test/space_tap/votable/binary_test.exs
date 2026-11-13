@@ -19,12 +19,12 @@ defmodule SpaceTAP.VOTable.BinaryTest do
 
     test "returns the error of the first cell it can't read" do
       assert Binary.rows(<<1::32, 3::32, "Ká">>, [@id, @sptype], :binary) ==
-               {:error, ~s(field "sptype": "Ká" is not a valid char)}
+               {:error, ~s(row 1, field "sptype": "Ká" is not a valid char)}
     end
 
-    test "rejects a row the bytes end in the middle of" do
+    test "rejects a row the bytes end in the middle of, giving its number" do
       assert Binary.rows(<<1::32, 2::32, "K3", 2::32>>, [@id, @sptype], :binary) ==
-               {:error, ~s(field "sptype": the data ends in the middle of the cell)}
+               {:error, ~s(row 2, field "sptype": the data ends in the middle of the cell)}
     end
 
     test "reads the rows GAVO sent, as astropy 8.0.2 reads them" do
@@ -87,14 +87,14 @@ defmodule SpaceTAP.VOTable.BinaryTest do
       assert Binary.rows(<<0, -1::32, 0::32>>, [id, @sptype], :binary2) == {:ok, [[nil, nil]]}
     end
 
-    test "rejects a row the bytes end in the middle of" do
+    test "rejects a row the bytes end in the middle of, giving its number" do
       fields = for n <- 1..9, do: %Field{name: "c#{n}", datatype: :unsignedByte}
 
       assert Binary.rows(<<0>>, fields, :binary2) ==
-               {:error, "the data ends in the middle of the null flags of a row"}
+               {:error, "row 1 ends in the middle of its null flags"}
 
-      assert Binary.rows(<<0, 1::32>>, [@id, @sptype], :binary2) ==
-               {:error, ~s(field "sptype": the data ends in the middle of the cell)}
+      assert Binary.rows(<<0, 1::32, 0::32, 0, 2::32>>, [@id, @sptype], :binary2) ==
+               {:error, ~s(row 2, field "sptype": the data ends in the middle of the cell)}
     end
 
     test "reads the rows Gaia sent, as astropy 8.0.2 reads them" do

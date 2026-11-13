@@ -19,3 +19,11 @@ curl -sS -L -o <file> https://ned.ipac.caltech.edu/tap/sync \
 
 `NEDTAP.objdir` is the only table besides `TAP_SCHEMA`. Strings are quoted, and
 the empty cells are NULLs.
+
+The VOTable result was captured on 2026-11-10 with the same request and `FORMAT=votable` instead of `csv`:
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `objdir.xml` | `SELECT TOP 5 prefname, prefphytype, ra, dec, z, zflag FROM NEDTAP.objdir WHERE CONTAINS(POINT('J2000', ra, dec), CIRCLE('J2000', 56.75, 24.12, 0.2)) = 1` | 200 | `application/x-votable+xml;charset=UTF-8` |
+
+Its rows are BINARY. The NULLs of the CSV are NaN in `z` and empty strings in `prefphytype` and `zflag`, since BINARY has no null flags, and SpaceTAP reads both as `nil` (`docs/adr/0007-how-votable-values-map-to-elixir.md`).

@@ -21,7 +21,7 @@ defmodule SpaceTAP.VOTable.Binary do
   # field (§5.5). It reads like BINARY2 with every flag unset.
   def rows(bytes, fields, :binary) do
     count = length(fields)
-    read_rows(bytes, fields, {:unset, <<0::size(count)>>}, [])
+    read_rows(bytes, fields, {:unset, <<0::size(count)>>}, 1, [])
   end
 
   # §5.4: each row starts with (N+7)/8 bytes of null flags, one bit for each
@@ -29,38 +29,44 @@ defmodule SpaceTAP.VOTable.Binary do
   # first field. §5.4 gives the most significant bit of the second byte to
   # "the eighth" field, but by that count it belongs to the ninth.
   def rows(bytes, fields, :binary2),
-    do: read_rows(bytes, fields, {:read, div(length(fields) + 7, 8)}, [])
+    do: read_rows(bytes, fields, {:read, div(length(fields) + 7, 8)}, 1, [])
 
-  defp read_rows(<<>>, _fields, _flags, rows), do: {:ok, Enum.reverse(rows)}
+  # Errors name the row, counted from 1, since nothing else in a stream
+  # shows where a cell is.
+  defp read_rows(<<>>, _fields, _flags, _number, rows), do: {:ok, Enum.reverse(rows)}
 
-  defp read_rows(bytes, fields, flags, rows) do
-    with {:ok, row_flags, bytes} <- null_flags(bytes, flags),
-         {:ok, row, rest} <- cells(bytes, fields, row_flags, []),
-         do: read_rows(rest, fields, flags, [row | rows])
+  defp read_rows(bytes, fields, flags, number, rows) do
+    with {:ok, row_flags, bytes} <- null_flags(bytes, flags, number),
+         {:ok, row, rest} <- cells(bytes, fields, row_flags, number, []),
+         do: read_rows(rest, fields, flags, number + 1, [row | rows])
   end
 
-  defp null_flags(bytes, {:unset, flags}), do: {:ok, flags, bytes}
+  defp null_flags(bytes, {:unset, flags}, _number), do: {:ok, flags, bytes}
 
-  defp null_flags(bytes, {:read, size}) when byte_size(bytes) >= size do
+  defp null_flags(bytes, {:read, size}, _number) when byte_size(bytes) >= size do
     {flags, rest} = :erlang.split_binary(bytes, size)
     {:ok, flags, rest}
   end
 
-  defp null_flags(_bytes, {:read, _size}),
-    do: {:error, "the data ends in the middle of the null flags of a row"}
+  defp null_flags(_bytes, {:read, _size}, number),
+    do: {:error, "row #{number} ends in the middle of its null flags"}
 
   # The flag bits after the last field are left unread, although §5.4 says
   # they shall be unset: they belong to no cell.
-  defp cells(bytes, [], _flags, cells), do: {:ok, Enum.reverse(cells), bytes}
+  defp cells(bytes, [], _flags, _number, cells), do: {:ok, Enum.reverse(cells), bytes}
 
   # A set flag makes the cell null, whatever its bytes hold (§5.4).
-  defp cells(bytes, [field | fields], <<1::1, flags::bitstring>>, cells) do
-    with {:ok, rest} <- Value.skip_binary(bytes, field),
-         do: cells(rest, fields, flags, [nil | cells])
+  defp cells(bytes, [field | fields], <<1::1, flags::bitstring>>, number, cells) do
+    case Value.skip_binary(bytes, field) do
+      {:ok, rest} -> cells(rest, fields, flags, number, [nil | cells])
+      {:error, message} -> {:error, "row #{number}, " <> message}
+    end
   end
 
-  defp cells(bytes, [field | fields], <<0::1, flags::bitstring>>, cells) do
-    with {:ok, value, rest} <- Value.parse_binary(bytes, field),
-         do: cells(rest, fields, flags, [value | cells])
+  defp cells(bytes, [field | fields], <<0::1, flags::bitstring>>, number, cells) do
+    case Value.parse_binary(bytes, field) do
+      {:ok, value, rest} -> cells(rest, fields, flags, number, [value | cells])
+      {:error, message} -> {:error, "row #{number}, " <> message}
+    end
   end
 end

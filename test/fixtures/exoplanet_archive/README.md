@@ -21,4 +21,14 @@ The CSV comes as `text/plain` instead of `text/csv`, which SpaceTAP reads as CSV
 (`docs/adr/0003-csv-sent-as-plain-text-is-read-as-csv.md`). It has LF line
 endings and quotes every string value.
 
-On 2026-11-10 the archive answered `FORMAT=votable` with HTTP 503 and a maintenance page, so there is no VOTable result yet.
+On 2026-11-10 the archive answered `FORMAT=votable` with HTTP 503 and a
+maintenance page. The VOTable result was captured on 2026-11-13 with the same
+request and `FORMAT=votable` instead of `csv`:
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `planets.xml` | `SELECT TOP 3 pl_name, disc_year FROM ps` | 200 | `application/xml` |
+
+It is VOTable 1.3 with TABLEDATA rows, and writes each string cell and the
+description in CDATA. With no `ORDER BY`, `TOP 3` gave other planets than in
+`planets.csv`.

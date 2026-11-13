@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VOTABLE version="1.3" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.ivoa.net/xml/VOTable/v1.3">
+  <RESOURCE type="results">
+  <INFO name="QUERY_STATUS" value="OK"/>
+  <TABLE>
+    <FIELD ID="pl_name" arraysize="*" datatype="char" name="pl_name">
+  <DESCRIPTION><![CDATA[ Planet Name ]]></DESCRIPTION>
+</FIELD>
+    <FIELD ID="disc_year" datatype="int" name="disc_year"/>
+    <DATA>
+      <TABLEDATA>
+        <TR>
+        <TD><![CDATA[Kepler-180 c]]></TD>
+        <TD>2014</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[HAT-P-38 b]]></TD>
+        <TD>2012</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[Kepler-992 b]]></TD>
+        <TD>2016</TD>
+        </TR>
+      </TABLEDATA>
+    </DATA>
+  </TABLE>
+  </RESOURCE>
+</VOTABLE>

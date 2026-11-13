@@ -287,6 +287,18 @@ defmodule SpaceTAPTest do
                 }}
     end
 
+    test "returns a decode error for a successful XML response that isn't a VOTable" do
+      stub_service(200, "text/xml", "<error>Internal Server Error</error>")
+
+      assert query() ==
+               {:error,
+                %Error{
+                  type: :decode_error,
+                  status: 200,
+                  message: "expected text/csv, got text/xml"
+                }}
+    end
+
     test "returns a decode error for a successful response with no or an empty Content-Type" do
       for content_type <- [nil, ""] do
         stub_service(200, content_type, fixture("pleiades.csv"))

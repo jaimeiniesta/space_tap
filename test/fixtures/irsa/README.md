@@ -20,3 +20,11 @@ curl -sS -L -o <file> https://irsa.ipac.caltech.edu/TAP/sync \
 The query reads `TAP_SCHEMA` because queries on the 2MASS catalogue (`fp_psc`)
 take from 45 seconds to over a minute. The error document comes with HTTP 200,
 which TAP 1.1 §3.3 allows.
+
+The VOTable result was captured on 2026-11-10 with the same request and `FORMAT=votable` instead of `csv`:
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `columns.xml` | `SELECT TOP 5 table_name, column_name, datatype, unit, description FROM TAP_SCHEMA.columns WHERE table_name = 'fp_psc'` | 200 | `application/x-votable+xml` |
+
+Its rows are TABLEDATA.

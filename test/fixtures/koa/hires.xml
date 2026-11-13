@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VOTABLE version="1.3" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.ivoa.net/xml/VOTable/v1.3">
+  <RESOURCE type="results">
+  <INFO name="QUERY_STATUS" value="OK"/>
+  <TABLE>
+    <FIELD ID="koaid" arraysize="*" datatype="char" name="koaid">
+  <DESCRIPTION><![CDATA[ Unique identifier for each file ]]></DESCRIPTION>
+</FIELD>
+    <FIELD ID="instrume" arraysize="*" datatype="char" name="instrume">
+  <DESCRIPTION><![CDATA[ instrument name ]]></DESCRIPTION>
+</FIELD>
+    <FIELD ID="targname" arraysize="*" datatype="char" name="targname">
+  <DESCRIPTION><![CDATA[ target-name ]]></DESCRIPTION>
+</FIELD>
+    <FIELD ID="ra" datatype="double" name="ra">
+  <DESCRIPTION><![CDATA[ RA in decimal degrees, J2000 equinox ]]></DESCRIPTION>
+    </FIELD>
+    <FIELD ID="dec" datatype="double" name="dec">
+  <DESCRIPTION><![CDATA[ Declination in decimal degrees, J2000 equinox ]]></DESCRIPTION>
+    </FIELD>
+    <FIELD ID="date_obs" arraysize="*" datatype="char" name="date_obs">
+  <DESCRIPTION><![CDATA[ universal date of observation ]]></DESCRIPTION>
+</FIELD>
+    <FIELD ID="progtitl" arraysize="*" datatype="char" name="progtitl">
+  <DESCRIPTION><![CDATA[ Title of observing program ]]></DESCRIPTION>
+</FIELD>
+    <DATA>
+      <TABLEDATA>
+        <TR>
+        <TD><![CDATA[HI.19941118.65412.fits]]></TD>
+        <TD><![CDATA[HIRES Spectrograph]]></TD>
+        <TD></TD>
+        <TD>15.84556</TD>
+        <TD>70.26828</TD>
+        <TD><![CDATA[1994-11-18 00:00:00]]></TD>
+        <TD><![CDATA[Program Title Not Found]]></TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[HI.19941201.80171.fits]]></TD>
+        <TD><![CDATA[HIRES Spectrograph]]></TD>
+        <TD></TD>
+        <TD>15.84556</TD>
+        <TD>70.26828</TD>
+        <TD><![CDATA[1994-12-01 00:00:00]]></TD>
+        <TD><![CDATA[Program Title Not Found]]></TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[HI.19941201.80420.fits]]></TD>
+        <TD><![CDATA[HIRES Spectrograph]]></TD>
+        <TD></TD>
+        <TD>15.84556</TD>
+        <TD>70.26828</TD>
+        <TD><![CDATA[1994-12-01 00:00:00]]></TD>
+        <TD><![CDATA[Program Title Not Found]]></TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[HI.19941201.83588.fits]]></TD>
+        <TD><![CDATA[HIRES Spectrograph]]></TD>
+        <TD></TD>
+        <TD>15.84556</TD>
+        <TD>70.26828</TD>
+        <TD><![CDATA[1994-12-01 00:00:00]]></TD>
+        <TD><![CDATA[Program Title Not Found]]></TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[HI.19941210.06503.fits]]></TD>
+        <TD><![CDATA[HIRES Spectrograph]]></TD>
+        <TD></TD>
+        <TD>344.00000</TD>
+        <TD>89.90000</TD>
+        <TD><![CDATA[1994-12-10 00:00:00]]></TD>
+        <TD><![CDATA[Program Title Not Found]]></TD>
+        </TR>
+      </TABLEDATA>
+    </DATA>
+  </TABLE>
+  </RESOURCE>
+</VOTABLE>

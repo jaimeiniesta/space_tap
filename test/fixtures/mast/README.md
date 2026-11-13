@@ -21,3 +21,5 @@ MAST sends a VOTable (TABLEDATA) although CSV was requested, with `FORMAT=csv`
 and with `RESPONSEFORMAT=csv`. TAP 1.1 §2.7.3 requires VOTable and only
 recommends CSV, so SpaceTAP returns a `:decode_error` until it reads VOTable.
 Its error document is a VOTable too, which SpaceTAP reads as a `:service_error`.
+
+Asked again on 2026-11-10 with `FORMAT=votable`, MAST sent `tables.xml` byte for byte.

@@ -24,3 +24,11 @@ SpaceTAP returns as a `:service_error`
 (`docs/adr/0004-plain-text-with-400-is-a-service-error.md`). The message is
 written as a single CSV field (in quotes, with doubled `"`), and SpaceTAP keeps
 it that way.
+
+The VOTable result was captured on 2026-11-10 with the same request and `FORMAT=votable` instead of `csv`:
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `obscore.xml` | `SELECT TOP 5 obs_id, obs_collection, target_name, s_ra, s_dec, instrument_name, em_min FROM ivoa.ObsCore WHERE CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', 56.75, 24.12, 0.5)) = 1` | 303, then 200 | `application/x-votable+xml; serialization=tabledata` |
+
+Its rows are TABLEDATA, and its strings have an `arraysize` with a maximum, such as `128*`.

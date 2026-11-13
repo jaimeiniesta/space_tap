@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VOTABLE version="1.3" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/v1.3">
+<RESOURCE type="results">
+<INFO name="QUERY_STATUS" value="OK"/>
+<INFO name="PROVIDER" value="NASA/IPAC Extragalatic Database (NED)">NED VO Table Access Protocol (TAP) Service</INFO>
+<INFO name="QUERY" value="SELECT TOP 5 prefname, prefphytype, ra, dec, z, zflag FROM NEDTAP.objdir WHERE CONTAINS(POINT('J2000', ra, dec), CIRCLE('J2000', 56.75, 24.12, 0.2)) = 1"/>
+<TABLE name="result_S1794315621542">
+<FIELD arraysize="*" datatype="char" name="prefname" ucd="meta.id.cross">
+<DESCRIPTION>preferred object name</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="prefphytype" ucd="src.class">
+<DESCRIPTION>NED preferred object type</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="ra" ucd="pos.eq.ra" unit="deg">
+<DESCRIPTION>RA in decimal degrees of the object Equatorial Coordinate System, J2000.0</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="dec" ucd="pos.eq.dec" unit="deg">
+<DESCRIPTION>DEC in decimal degrees of the object Equatorial Coordinate System, J2000.0</DESCRIPTION>
+</FIELD>
+<FIELD datatype="double" name="z" ucd="src.redshift">
+<DESCRIPTION>Redshift in z.</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="zflag" ucd="meta.code;src.redshift">
+<DESCRIPTION>Redshift flag</DESCRIPTION>
+</FIELD>
+<DATA>
+<BINARY>
+<STREAM encoding='base64'>
+AAAAFTJYTU0gSjAzNDYyMC4wKzI0MTM0MwAAAABATEq1HIkSg0A4OpW2nijKf/gA
+AAAAAAAAAAAAAAAAFTJYTU0gSjAzNDYyMC41KzI0MTQxNwAAAABATErxsPl3cEA4
+PP+EgEX2f/gAAAAAAAAAAAAAAAAAFTJYTU0gSjAzNDY1OS4zKzI0MTUwMQAAAABA
+TF+nY85LckA4QBxO0z5Vf/gAAAAAAAAAAAAAAAAAFTJYTU0gSjAzNDcwNS4xKzI0
+MTgwMQAAAABATGK8FpwjuEA4TO8PjkSnf/gAAAAAAAAAAAAAAAAAFTJYTU0gSjAz
+NDcwNS4xKzI0MDkzNAAAAABATGLB2ZtXKUA4KOB19v0if/gAAAAAAAAAAAAA
+</STREAM>
+</BINARY>
+</DATA>
+</TABLE>
+</RESOURCE>
+</VOTABLE>

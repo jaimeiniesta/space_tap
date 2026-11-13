@@ -115,61 +115,65 @@ defmodule SpaceTAP do
   defp classify({:ok, %Req.Response{status: status, body: body} = response}) do
     media_type = media_type(response)
 
-    case service_error(media_type, status, body) do
-      {:ok, message} -> error(:service_error, message, status)
-      :error when status in 200..299 -> result(media_type, body, status)
-      :error -> error(:http_error, http_error_message(media_type, body), status)
+    case read_body(media_type, body) do
+      # DALI 1.1 §4.2 allows a VOTable or a plain-text error document. A
+      # VOTable shows that a TAP service wrote it: the query status of its
+      # RESOURCE of type results is ERROR (DALI §4.4).
+      {:votable, {:query_error, message}} ->
+        error(:service_error, service_error_message(message), status)
+
+      # Plain text from a proxy or web server looks the same, so plain text is
+      # a service error only with a 400, the status for a bad request, as KOA
+      # and CADC send (docs/adr/0004-plain-text-with-400-is-a-service-error.md).
+      {:plain_text, text} when status == 400 ->
+        error(:service_error, text |> String.trim() |> service_error_message(), status)
+
+      # TAP 1.1 §3.2 says CSV comes as text/csv, but the NASA Exoplanet Archive
+      # and KOA send it as text/plain, although their /capabilities map csv to
+      # text/csv. Only CSV was requested, so text/plain is read as CSV too
+      # (docs/adr/0003-csv-sent-as-plain-text-is-read-as-csv.md).
+      {type, csv} when type in [:csv, :plain_text] and status in 200..299 ->
+        csv_result(csv, status)
+
+      _body when status in 200..299 ->
+        error(:decode_error, "expected text/csv, got #{media_type || "no Content-Type"}", status)
+
+      body ->
+        error(:http_error, http_error_message(body, media_type), status)
     end
   end
 
-  # DALI 1.1 §4.2 allows a VOTable or a plain-text error document. A VOTable
-  # shows that a TAP service wrote it: the query status of its RESOURCE of
-  # type results is ERROR (DALI §4.4).
-  # Plain text from a proxy or web server looks the same, so plain text is a
-  # service error only with a 400, the status for a bad request, as KOA and
-  # CADC send (docs/adr/0004-plain-text-with-400-is-a-service-error.md).
-  defp service_error("text/plain", 400, body) do
-    {:ok, body |> String.trim() |> service_error_message()}
-  end
+  # The only place that tells media types apart. XML is read as a VOTable
+  # whatever the status, since an error document may come with any.
+  defp read_body("text/csv", body), do: {:csv, body}
+  defp read_body("text/plain", body), do: {:plain_text, body}
 
-  defp service_error(media_type, _status, body) do
-    with true <- xml?(media_type),
-         {:query_error, message} <- VOTable.parse(body) do
-      {:ok, service_error_message(message)}
-    else
-      _other -> :error
-    end
+  defp read_body(media_type, body) do
+    if xml?(media_type), do: {:votable, VOTable.parse(body)}, else: :other
   end
 
   # The message of an error document is optional (DALI 1.1 §4.4.2).
   defp service_error_message(""), do: "the TAP service reported an error without a message"
   defp service_error_message(message), do: message
 
-  # TAP 1.1 §3.2 says CSV comes as text/csv, but the NASA Exoplanet Archive
-  # and KOA send it as text/plain, although their /capabilities map csv to
-  # text/csv. Only CSV was requested, so text/plain is read as CSV too
-  # (docs/adr/0003-csv-sent-as-plain-text-is-read-as-csv.md).
-  defp result(media_type, body, status) when media_type in ["text/csv", "text/plain"] do
-    case CSV.parse(body) do
+  defp csv_result(csv, status) do
+    case CSV.parse(csv) do
       {:ok, result} -> {:ok, result}
       {:error, message} -> error(:decode_error, message, status)
     end
   end
 
-  defp result(media_type, _body, status) do
-    error(:decode_error, "expected text/csv, got #{media_type || "no Content-Type"}", status)
-  end
-
-  defp http_error_message(nil, _body), do: "unexpected response with no Content-Type"
-
-  defp http_error_message("text/plain", body) do
-    case String.trim(body) do
-      "" -> "unexpected text/plain response"
+  # The text of a plain-text body, such as a proxy's, says more than its
+  # media type.
+  defp http_error_message({:plain_text, text}, media_type) do
+    case String.trim(text) do
+      "" -> http_error_message(:other, media_type)
       text -> text
     end
   end
 
-  defp http_error_message(media_type, _body), do: "unexpected #{media_type} response"
+  defp http_error_message(_body, nil), do: "unexpected response with no Content-Type"
+  defp http_error_message(_body, media_type), do: "unexpected #{media_type} response"
 
   defp error(type, message, status) do
     {:error, %Error{type: type, message: message, status: status}}

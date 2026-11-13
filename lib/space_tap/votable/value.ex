@@ -33,6 +33,21 @@ defmodule SpaceTAP.VOTable.Value do
     double: 8
   }
 
+  # Checks what a field says about its cells, the datatype, the arraysize and
+  # the null value, as reading a cell does. An invalid one is an error even
+  # when no cell uses it: a table may have no rows, and an empty TD is nil
+  # before anything else is read.
+  @spec check_field(Field.t()) :: :ok | {:error, String.t()}
+
+  def check_field(%Field{datatype: datatype} = field) when datatype in @unsupported,
+    do: unsupported(field)
+
+  def check_field(%Field{} = field) do
+    with {:ok, _shape} <- binary_shape(field),
+         {:ok, _null} <- null(field),
+         do: :ok
+  end
+
   @spec parse_text(String.t(), Field.t()) :: {:ok, term()} | {:error, String.t()}
 
   def parse_text(_text, %Field{datatype: datatype} = field) when datatype in @unsupported,

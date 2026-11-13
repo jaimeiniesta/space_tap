@@ -17,7 +17,7 @@ Saxy halves both on BINARY2, so it replaces xmerl. Almost all of the difference 
 
 ## Consequences
 
-- Saxy doesn't expand entities declared in a DTD, internal or external: it leaves the reference as text, so a `&lol;` cell reaches `parse_text/2` as those five characters. That keeps the protection `disallow_entities` gave against entity expansion, without an error for the document.
+- Saxy doesn't expand entities declared in a DTD, internal or external: by default it leaves the reference as text, so a `&lol;` cell would reach `parse_text/2` as those five characters, and a `char` cell would keep them as its value. SpaceTAP passes Saxy an `expand_entity` function that stops the parse instead, so a reference to any entity but the five XML predefines is a `:decode_error`, as it was with `disallow_entities`.
 - Saxy reads a document that starts with an `xml-stylesheet` processing instruction and has no XML declaration, which xmerl rejects (issue #10), so the declaration SpaceTAP prepends for xmerl can go.
 - Saxy leaves a namespace prefix on element names, so SpaceTAP matches the local name.
 - With Saxy, turning cell text into values costs about as much as parsing the XML: `parse_text/2` takes 929 ms on the 600,000 cells of the TABLEDATA file. Reading each field's `arraysize` and `null` once, rather than in every cell, is where the next gain is.

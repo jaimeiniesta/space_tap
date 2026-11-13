@@ -54,6 +54,7 @@ defmodule SpaceTAP.MixProject do
     [
       {:req, "~> 0.7.5"},
       {:nimble_csv, "~> 1.3"},
+      {:saxy, "~> 1.7"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.40", only: [:dev, :test], runtime: false},

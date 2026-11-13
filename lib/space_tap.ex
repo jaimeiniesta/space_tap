@@ -123,7 +123,8 @@ defmodule SpaceTAP do
   end
 
   # DALI 1.1 §4.2 allows a VOTable or a plain-text error document. A VOTable
-  # shows that a TAP service wrote it: its query status is ERROR (DALI §4.4).
+  # shows that a TAP service wrote it: the query status of its RESOURCE of
+  # type results is ERROR (DALI §4.4).
   # Plain text from a proxy or web server looks the same, so plain text is a
   # service error only with a 400, the status for a bad request, as KOA and
   # CADC send (docs/adr/0004-plain-text-with-400-is-a-service-error.md).
@@ -133,7 +134,7 @@ defmodule SpaceTAP do
 
   defp service_error(media_type, _status, body) do
     with true <- xml?(media_type),
-         {:ok, {"ERROR", message}} <- VOTable.query_status(body) do
+         {:query_error, message} <- VOTable.parse(body) do
       {:ok, service_error_message(message)}
     else
       _other -> :error

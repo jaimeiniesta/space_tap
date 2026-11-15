@@ -2,7 +2,7 @@
 
 ```elixir
 Mix.install([
-  {:space_tap, "~> 0.1.0"},
+  {:space_tap, "~> 0.2.0"},
   {:kino, "~> 0.19.1"}
 ])
 ```
@@ -11,7 +11,7 @@ Mix.install([
 
 [TAP](https://www.ivoa.net/documents/TAP/), the IVOA Table Access Protocol, is how astronomical archives expose their tables over HTTP. You write a query in [ADQL](https://www.ivoa.net/documents/ADQL/), a dialect of SQL with functions for positions on the sky, and the service runs it and sends the table back.
 
-`SpaceTAP.query/3` runs a sync query: one HTTP request, with the result in the response (TAP 1.1 §2.1). It POSTs the ADQL to the `/sync` endpoint of the service with `REQUEST=doQuery`, `LANG=ADQL` and `FORMAT=csv`, and reads the CSV that comes back.
+`SpaceTAP.query/3` runs a sync query: one HTTP request, with the result in the response (TAP 1.1 §2.1). It POSTs the ADQL to the `/sync` endpoint of the service with `REQUEST=doQuery`, `LANG=ADQL` and `FORMAT=csv`, and reads the CSV that comes back. With `format: :votable` it asks for VOTable instead, and reads typed values.
 
 This notebook installs SpaceTAP from Hex. Every query goes to a live service, so the numbers you get may differ a little from the ones mentioned here.
 
@@ -74,7 +74,34 @@ end
 
 `source_id` is a 64-bit integer. Keep it as a string, or use `String.to_integer/1`, but don't turn it into a float: floats can't hold every integer that large exactly.
 
-Typed values read from VOTable, the IVOA format for tables, are planned for a later version of SpaceTAP.
+## Typed values with VOTable
+
+VOTable is the IVOA format for tables, and every TAP service must support it (TAP 1.1 §2.7.3). Each column is a `FIELD` that declares its datatype, so `format: :votable` gives values you can compute with:
+
+```elixir
+{:ok, result} = SpaceTAP.query(gaia, adql, format: :votable)
+hd(result.rows)
+```
+
+`source_id` is a `long`, so it comes as an integer, and the rest are floats. `phot_g_mean_mag` is a `float`, a 32-bit number, and SpaceTAP gives the exact value of its 32 bits, with more digits than the CSV shows: `3.6157947` there is `3.6157946586608887` here. Both are the same number.
+
+`fields` describes each column with a `SpaceTAP.Field`:
+
+```elixir
+result.fields
+|> Enum.map(&Map.take(&1, [:name, :datatype, :unit, :description]))
+|> Kino.DataTable.new(keys: [:name, :datatype, :unit, :description], name: "Columns")
+```
+
+No parsing is needed now:
+
+```elixir
+for [source_id, _ra, _dec, parallax, _mag] <- result.rows do
+  %{source_id: source_id, distance_pc: Float.round(1000 / parallax, 1)}
+end
+```
+
+CSV stays the default, so code written for strings keeps working.
 
 ## Options
 
@@ -87,7 +114,19 @@ Typed values read from VOTable, the IVOA format for tables, are planned for a la
 length(result.rows)
 ```
 
-A CSV result doesn't say whether the service cut it short. A VOTable would, with a query status of `OVERFLOW` (DALI 1.1 §4.4.1). If you get exactly as many rows as the limit, assume there are more.
+A CSV result doesn't say whether the service cut it short. A VOTable does, with a query status of `OVERFLOW` (DALI 1.1 §4.4.1), and SpaceTAP sets `overflow`:
+
+```elixir
+{:ok, result} =
+  SpaceTAP.query(gaia, "SELECT TOP 10 source_id FROM gaiadr3.gaia_source",
+    maxrec: 3,
+    format: :votable
+  )
+
+result.overflow
+```
+
+With CSV, `overflow` is `nil`: if you get exactly as many rows as the limit, assume there are more.
 
 `maxrec: 0` asks for the columns with no rows, which is a quick way to see what a query returns:
 

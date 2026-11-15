@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `format: :votable` in `SpaceTAP.query/3`, which asks the TAP service for VOTable and reads its rows in the serialization the service sends, TABLEDATA, BINARY or BINARY2, into typed values: integers, floats, booleans, strings and lists, with `nil` for a null cell or NaN. CSV stays the default.
 - `SpaceTAP.Result` gains `fields`, a `SpaceTAP.Field` describing each column (name, datatype, arraysize, xtype, unit, UCD, utype, description and null value), and `overflow`, `true` when the service truncated the result. Both are `nil` for CSV.
-- A livebook that runs the queries of the parity tests through SpaceTAP in Elixir cells and through PyVO in Python cells, with Pythonx, and compares the results. It also shows the same row as each client reads it, and the overflow that PyVO reads and CSV can't carry.
+- A livebook that runs the queries of the parity tests through SpaceTAP in Elixir cells and through PyVO in Python cells, with Pythonx, and compares the columns, the overflow and the value of every cell. It also shows the same row as SpaceTAP reads it from CSV and from VOTable, and as PyVO reads it.
 - The README shows `format: :votable`, with the typed values, fields and overflow it gives, a Formats column in Compatibility, and a link to the PyVO livebook for those coming from Python.
 
 ### Changed
@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SpaceTAP reads XML with Saxy, a new dependency, instead of xmerl.
 - A VOTable error document is a `:service_error` only when its `QUERY_STATUS` is directly inside the `RESOURCE` of type `results`, where DALI 1.1 §4.4 puts it, rather than anywhere in the document. Every service SpaceTAP has been checked against puts it there.
 - MAST works with `format: :votable`, so the README no longer lists it as not working.
+- The Pleiades livebook reads Gaia's VOTable, so its colour–magnitude diagram uses typed values instead of parsing strings. The getting-started livebook shows typed values and overflow, and the tour of TAP services queries MAST with `format: :votable`.
 
 ## [0.1.0] - 2026-10-28
 

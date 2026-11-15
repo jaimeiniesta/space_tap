@@ -45,6 +45,37 @@ defmodule SpaceTAPServicesTest do
       ["962640", "28Tau", "57.296784", "24.13606", "XSHOOTER", "spectrum", "5.336599999999999E-7"]}}
   ]
 
+  # {service, fixture, status, Content-Type, columns, row count, first row}.
+  # The first rows are as PyVO 1.9.1 reads them, with ADR 0007's nil for an
+  # empty string. VizieR and SIMBAD have no VOTable fixture yet.
+  @votable_results [
+    {"GAVO", "gavo/hipparcos.xml", 200, "application/x-votable+xml",
+     ["hipno", "ra", "dec", "vmag", "parallax", "SpType"], 5,
+     [1, 9.1185e-4, 1.08901332, 9.100000381469727, 9.833332796915784e-7, "F5"]},
+    {"IRSA", "irsa/columns.xml", 200, "application/x-votable+xml",
+     ["table_name", "column_name", "datatype", "unit", "description"], 5,
+     ["fp_psc", "ra", "double", "deg", "right ascension (J2000 decimal deg)"]},
+    {"NED", "ned/objdir.xml", 200, "application/x-votable+xml;charset=UTF-8",
+     ["prefname", "prefphytype", "ra", "dec", "z", "zflag"], 5,
+     ["2XMM J034620.0+241343", nil, 56.58365208333, 24.22884694444, nil, nil]},
+    {"KOA", "koa/hires.xml", 200, "text/xml",
+     ["koaid", "instrume", "targname", "ra", "dec", "date_obs", "progtitl"], 5,
+     [
+       "HI.19941118.65412.fits",
+       "HIRES Spectrograph",
+       nil,
+       15.84556,
+       70.26828,
+       "1994-11-18 00:00:00",
+       "Program Title Not Found"
+     ]},
+    {"ESO", "eso/obscore.xml", 200, "application/x-votable+xml",
+     ["obs_id", "target_name", "s_ra", "s_dec", "instrument_name", "dataproduct_type", "em_min"],
+     5, ["962640", "28Tau", 57.296784, 24.13606, "XSHOOTER", "spectrum", 5.336599999999999e-7]},
+    {"MAST", "mast/tables.xml", 200, "text/xml; charset=utf-8", ["table_name"], 3,
+     ["tap_schema.schemas"]}
+  ]
+
   # {service, fixture, status, Content-Type, message}
   @service_errors [
     {"the NASA Exoplanet Archive", "exoplanet_archive/syntax_error.xml", 400, "application/xml",
@@ -115,6 +146,64 @@ defmodule SpaceTAPServicesTest do
     end
   end
 
+  describe "VOTable results" do
+    for {service, fixture, status, content_type, columns, row_count, first_row} <-
+          @votable_results do
+      test "reads #{service}'s VOTable" do
+        assert {:ok, %Result{columns: columns, rows: rows, overflow: false}} =
+                 respond(unquote(fixture), unquote(status), unquote(content_type),
+                   format: :votable
+                 )
+
+        assert columns == unquote(columns)
+        assert length(rows) == unquote(row_count)
+        assert hd(rows) === unquote(first_row)
+      end
+    end
+
+    @tag :capture_log
+    test "reads CADC's VOTable after its redirect" do
+      Req.Test.stub(SpaceTAP, fn
+        %Plug.Conn{method: "POST"} = conn ->
+          redirect(conn, 303, "https://tap.example.org/tap/sync/job/run")
+
+        %Plug.Conn{method: "GET"} = conn ->
+          send_fixture(
+            conn,
+            "cadc/obscore.xml",
+            200,
+            "application/x-votable+xml; serialization=tabledata"
+          )
+      end)
+
+      assert {:ok, %Result{columns: columns, rows: rows, overflow: false}} =
+               query(format: :votable)
+
+      assert columns ==
+               [
+                 "obs_id",
+                 "obs_collection",
+                 "target_name",
+                 "s_ra",
+                 "s_dec",
+                 "instrument_name",
+                 "em_min"
+               ]
+
+      assert length(rows) == 5
+
+      assert hd(rows) === [
+               "u63e0204r",
+               "HST",
+               "NPL38",
+               56.96050459498824,
+               23.913671015486443,
+               "WFPC2/PC",
+               7.9373e-7
+             ]
+    end
+  end
+
   describe "error documents" do
     for {service, fixture, status, content_type, message} <- @service_errors do
       test "returns #{service}'s error document as a service error" do
@@ -180,15 +269,17 @@ defmodule SpaceTAPServicesTest do
   # Private functions #
   #####################
 
-  defp query do
-    SpaceTAP.query("https://tap.example.org/tap", "SELECT 1",
-      req_options: [plug: {Req.Test, SpaceTAP}]
+  defp query(opts \\ []) do
+    SpaceTAP.query(
+      "https://tap.example.org/tap",
+      "SELECT 1",
+      [req_options: [plug: {Req.Test, SpaceTAP}]] ++ opts
     )
   end
 
-  defp respond(fixture, status, content_type) do
+  defp respond(fixture, status, content_type, opts \\ []) do
     Req.Test.stub(SpaceTAP, &send_fixture(&1, fixture, status, content_type))
-    query()
+    query(opts)
   end
 
   defp send_fixture(conn, fixture, status, content_type) do

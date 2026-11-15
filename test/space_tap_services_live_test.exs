@@ -16,25 +16,30 @@ defmodule SpaceTAPServicesLiveTest do
   @moduletag :capture_log
   @moduletag timeout: 180_000
 
-  test "answers the query as its fixture does", %{url: url, result: result} do
-    assert_answer(url, result)
+  test "answers the query as its fixture does",
+       %{url: url, result: {adql, _expected}} = service do
+    assert_answer(url, adql, [], Services.csv_result(service))
   end
 
-  test "answers invalid ADQL as its fixture does", %{url: url, syntax_error: syntax_error} do
-    assert_answer(url, syntax_error)
+  test "answers the query with VOTable as its fixture does", %{url: url, result: {adql, expected}} do
+    assert_answer(url, adql, [format: :votable], expected)
+  end
+
+  test "answers invalid ADQL as its fixture does", %{url: url, syntax_error: {adql, expected}} do
+    assert_answer(url, adql, [], expected)
   end
 
   #####################
   # Private functions #
   #####################
 
-  defp assert_answer(url, {adql, expected}) do
-    response = SpaceTAP.query(url, adql, req_options: Services.req_options())
+  defp assert_answer(url, adql, opts, expected) do
+    response = SpaceTAP.query(url, adql, [req_options: Services.req_options()] ++ opts)
 
     case expected do
-      {:ok, columns} ->
+      {:ok, columns, row_count} ->
         assert {:ok, %Result{columns: ^columns, rows: rows}} = response
-        assert length(rows) == 5
+        assert length(rows) == row_count
 
       {:error, type, status, message} ->
         assert {:error, %Error{type: ^type, status: ^status, message: actual}} = response

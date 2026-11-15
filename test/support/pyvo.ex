@@ -7,10 +7,18 @@ defmodule SpaceTAP.Test.Pyvo do
   # installs what it needs. Without `uv`, parity tests skip locally and fail
   # when CI is set.
   #
-  # PyVO doesn't ask for CSV: it reads the VOTable the service sends by
-  # default. So a parity test also checks that the CSV header SpaceTAP reads
-  # names the same columns as the VOTable fields PyVO reads. Until SpaceTAP
-  # reads VOTable with types (0.2), it compares column names and row counts.
+  # PyVO reads the VOTable the service sends by default. A parity test asks
+  # SpaceTAP for the same VOTable with `format: :votable` and compares the
+  # columns, the values of every row and overflow. Rows are compared sorted,
+  # since without ORDER BY their order may be arbitrary (ADQL 2.1 §2.2). The
+  # script follows ADR 0007 where SpaceTAP differs from astropy: an empty
+  # string or array is null. JSON has no infinities, so the script writes them
+  # as "Infinity" and "-Infinity", and SpaceTAP's :infinity and :neg_infinity
+  # are compared as those strings.
+  #
+  # The test also asks SpaceTAP for CSV and checks that its header names the
+  # same columns as the VOTable fields PyVO reads, and that it has as many
+  # rows. Pass `csv: false` for a service that doesn't send CSV.
 
   import ExUnit.Assertions
 
@@ -26,17 +34,28 @@ defmodule SpaceTAP.Test.Pyvo do
     end
   end
 
-  # `opts` go to SpaceTAP.query/3; PyVO gets `:maxrec` only.
+  # Besides `:csv`, `opts` go to SpaceTAP.query/3; PyVO gets `:maxrec` only.
   @spec assert_parity(String.t(), String.t(), keyword()) :: true
   def assert_parity(service_url, adql, opts \\ []) do
-    assert {:ok, %Result{columns: columns, rows: rows}} =
-             SpaceTAP.query(service_url, adql, opts)
+    {csv?, opts} = Keyword.pop(opts, :csv, true)
 
-    assert %{"columns" => pyvo_columns, "row_count" => pyvo_row_count} =
+    assert %{"columns" => pyvo_columns, "rows" => pyvo_rows, "overflow" => pyvo_overflow} =
              query(service_url, adql, opts)
 
-    assert pyvo_columns == columns
-    assert pyvo_row_count == length(rows)
+    if csv? do
+      assert {:ok, %Result{columns: columns, rows: rows}} =
+               SpaceTAP.query(service_url, adql, opts)
+
+      assert columns == pyvo_columns
+      assert length(rows) == length(pyvo_rows)
+    end
+
+    assert {:ok, %Result{columns: columns, rows: rows, overflow: overflow}} =
+             SpaceTAP.query(service_url, adql, Keyword.put(opts, :format, :votable))
+
+    assert columns == pyvo_columns
+    assert overflow == pyvo_overflow
+    assert Enum.sort(Enum.map(rows, &as_json/1)) === Enum.sort(pyvo_rows)
   end
 
   #####################
@@ -56,6 +75,11 @@ defmodule SpaceTAP.Test.Pyvo do
         flunk("PyVO runner exited with status #{status}: #{String.trim(output)}")
     end
   end
+
+  defp as_json(:infinity), do: "Infinity"
+  defp as_json(:neg_infinity), do: "-Infinity"
+  defp as_json(values) when is_list(values), do: Enum.map(values, &as_json/1)
+  defp as_json(value), do: value
 
   defp maxrec_arg(opts) do
     case Keyword.fetch(opts, :maxrec) do

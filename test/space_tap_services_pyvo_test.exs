@@ -1,13 +1,12 @@
 defmodule SpaceTAPServicesPyvoTest do
   # Parity tests for the services the services tests cover, with the query of
-  # each one's result fixture. MAST is left out: it answers with VOTable,
-  # which SpaceTAP doesn't read yet. Like the services tests, a failure is a
-  # reason to look into that service, not to hold a release, so they are
-  # tagged :services rather than :pyvo and run with `mix test.services`.
+  # each one's result fixture. Like the services tests, a failure is a reason
+  # to look into that service, not to hold a release, so they are tagged
+  # :services rather than :pyvo and run with `mix test.services`.
   alias SpaceTAP.Test.{Pyvo, Services}
 
   # The alias comes first because parameterize reads it.
-  use ExUnit.Case, async: true, parameterize: Services.with_result()
+  use ExUnit.Case, async: true, parameterize: Services.all()
 
   @moduletag :services
   @moduletag :capture_log
@@ -17,7 +16,9 @@ defmodule SpaceTAPServicesPyvoTest do
     @moduletag skip: reason
   end
 
-  test "matches PyVO for the query of its fixture", %{url: url, result: {adql, _expected}} do
-    Pyvo.assert_parity(url, adql, req_options: Services.req_options())
+  test "matches PyVO for the query of its fixture",
+       %{url: url, result: {adql, _expected}} = service do
+    csv? = match?({:ok, _columns, _row_count}, Services.csv_result(service))
+    Pyvo.assert_parity(url, adql, req_options: Services.req_options(), csv: csv?)
   end
 end

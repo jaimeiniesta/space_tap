@@ -1,7 +1,7 @@
 defmodule SpaceTAPTest do
   use ExUnit.Case, async: true
 
-  alias SpaceTAP.{Error, Result}
+  alias SpaceTAP.{Error, Field, Result}
 
   @service_url "https://tap.example.org/tap"
   @adql "SELECT TOP 5 source_id FROM gaiadr3.gaia_source"
@@ -41,6 +41,16 @@ defmodule SpaceTAPTest do
 
       assert {:ok, %Result{}} = query_at(@service_url <> "/sync")
       assert_received {:request, %Plug.Conn{request_path: "/tap/sync/sync"}, _params}
+    end
+
+    test "asks for VOTable with format: :votable and for CSV with format: :csv" do
+      stub_service(200, "application/x-votable+xml", fixture("pleiades.xml"))
+      assert {:ok, %Result{}} = query(format: :votable)
+      assert_received {:request, _conn, %{"FORMAT" => "votable"}}
+
+      stub_csv()
+      assert {:ok, %Result{}} = query(format: :csv)
+      assert_received {:request, _conn, %{"FORMAT" => "csv"}}
     end
 
     test "sends :maxrec as MAXREC" do
@@ -136,6 +146,14 @@ defmodule SpaceTAPTest do
       end
     end
 
+    test "raise when :format is neither :csv nor :votable" do
+      for format <- [:fits, "votable", nil] do
+        assert_raise ArgumentError,
+                     "expected :format to be :csv or :votable, got: #{inspect(format)}",
+                     fn -> SpaceTAP.query(@service_url, @adql, format: format) end
+      end
+    end
+
     test "raise when :req_options is not a keyword list" do
       assert_raise ArgumentError, ~r/expected :req_options to be a keyword list/, fn ->
         SpaceTAP.query(@service_url, @adql, req_options: %{})
@@ -170,6 +188,60 @@ defmodule SpaceTAPTest do
                     rows: [["WASP-39 b", "2011"], ["GJ 436 b", "2004"], ["HAT-P-1 b", "2006"]]
                   }}
       end
+    end
+
+    test "returns a VOTable result with its fields and typed values, as the NASA Exoplanet Archive sends it" do
+      stub_service(200, "application/xml", fixture("planets.xml", "exoplanet_archive"))
+
+      assert query(format: :votable) ==
+               {:ok,
+                %Result{
+                  columns: ["pl_name", "disc_year"],
+                  rows: [["Kepler-180 c", 2014], ["HAT-P-38 b", 2012], ["Kepler-992 b", 2016]],
+                  fields: [
+                    %Field{
+                      name: "pl_name",
+                      datatype: :char,
+                      arraysize: "*",
+                      description: "Planet Name"
+                    },
+                    %Field{name: "disc_year", datatype: :int}
+                  ],
+                  overflow: false
+                }}
+    end
+
+    test "reads the binary serializations, BINARY2 from Gaia and BINARY from GAVO" do
+      stub_service(200, "application/x-votable+xml", fixture("pleiades.xml"))
+
+      assert {:ok, %Result{rows: [first | _], overflow: false}} = query(format: :votable)
+
+      assert first == [
+               66_526_127_137_440_128,
+               "Gaia DR3 66526127137440128",
+               57.29068893293528,
+               24.053211829998986,
+               8.118448445799721,
+               3.6157946586608887
+             ]
+
+      stub_service(200, "application/x-votable+xml", fixture("hipparcos.xml", "gavo"))
+
+      assert {:ok, %Result{rows: [first | _], overflow: false}} = query(format: :votable)
+      assert first == [1, 9.1185e-4, 1.08901332, 9.100000381469727, 9.833332796915784e-7, "F5"]
+    end
+
+    test "sets overflow when the service truncated the result (DALI 1.1 §4.4.1)" do
+      stub_service(200, "application/x-votable+xml", fixture("overflow.xml"))
+
+      assert {:ok, %Result{rows: rows, overflow: true}} = query(format: :votable, maxrec: 3)
+      assert length(rows) == 3
+    end
+
+    test "returns a service error from an error document when VOTable was asked for too" do
+      stub_service(400, "application/xml;charset=UTF-8", fixture("syntax_error.xml"))
+
+      assert {:error, %Error{type: :service_error, status: 400}} = query(format: :votable)
     end
 
     test "returns a service error from Gaia's VOTable error document" do
@@ -275,15 +347,50 @@ defmodule SpaceTAPTest do
                 }}
     end
 
-    test "returns a decode error for a successful response in another format" do
-      stub_service(200, "application/x-votable+xml", fixture("ok.xml"))
+    test "returns a decode error that points to format: :votable for a VOTable sent for CSV, as MAST does" do
+      stub_service(200, "text/xml; charset=utf-8", fixture("tables.xml", "mast"))
 
       assert query() ==
                {:error,
                 %Error{
                   type: :decode_error,
                   status: 200,
-                  message: "expected text/csv, got application/x-votable+xml"
+                  message:
+                    "expected text/csv, got text/xml: the response is a VOTable, pass format: :votable to read it"
+                }}
+
+      assert {:ok, %Result{columns: ["table_name"]}} = query(format: :votable)
+    end
+
+    test "returns a decode error for a successful response that isn't XML when VOTable was asked for" do
+      for content_type <- ["text/csv", "text/plain", nil] do
+        stub_service(200, content_type, fixture("pleiades.csv"))
+
+        assert query(format: :votable) ==
+                 {:error,
+                  %Error{
+                    type: :decode_error,
+                    status: 200,
+                    message: "expected a VOTable, got #{content_type || "no Content-Type"}"
+                  }}
+      end
+    end
+
+    test "returns a decode error saying why a VOTable can't be read" do
+      xml = """
+      <VOTABLE><RESOURCE type="results"><INFO name="QUERY_STATUS" value="OK"/>
+      <TABLE><FIELD name="x" datatype="int"/><DATA><FITS><STREAM href="x.fits"/></FITS></DATA></TABLE>
+      </RESOURCE></VOTABLE>
+      """
+
+      stub_service(200, "application/x-votable+xml", xml)
+
+      assert query(format: :votable) ==
+               {:error,
+                %Error{
+                  type: :decode_error,
+                  status: 200,
+                  message: "the FITS serialization is not supported"
                 }}
     end
 

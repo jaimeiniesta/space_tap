@@ -148,7 +148,8 @@ defmodule SpaceTAPServicesTest do
                 %Error{
                   type: :decode_error,
                   status: 200,
-                  message: "expected text/csv, got text/xml"
+                  message:
+                    "expected text/csv, got text/xml: the response is a VOTable, pass format: :votable to read it"
                 }}
     end
 

@@ -61,6 +61,8 @@ hd(result.rows)
 
 The [Gaia archive][gaia] at ESA, where Gaia's data comes from, answers the same
 query on `gaiadr3.gaia_source` at `https://gea.esac.esa.int/tap-server/tap`.
+There `parallax` is a `double`, a 64-bit number, so it has more digits:
+`"8.118448445799721"` rather than `"8.118448"`.
 
 The service URL is the base URL of the service, what TAP calls its access URL.
 SpaceTAP sends the query to its `/sync` endpoint, so pass the base URL even if
@@ -199,7 +201,7 @@ November, and VizieR and SIMBAD, both run by CDS, on 27 October, with CSV only.
 | NASA Exoplanet Archive | `https://exoplanetarchive.ipac.caltech.edu/TAP` | CSV, VOTable | Services and parity tests, fixtures, livebooks | Labels CSV `text/plain`. Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a sorted result. |
 | IRSA (IPAC) | `https://irsa.ipac.caltech.edu/TAP` | CSV, VOTable | Services and parity tests, fixtures, livebook | |
 | NED (IPAC) | `https://ned.ipac.caltech.edu/tap` | CSV, VOTable | Services and parity tests, fixtures, livebook | |
-| KOA (Keck) | `https://koa.ipac.caltech.edu/TAP` | CSV, VOTable | Services and parity tests, fixtures, livebook | Labels CSV `text/plain`. Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a `:service_error`. |
+| KOA (Keck) | `https://koa.ipac.caltech.edu/TAP` | CSV, VOTable | Services and parity tests, fixtures, livebook | Labels CSV `text/plain`. Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a `:service_error`. Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a sorted result. |
 | VizieR (CDS) | `https://tapvizier.cds.unistra.fr/TAPVizieR/tap` | CSV; VOTable not checked yet | Services and parity tests, fixtures, livebook | |
 | SIMBAD (CDS) | `https://simbad.cds.unistra.fr/simbad/sim-tap` | CSV; VOTable not checked yet | Services and parity tests, fixtures, livebook | |
 | ESO | `https://archive.eso.org/tap_obs` | CSV, VOTable | Services and parity tests, fixtures, livebook | |

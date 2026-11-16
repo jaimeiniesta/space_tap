@@ -8,6 +8,14 @@ defmodule SpaceTAP.Test.Services do
   # status and a part of its message that the service is unlikely to reword.
   # The services tests and the parity tests both read them, so a service that
   # changes how it answers is updated here and in its fixtures.
+  #
+  # Where TOP keeps fewer rows than the WHERE of a fixture's query matches,
+  # the query here adds an ORDER BY on a unique column. Without one, the order
+  # of the rows, and so which ones TOP keeps, is up to the service (ADQL 2.1
+  # §2.2), and the parity tests would compare different rows: CADC sent other
+  # rows on each query on 2026-11-16. ORDER BY comes before TOP (ADQL 2.1
+  # §4.10.1), but where a service applies TOP first the query names its rows
+  # instead.
 
   @typedoc "What a query should give: a result's columns and row count, or an error."
   @type expected ::
@@ -61,6 +69,8 @@ defmodule SpaceTAP.Test.Services do
     %{
       service: "IRSA",
       url: "https://irsa.ipac.caltech.edu/TAP",
+      # No ORDER BY yet: IRSA answered with HTTP 502 on 2026-11-16, so it
+      # couldn't be checked that it sorts before TOP.
       result:
         {"SELECT TOP 5 table_name, column_name, datatype, unit, description FROM TAP_SCHEMA.columns WHERE table_name = 'fp_psc'",
          {:ok, ["table_name", "column_name", "datatype", "unit", "description"], 5}},
@@ -73,7 +83,7 @@ defmodule SpaceTAP.Test.Services do
       service: "NED",
       url: "https://ned.ipac.caltech.edu/tap",
       result:
-        {"SELECT TOP 5 prefname, prefphytype, ra, dec, z, zflag FROM NEDTAP.objdir WHERE CONTAINS(POINT('J2000', ra, dec), CIRCLE('J2000', 56.75, 24.12, 0.2)) = 1",
+        {"SELECT TOP 5 prefname, prefphytype, ra, dec, z, zflag FROM NEDTAP.objdir WHERE CONTAINS(POINT('J2000', ra, dec), CIRCLE('J2000', 56.75, 24.12, 0.2)) = 1 ORDER BY prefname",
          {:ok, ["prefname", "prefphytype", "ra", "dec", "z", "zflag"], 5}},
       syntax_error:
         {"SELEC TOP 3 table_name FROM TAP_SCHEMA.tables",
@@ -83,8 +93,11 @@ defmodule SpaceTAP.Test.Services do
     %{
       service: "KOA",
       url: "https://koa.ipac.caltech.edu/TAP",
+      # KOA applies TOP before ORDER BY, like the NASA Exoplanet Archive: with
+      # ORDER BY koaid, ASC and DESC gave the same five files. This query
+      # names the five files of hires.csv instead.
       result:
-        {"SELECT TOP 5 koaid, instrume, targname, ra, dec, date_obs, progtitl FROM koa_hires",
+        {"SELECT koaid, instrume, targname, ra, dec, date_obs, progtitl FROM koa_hires WHERE koaid IN ('HI.19941118.65412.fits', 'HI.19941201.80171.fits', 'HI.19941201.80420.fits', 'HI.19941201.83588.fits', 'HI.19941210.06503.fits')",
          {:ok, ["koaid", "instrume", "targname", "ra", "dec", "date_obs", "progtitl"], 5}},
       syntax_error:
         {"SELEC TOP 3 table_name FROM TAP_SCHEMA.tables",
@@ -104,6 +117,8 @@ defmodule SpaceTAP.Test.Services do
     %{
       service: "SIMBAD",
       url: "https://simbad.cds.unistra.fr/simbad/sim-tap",
+      # No ORDER BY yet: CDS didn't answer on 2026-11-16, so it couldn't be
+      # checked that SIMBAD sorts before TOP.
       result:
         {"SELECT TOP 5 main_id, ra, dec, otype, sp_type, plx_value FROM basic WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 0.1)) = 1",
          {:ok, ["main_id", "ra", "dec", "otype", "sp_type", "plx_value"], 5}},
@@ -116,7 +131,7 @@ defmodule SpaceTAP.Test.Services do
       service: "ESO",
       url: "https://archive.eso.org/tap_obs",
       result:
-        {"SELECT TOP 5 obs_id, target_name, s_ra, s_dec, instrument_name, dataproduct_type, em_min FROM ivoa.ObsCore WHERE CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', 56.75, 24.12, 0.5)) = 1",
+        {"SELECT TOP 5 obs_id, target_name, s_ra, s_dec, instrument_name, dataproduct_type, em_min FROM ivoa.ObsCore WHERE CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', 56.75, 24.12, 0.5)) = 1 ORDER BY obs_publisher_did",
          {:ok,
           [
             "obs_id",
@@ -135,7 +150,7 @@ defmodule SpaceTAP.Test.Services do
       service: "CADC",
       url: "https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus",
       result:
-        {"SELECT TOP 5 obs_id, obs_collection, target_name, s_ra, s_dec, instrument_name, em_min FROM ivoa.ObsCore WHERE CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', 56.75, 24.12, 0.5)) = 1",
+        {"SELECT TOP 5 obs_id, obs_collection, target_name, s_ra, s_dec, instrument_name, em_min FROM ivoa.ObsCore WHERE CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', 56.75, 24.12, 0.5)) = 1 ORDER BY obs_publisher_did",
          {:ok,
           [
             "obs_id",
@@ -154,7 +169,9 @@ defmodule SpaceTAP.Test.Services do
     %{
       service: "MAST",
       url: "https://mast.stsci.edu/vo-tap/api/v0.1/caom",
-      result: {"SELECT TOP 3 table_name FROM TAP_SCHEMA.tables", {:ok, ["table_name"], 3}},
+      result:
+        {"SELECT TOP 3 table_name FROM TAP_SCHEMA.tables ORDER BY table_name",
+         {:ok, ["table_name"], 3}},
       # MAST sends VOTable when CSV is requested (ADR 0006).
       csv_result:
         {:error, :decode_error, 200,

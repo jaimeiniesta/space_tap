@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The README notes that KOA applies `TOP` before `ORDER BY`, as the NASA Exoplanet Archive does, and that the Gaia archive at ESA sends `parallax` as a 64-bit `double`, with more digits than in GAVO's copy of Gaia DR3.
+
 ## [0.2.0] - 2026-11-16
 
 ### Added

@@ -248,7 +248,7 @@ defmodule SpaceTAP.VOTableTest do
       assert message =~ ~r/"SELECT" \.\.\.\z/
     end
 
-    test "returns an ERROR written after the table without reading the table, which may be cut short (DALI §4.4.2)" do
+    test "returns an ERROR written after the table whatever the table holds, since it may be cut short (DALI §4.4.2)" do
       xml = """
       <VOTABLE><RESOURCE type="results">
         <INFO name="QUERY_STATUS" value="OK"/>
@@ -347,10 +347,22 @@ defmodule SpaceTAP.VOTableTest do
       end
     end
 
+    test "rejects a FIELD after the DATA, the last element of a TABLE (§3.8)" do
+      for data <- [
+            "<DATA><TABLEDATA><TR><TD>1</TD></TR></TABLEDATA></DATA>",
+            "<DATA><TABLEDATA></TABLEDATA></DATA>"
+          ] do
+        xml =
+          result(~s(<FIELD name="id" datatype="int"/>#{data}<FIELD name="ra" datatype="double"/>))
+
+        assert VOTable.parse(xml) == {:error, "a FIELD comes after the DATA of the TABLE"}
+      end
+    end
+
     test "returns the first cell it can't read, with its row" do
       xml =
         result(
-          ~s(<FIELD name="id" datatype="int"/><DATA><TABLEDATA><TR><TD>1</TD></TR><TR><TD>2.</TD></TR></TABLEDATA></DATA>)
+          ~s(<FIELD name="id" datatype="int"/><DATA><TABLEDATA><TR><TD>1</TD></TR><TR><TD>2.</TD></TR><TR><TD>x</TD></TR></TABLEDATA></DATA>)
         )
 
       assert VOTable.parse(xml) == {:error, ~s(row 2, field "id": "2." is not a valid int)}

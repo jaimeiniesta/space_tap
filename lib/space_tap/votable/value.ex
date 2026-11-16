@@ -66,16 +66,14 @@ defmodule SpaceTAP.VOTable.Value do
   end
 
   def parse_text(text, %Field{arraysize: nil} = field) do
-    case String.split(text, @whitespace, trim: true) do
-      [] ->
+    case token(text) do
+      :none ->
         {:ok, nil}
 
-      [token] ->
-        with {:ok, null} <- null(field),
-             {:ok, [value]} <- elements([token], field, null, []),
-             do: {:ok, value}
+      {:ok, token} ->
+        scalar(token, field)
 
-      _tokens ->
+      :many ->
         invalid(text, field)
     end
   end
@@ -116,6 +114,15 @@ defmodule SpaceTAP.VOTable.Value do
   #####################
   # Private functions #
   #####################
+
+  defp scalar(token, field) do
+    with {:ok, null} <- null(field) do
+      case element(token, field.datatype) do
+        {:ok, value} -> {:ok, unless_null(value, null)}
+        :error -> invalid(token, field)
+      end
+    end
+  end
 
   defp array(tokens, {fixed, _last} = shape, null, text, field) do
     if fits?(length(tokens), shape) do
@@ -195,7 +202,7 @@ defmodule SpaceTAP.VOTable.Value do
   defp null(%Field{null: nil}), do: {:ok, nil}
 
   defp null(%Field{null: text, datatype: datatype} = field) do
-    with [token] <- String.split(text, @whitespace, trim: true),
+    with {:ok, token} <- token(text),
          {:ok, value} <- element(token, datatype) do
       {:ok, value}
     else
@@ -209,6 +216,29 @@ defmodule SpaceTAP.VOTable.Value do
        "field #{inspect(name)}: the null value #{inspect(text)} is not a valid #{datatype}"}
 
   defp unless_null(value, null), do: if(value == null, do: nil, else: value)
+
+  # The one value of a scalar, between any white space (§5.1): what
+  # String.split/3 would give, without building the list or compiling the
+  # pattern for each cell.
+  defp token(text) do
+    case skip_whitespace(text) do
+      "" ->
+        :none
+
+      text ->
+        {token, rest} = :erlang.split_binary(text, token_size(text, 0))
+        if skip_whitespace(rest) == "", do: {:ok, token}, else: :many
+    end
+  end
+
+  defp skip_whitespace(<<char, rest::binary>>) when char in ~c" \t\n\r",
+    do: skip_whitespace(rest)
+
+  defp skip_whitespace(text), do: text
+
+  defp token_size(<<char, _rest::binary>>, size) when char in ~c" \t\n\r", do: size
+  defp token_size(<<_char, rest::binary>>, size), do: token_size(rest, size + 1)
+  defp token_size(<<>>, size), do: size
 
   # Each element of an array is checked against the null value, the only way
   # to mark one of them as null (§5.5).
@@ -344,7 +374,7 @@ defmodule SpaceTAP.VOTable.Value do
   # §6: an optional sign, a positive decimal number such as 1, 1.5, 1. or .5,
   # and an optional exponent made of "E" or "e", an optional sign and digits.
   # The digits of the exponent aren't counted, although §6 allows 1 or 2 in a
-  # float and 1 to 3 in a double. Float.parse/1 gets the number with a zero
+  # float and 1 to 3 in a double. to_float/1 gets the number with a zero
   # before and after the point, a form it always reads, and fails only when
   # the number is beyond the largest double.
   defp decimal(text) do
@@ -353,9 +383,16 @@ defmodule SpaceTAP.VOTable.Value do
     {fraction, text} = split_fraction(text)
 
     case {integer <> fraction, exponent(text)} do
-      {"", _exponent} -> :error
-      {_digits, :error} -> :error
-      {_digits, {:ok, exponent}} -> to_float("#{sign}0#{integer}.#{fraction}0e#{exponent}")
+      {"", _exponent} ->
+        :error
+
+      {_digits, :error} ->
+        :error
+
+      {_digits, {:ok, exponent}} ->
+        to_float(
+          <<sign::binary, ?0, integer::binary, ?., fraction::binary, "0e", exponent::binary>>
+        )
     end
   end
 
@@ -363,12 +400,13 @@ defmodule SpaceTAP.VOTable.Value do
   defp split_sign("-" <> rest), do: {"-", rest}
   defp split_sign(text), do: {"", text}
 
-  defp split_digits(<<digit, rest::binary>>) when digit in ?0..?9 do
-    {digits, rest} = split_digits(rest)
-    {<<digit, digits::binary>>, rest}
-  end
+  # Splits off the digits a text starts with, without copying them.
+  defp split_digits(text), do: :erlang.split_binary(text, count_digits(text, 0))
 
-  defp split_digits(text), do: {"", text}
+  defp count_digits(<<digit, rest::binary>>, count) when digit in ?0..?9,
+    do: count_digits(rest, count + 1)
+
+  defp count_digits(_text, count), do: count
 
   defp split_fraction("." <> rest), do: split_digits(rest)
   defp split_fraction(text), do: {"", text}
@@ -387,11 +425,12 @@ defmodule SpaceTAP.VOTable.Value do
 
   defp exponent(_text), do: :error
 
+  # The text is always in the form :erlang.binary_to_float/1 reads, the one
+  # Float.parse/1 hands it after reading the text character by character.
   defp to_float(text) do
-    case Float.parse(text) do
-      {double, ""} -> {:ok, double}
-      _beyond_the_largest_double -> :error
-    end
+    {:ok, :erlang.binary_to_float(text)}
+  rescue
+    ArgumentError -> :error
   end
 
   defp hexadigits?(<<char, rest::binary>>)

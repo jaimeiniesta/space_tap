@@ -10,8 +10,23 @@ defmodule SpaceTAP.VOTable do
   # (ADR 0008), and decode/1 then turns them into fields and rows. A service
   # that writes rows as it reads them reports a failure in an ERROR status
   # after the table, which may then be cut short (DALI §4.4.2), so the status
-  # is known only at the end, and an ERROR comes back without reading the
-  # table.
+  # is known only at the end, and an ERROR comes back whatever the table
+  # holds.
+  #
+  # TABLEDATA rows are the exception: each one becomes values as its TR ends,
+  # so that a large table is never held as text and as values at once, which
+  # would make the garbage collector copy both again and again. The first
+  # error in them is kept for decode/1, which reports it only when nothing
+  # comes before it.
+  #
+  # Most of the time left in reading a large TABLEDATA goes to the garbage
+  # collector. The document is one large binary the process refers to
+  # throughout, and each minor collection that moves the reference to the
+  # old generation makes the next collection a full sweep. Raising the
+  # process's min_bin_vheap_size above the size of the document avoids it,
+  # 0.7 s instead of 1.9 s for the 100,000 rows of bench/votable_parse.exs,
+  # but that would change a setting of the calling process, which SpaceTAP
+  # leaves alone.
 
   @behaviour Saxy.Handler
 
@@ -42,8 +57,12 @@ defmodule SpaceTAP.VOTable do
       tables: 0,
       fields: [],
       data: nil,
+      late_field: false,
+      columns: nil,
       rows: [],
       row: [],
+      row_count: 0,
+      row_error: nil,
       encoding: nil,
       stream: nil
     }
@@ -69,7 +88,7 @@ defmodule SpaceTAP.VOTable do
 
   @impl Saxy.Handler
   def handle_event(:start_element, {name, attributes}, %{stack: stack} = document) do
-    role = role(List.first(stack), local_name(name), attributes)
+    role = role(parent(stack), local_name(name), attributes)
     document = %{document | stack: [role | stack]}
     {:ok, start(role, attributes, document)}
   end
@@ -94,6 +113,9 @@ defmodule SpaceTAP.VOTable do
   # field's only inside a FIELD of the result's TABLE, not inside a PARAM.
   # Element names are matched without their namespace prefix, which changes
   # with the VOTable version.
+  defp parent([role | _roles]), do: role
+  defp parent([]), do: nil
+
   defp role(nil, "VOTABLE", _attributes), do: :votable
 
   # The result of the query is in the RESOURCE of type results (DALI §4.4).
@@ -126,12 +148,21 @@ defmodule SpaceTAP.VOTable do
 
   defp role(_parent, _name, _attributes), do: :other
 
+  # What follows the first colon, found without compiling a pattern for each
+  # element, as :binary.split/2 would.
   defp local_name(name) do
-    case :binary.split(name, ":") do
-      [_prefix, local] -> local
-      [local] -> local
+    case prefix_size(name, 0) do
+      nil -> name
+      size -> binary_part(name, size + 1, byte_size(name) - size - 1)
     end
   end
+
+  defp prefix_size(<<?:, _rest::binary>>, size), do: size
+  defp prefix_size(<<_char, rest::binary>>, size), do: prefix_size(rest, size + 1)
+  defp prefix_size(<<>>, _size), do: nil
+
+  # Most elements, such as a TD, have no attributes.
+  defp attribute([], _name), do: nil
 
   defp attribute(attributes, name) do
     case List.keyfind(attributes, name, 0) do
@@ -150,13 +181,31 @@ defmodule SpaceTAP.VOTable do
     %{document | statuses: [status | document.statuses], text: []}
   end
 
+  # The FIELDs of a TABLE come before its DATA (VOTable 1.5 §3.8), whose
+  # rows are read as they come, so a FIELD after it is an error.
   defp start(:field, attributes, document) do
-    %{document | fields: [Map.new(attributes) | document.fields]}
+    %{
+      document
+      | fields: [Map.new(attributes) | document.fields],
+        late_field: document.late_field or document.data != nil
+    }
   end
 
   # The null attribute of VALUES marks a cell with no data (§4.7).
   defp start(:values, attributes, %{fields: [field | fields]} = document) do
     %{document | fields: [Map.put(field, "null", attribute(attributes, "null")) | fields]}
+  end
+
+  # The fields TABLEDATA rows are read with, all known by now. One SpaceTAP
+  # can't read leaves the rows unread, and table/1 returns its error.
+  defp start(:tabledata, _attributes, document) do
+    columns =
+      case fields(Enum.reverse(document.fields), []) do
+        {:ok, fields} -> {fields, length(fields)}
+        {:error, _message} -> nil
+      end
+
+    %{document | data: :tabledata, columns: columns}
   end
 
   # The child of DATA says how the rows are written (ADR 0005).
@@ -198,7 +247,17 @@ defmodule SpaceTAP.VOTable do
   defp finish(:td, document),
     do: %{document | row: [{:encoding, document.encoding} | document.row]}
 
-  defp finish(:tr, document), do: %{document | rows: [Enum.reverse(document.row) | document.rows]}
+  defp finish(:tr, %{columns: {fields, count}, row_error: nil} = document) do
+    number = document.row_count + 1
+
+    case text_row(Enum.reverse(document.row), fields, count, number) do
+      {:ok, values} -> %{document | rows: [values | document.rows], row_count: number}
+      {:error, message} -> %{document | row_error: message, row_count: number}
+    end
+  end
+
+  # After an error, or without fields to read them with, rows are skipped.
+  defp finish(:tr, document), do: document
 
   defp finish(:stream, %{stream: {href, encoding, _text}} = document),
     do: %{document | stream: {href, encoding, document.text}}
@@ -233,6 +292,8 @@ defmodule SpaceTAP.VOTable do
 
   defp table(%{tables: tables}) when tables > 1,
     do: {:error, "the results RESOURCE has more than one TABLE"}
+
+  defp table(%{late_field: true}), do: {:error, "a FIELD comes after the DATA of the TABLE"}
 
   defp table(document) do
     with {:ok, fields} <- fields(Enum.reverse(document.fields), []),
@@ -281,9 +342,10 @@ defmodule SpaceTAP.VOTable do
   # DATA is optional in a TABLE, which then has no rows (VOTable 1.5 §3.8).
   defp rows(%{data: nil}, _fields), do: {:ok, []}
 
-  defp rows(%{data: :tabledata, rows: rows}, fields) do
-    text_rows(Enum.reverse(rows), fields, length(fields), 1, [])
-  end
+  defp rows(%{data: :tabledata, row_error: nil, rows: rows}, _fields),
+    do: {:ok, Enum.reverse(rows)}
+
+  defp rows(%{data: :tabledata, row_error: message}, _fields), do: {:error, message}
 
   # FITS is a file format of its own, which SpaceTAP doesn't read (ADR 0005).
   defp rows(%{data: :fits}, _fields), do: {:error, "the FITS serialization is not supported"}
@@ -294,13 +356,6 @@ defmodule SpaceTAP.VOTable do
   end
 
   # Each TR has a TD for each FIELD, in their order (§5.1).
-  defp text_rows([], _fields, _count, _number, rows), do: {:ok, Enum.reverse(rows)}
-
-  defp text_rows([texts | rest], fields, count, number, rows) do
-    with {:ok, row} <- text_row(texts, fields, count, number),
-         do: text_rows(rest, fields, count, number + 1, [row | rows])
-  end
-
   defp text_row(texts, fields, count, number) do
     case length(texts) do
       ^count -> cells(texts, fields, number, [])

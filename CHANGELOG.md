@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- SpaceTAP reads TABLEDATA results about a third faster, 1.9 s instead of 2.9 s for 100,000 rows of six columns, and reads every value as before.
+- A `FIELD` after the `DATA` of its `TABLE`, where VOTable 1.5 §3.8 puts the `DATA` last, is a `:decode_error` that says so. Before, the error was about the number of cells in a row, and a table with no rows gave none.
 - The README notes that KOA applies `TOP` before `ORDER BY`, as the NASA Exoplanet Archive does, and that the Gaia archive at ESA sends `parallax` as a 64-bit `double`, with more digits than in GAVO's copy of Gaia DR3.
 
 ## [0.2.0] - 2026-11-16

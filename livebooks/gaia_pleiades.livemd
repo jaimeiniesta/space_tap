@@ -2,7 +2,7 @@
 
 ```elixir
 Mix.install([
-  {:space_tap, "~> 0.1.0"},
+  {:space_tap, "~> 0.2.0"},
   {:kino, "~> 0.19.1"},
   {:kino_vega_lite, "~> 0.1.13"}
 ])
@@ -10,61 +10,55 @@ Mix.install([
 
 ## The cluster
 
-The Pleiades (M45) is an open cluster: a few thousand stars born together about 100 million years ago, some 135 parsecs away. [Gaia](https://www.cosmos.esa.int/web/gaia) measures the position, parallax, proper motion and colour of nearly two billion stars, and its archive is a TAP service.
+The Pleiades (M45) is an open cluster: a few thousand stars born together about 100 million years ago, some 135 parsecs away. [Gaia](https://www.cosmos.esa.int/web/gaia) measures the position, parallax, proper motion and colour of nearly two billion stars. Its archive at ESA is a TAP service, and so is the GAVO Data Center, the German Virtual Observatory's archive, which holds a copy of Gaia DR3 in `gaia.dr3lite`.
 
-This notebook asks Gaia for the stars around the cluster, picks out the members by how they move, and draws their colour–magnitude diagram, the observer's version of the Hertzsprung–Russell diagram.
+This notebook asks GAVO for the stars around the cluster, picks out the members by how they move, and draws their colour–magnitude diagram, the observer's version of the Hertzsprung–Russell diagram.
 
-## Helpers
+## The query
 
-SpaceTAP 0.1 reads results as CSV, so every value is a string and an empty cell is `nil`. These helpers turn rows into maps and parse the numeric columns:
+A cone of 2° around the centre of the cluster. The parallax filter keeps stars between 100 and 200 parsecs away (parallaxes of 10 to 5 milliarcseconds), which drops most of the stars in front of and behind the cluster. `bp_rp` is the colour, the difference between Gaia's blue and red magnitudes, and the diagram needs it. `gaia.dr3lite` has the two magnitudes but not their difference, so the query computes it.
+
+`format: :votable` asks GAVO for VOTable instead of CSV, so each value comes with the type its column declares: numbers to compute with, not strings to parse.
 
 ```elixir
 alias VegaLite, as: Vl
 
-defmodule Rows do
-  def to_maps(%SpaceTAP.Result{columns: columns, rows: rows}) do
-    Enum.map(rows, fn row -> columns |> Enum.zip(row) |> Map.new() end)
-  end
-
-  def parse_numbers(map, keys) do
-    Enum.reduce(keys, map, fn key, map -> Map.update!(map, key, &number/1) end)
-  end
-
-  defp number(nil), do: nil
-
-  defp number(string) do
-    {number, ""} = Float.parse(string)
-    number
-  end
-end
-```
-
-## The query
-
-A cone of 2° around the centre of the cluster. The parallax filter keeps stars between 100 and 200 parsecs away (parallaxes of 10 to 5 milliarcseconds), which drops most of the stars in front of and behind the cluster. `bp_rp` is the colour, the difference between Gaia's blue and red magnitudes, and the diagram needs it.
-
-```elixir
-gaia = "https://gea.esac.esa.int/tap-server/tap"
+gavo = "https://dc.g-vo.org/tap"
 
 adql = """
-SELECT source_id, ra, dec, parallax, pmra, pmdec, phot_g_mean_mag, bp_rp
-FROM gaiadr3.gaia_source
+SELECT source_id, ra, dec, parallax, pmra, pmdec, phot_g_mean_mag,
+  phot_bp_mean_mag - phot_rp_mean_mag AS bp_rp
+FROM gaia.dr3lite
 WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 2.0)) = 1
   AND parallax BETWEEN 5 AND 10
-  AND bp_rp IS NOT NULL
+  AND phot_bp_mean_mag IS NOT NULL
+  AND phot_rp_mean_mag IS NOT NULL
 """
 
-{:ok, result} = SpaceTAP.query(gaia, adql, req_options: [receive_timeout: 60_000])
-length(result.rows)
+{:ok, result} =
+  SpaceTAP.query(gavo, adql, format: :votable, req_options: [receive_timeout: 60_000])
+
+%{stars: length(result.rows), overflow: result.overflow}
 ```
 
+`overflow` is `false`, so GAVO sent every star that matches: it didn't cut the result at a limit of its own (DALI 1.1 §4.4.1). A CSV result couldn't say.
+
+The VOTable describes each column too, with the unit and the UCD, a standard label for what the column measures:
+
 ```elixir
-numeric = ~w(ra dec parallax pmra pmdec phot_g_mean_mag bp_rp)
-stars = result |> Rows.to_maps() |> Enum.map(&Rows.parse_numbers(&1, numeric))
+result.fields
+|> Enum.map(&Map.take(&1, [:name, :datatype, :unit, :ucd, :description]))
+|> Kino.DataTable.new(keys: [:name, :datatype, :unit, :ucd, :description], name: "Columns")
+```
+
+The rows become maps, one per star:
+
+```elixir
+stars = Enum.map(result.rows, fn row -> result.columns |> Enum.zip(row) |> Map.new() end)
 hd(stars)
 ```
 
-`source_id` stays a string: it is a 64-bit integer, and the charts below run in JavaScript, whose numbers can't hold every integer that large.
+`source_id` is a `long`, a 64-bit integer, and comes as an Elixir integer. The charts below run in JavaScript, whose numbers can't hold every integer that large, so the colour–magnitude diagram gets it as a string.
 
 ## Who belongs to the cluster
 
@@ -113,15 +107,17 @@ $$
 ```elixir
 members =
   Enum.map(members, fn star ->
-    Map.put(star, "abs_g", star["phot_g_mean_mag"] + 5 * :math.log10(star["parallax"]) - 10)
+    star
+    |> Map.put("abs_g", star["phot_g_mean_mag"] + 5 * :math.log10(star["parallax"]) - 10)
+    |> Map.put("id", Integer.to_string(star["source_id"]))
   end)
 
 Vl.new(width: 500, height: 500, title: "The Pleiades: colour–magnitude diagram")
-|> Vl.data_from_values(members, only: ["bp_rp", "abs_g", "source_id"])
+|> Vl.data_from_values(members, only: ["bp_rp", "abs_g", "id"])
 |> Vl.mark(:circle, size: 12, opacity: 0.7)
 |> Vl.encode_field(:x, "bp_rp", type: :quantitative, title: "BP − RP (colour)")
 |> Vl.encode_field(:y, "abs_g", type: :quantitative, title: "M_G", scale: [reverse: true])
-|> Vl.encode_field(:tooltip, "source_id", type: :nominal)
+|> Vl.encode_field(:tooltip, "id", type: :nominal, title: "source_id")
 ```
 
 Bright stars are at the top, since magnitudes grow as stars get fainter, and blue stars are on the left. Almost every member lies on one diagonal band, the main sequence: stars that burn hydrogen in their cores. The cluster is young, so even its hot, blue, massive stars at the top left are still on it. The faint red end at the bottom right is made of low-mass red dwarfs.
@@ -149,7 +145,7 @@ Vl.new(width: 500, height: 500, title: "Members on the sky")
 )
 ```
 
-The big dots near the centre are the stars you can see with the naked eye, such as Atlas, Electra, Maia and Taygeta. Two are missing. Alcyone, the brightest, has no parallax in Gaia DR3: the cell is empty, so `parallax BETWEEN 5 AND 10` drops it. Merope is in the result, but its proper motion is about 7 mas/yr from the cluster's, outside the 5 mas/yr circle. Very bright stars saturate Gaia's detectors, so their measurements are less precise.
+The big dots near the centre are the stars you can see with the naked eye, such as Atlas, Electra, Maia and Taygeta. Two are missing. Alcyone, the brightest, has no parallax in Gaia DR3: the value is null, so `parallax BETWEEN 5 AND 10` drops it. Merope is in the result, but its proper motion is about 7 mas/yr from the cluster's, outside the 5 mas/yr circle. Very bright stars saturate Gaia's detectors, so their measurements are less precise.
 
 ## How far away
 

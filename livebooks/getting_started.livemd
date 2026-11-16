@@ -2,7 +2,7 @@
 
 ```elixir
 Mix.install([
-  {:space_tap, "~> 0.1.0"},
+  {:space_tap, "~> 0.2.0"},
   {:kino, "~> 0.19.1"}
 ])
 ```
@@ -11,26 +11,26 @@ Mix.install([
 
 [TAP](https://www.ivoa.net/documents/TAP/), the IVOA Table Access Protocol, is how astronomical archives expose their tables over HTTP. You write a query in [ADQL](https://www.ivoa.net/documents/ADQL/), a dialect of SQL with functions for positions on the sky, and the service runs it and sends the table back.
 
-`SpaceTAP.query/3` runs a sync query: one HTTP request, with the result in the response (TAP 1.1 §2.1). It POSTs the ADQL to the `/sync` endpoint of the service with `REQUEST=doQuery`, `LANG=ADQL` and `FORMAT=csv`, and reads the CSV that comes back.
+`SpaceTAP.query/3` runs a sync query: one HTTP request, with the result in the response (TAP 1.1 §2.1). It POSTs the ADQL to the `/sync` endpoint of the service with `REQUEST=doQuery`, `LANG=ADQL` and `FORMAT=csv`, and reads the CSV that comes back. With `format: :votable` it asks for VOTable instead, and reads typed values.
 
 This notebook installs SpaceTAP from Hex. Every query goes to a live service, so the numbers you get may differ a little from the ones mentioned here.
 
 ## A first query
 
-The service URL is the base URL of a TAP service, what TAP calls its access URL. This one is the Gaia archive at ESA. The query asks for the five brightest stars within one degree of the centre of the Pleiades:
+The service URL is the base URL of a TAP service, what TAP calls its access URL. This one is the GAVO Data Center, the German Virtual Observatory's archive, and the query reads its copy of Gaia DR3, `gaia.dr3lite`. The Gaia archive at ESA, `https://gea.esac.esa.int/tap-server/tap`, answers the same query on `gaia.dr3lite`. The query asks for the five brightest stars within one degree of the centre of the Pleiades:
 
 ```elixir
-gaia = "https://gea.esac.esa.int/tap-server/tap"
+gavo = "https://dc.g-vo.org/tap"
 
 adql = """
 SELECT TOP 5 source_id, ra, dec, parallax, phot_g_mean_mag
-FROM gaiadr3.gaia_source
+FROM gaia.dr3lite
 WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1
   AND parallax IS NOT NULL AND phot_g_mean_mag IS NOT NULL
 ORDER BY phot_g_mean_mag
 """
 
-{:ok, result} = SpaceTAP.query(gaia, adql)
+{:ok, result} = SpaceTAP.query(gavo, adql)
 ```
 
 `CONTAINS(POINT(...), CIRCLE(...)) = 1` is how ADQL writes a cone search: it keeps the rows whose position falls inside a circle of 1° around right ascension 56.75° and declination 24.12°. `phot_g_mean_mag` is the brightness in Gaia's G band, and a smaller magnitude means a brighter star, so `ORDER BY phot_g_mean_mag` puts the brightest first.
@@ -74,41 +74,82 @@ end
 
 `source_id` is a 64-bit integer. Keep it as a string, or use `String.to_integer/1`, but don't turn it into a float: floats can't hold every integer that large exactly.
 
-Typed values read from VOTable, the IVOA format for tables, are planned for a later version of SpaceTAP.
+## Typed values with VOTable
+
+VOTable is the IVOA format for tables, and every TAP service must support it (TAP 1.1 §2.7.3). Each column is a `FIELD` that declares its datatype, so `format: :votable` gives values you can compute with:
+
+```elixir
+{:ok, result} = SpaceTAP.query(gavo, adql, format: :votable)
+hd(result.rows)
+```
+
+`source_id` is a `long`, so it comes as an integer, and the rest are floats. `phot_g_mean_mag` is a `float`, a 32-bit number, and SpaceTAP gives the exact value of its 32 bits, with more digits than the CSV shows: `3.6157947` there is `3.6157946586608887` here. Both are the same number.
+
+`fields` describes each column with a `SpaceTAP.Field`:
+
+```elixir
+result.fields
+|> Enum.map(&Map.take(&1, [:name, :datatype, :unit, :description]))
+|> Kino.DataTable.new(keys: [:name, :datatype, :unit, :description], name: "Columns")
+```
+
+No parsing is needed now:
+
+```elixir
+for [source_id, _ra, _dec, parallax, _mag] <- result.rows do
+  %{source_id: source_id, distance_pc: Float.round(1000 / parallax, 1)}
+end
+```
+
+CSV stays the default, so code written for strings keeps working.
 
 ## Options
 
-`:maxrec` asks the service to return at most that many rows (DALI 1.1 §3.4.4). The service may apply a lower limit of its own; Gaia stops at 50,000 rows.
+`:maxrec` asks the service to return at most that many rows (DALI 1.1 §3.4.4). The service may apply a lower limit of its own.
 
 ```elixir
 {:ok, result} =
-  SpaceTAP.query(gaia, "SELECT TOP 10 source_id FROM gaiadr3.gaia_source", maxrec: 3)
+  SpaceTAP.query(gavo, "SELECT TOP 10 source_id FROM gaia.dr3lite", maxrec: 3)
 
 length(result.rows)
 ```
 
-A CSV result doesn't say whether the service cut it short. A VOTable would, with a query status of `OVERFLOW` (DALI 1.1 §4.4.1). If you get exactly as many rows as the limit, assume there are more.
+Four rows, not three: GAVO sends one more than `MAXREC` asks for, although DALI 1.1 §3.4.4 says the service "must only return the requested number of rows". SpaceTAP returns the rows the service sends.
 
-`maxrec: 0` asks for the columns with no rows, which is a quick way to see what a query returns:
+A CSV result doesn't say whether the service cut it short. A VOTable does, with a query status of `OVERFLOW` (DALI 1.1 §4.4.1), and SpaceTAP sets `overflow`:
 
 ```elixir
-SpaceTAP.query(gaia, "SELECT TOP 10 source_id, ra, dec FROM gaiadr3.gaia_source", maxrec: 0)
+{:ok, result} =
+  SpaceTAP.query(gavo, "SELECT TOP 10 source_id FROM gaia.dr3lite",
+    maxrec: 3,
+    format: :votable
+  )
+
+result.overflow
+```
+
+With CSV, `overflow` is `nil`: if you get exactly as many rows as the limit, assume there are more.
+
+`maxrec: 0` asks for the columns with no rows, which is a quick way to see what a query returns. GAVO sends one row anyway:
+
+```elixir
+SpaceTAP.query(gavo, "SELECT TOP 10 source_id, ra, dec FROM gaia.dr3lite", maxrec: 0)
 ```
 
 `:req_options` goes to [Req](https://hexdocs.pm/req/), the HTTP client. Req waits 15 seconds for a response by default; raise it for slower queries:
 
 ```elixir
-SpaceTAP.query(gaia, "SELECT TOP 1 source_id FROM gaiadr3.gaia_source",
+SpaceTAP.query(gavo, "SELECT TOP 1 source_id FROM gaia.dr3lite",
   req_options: [receive_timeout: 60_000]
 )
 ```
 
 ## When a query fails
 
-A failed query returns `{:error, %SpaceTAP.Error{}}`. A query that names a table Gaia doesn't have gives a service error, with the message Gaia wrote:
+A failed query returns `{:error, %SpaceTAP.Error{}}`. A query that names a table GAVO doesn't have gives a service error, with the message GAVO wrote. GAVO's software, DaCHS, sends it with HTTP 500:
 
 ```elixir
-{:error, error} = SpaceTAP.query(gaia, "SELECT TOP 3 source_id FROM gaiadr3.no_such_table")
+{:error, error} = SpaceTAP.query(gavo, "SELECT TOP 3 source_id FROM gaia.no_such_table")
 ```
 
 `SpaceTAP.Error` is an exception, and its message starts with the HTTP status:
@@ -129,7 +170,7 @@ Exception.message(error)
 So you can decide what to do from the type alone:
 
 ```elixir
-case SpaceTAP.query(gaia, "SELECT TOP 3 source_id FROM gaiadr3.no_such_table") do
+case SpaceTAP.query(gavo, "SELECT TOP 3 source_id FROM gaia.no_such_table") do
   {:ok, result} ->
     "#{length(result.rows)} rows"
 

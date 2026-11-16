@@ -2,7 +2,7 @@
 
 ```elixir
 Mix.install([
-  {:space_tap, "~> 0.1.0"},
+  {:space_tap, "~> 0.2.0"},
   {:kino, "~> 0.19.1"},
   {:kino_vega_lite, "~> 0.1.13"}
 ])
@@ -102,7 +102,18 @@ Vl.new(width: 600, height: 300, title: "Tables per service")
 Two things happened along the way:
 
 * **CADC answered through a redirect.** It answers the POST with HTTP 303 and the URL of a job, and SpaceTAP follows it with a GET. That is the POST-redirect-GET pattern TAP allows for sync queries (TAP 1.1 §2.1), and Req logs each redirect.
-* **MAST gave a `:decode_error`.** It sends VOTable whatever `FORMAT` asks for. TAP requires VOTable and only recommends CSV (TAP 1.1 §2.7.3), and SpaceTAP 0.1 reads CSV only, so MAST will work once SpaceTAP reads VOTable.
+* **MAST gave a `:decode_error`.** It sends VOTable whatever `FORMAT` asks for, which TAP allows: it requires VOTable and only recommends CSV (TAP 1.1 §2.7.3). The query asked for CSV, whose values are strings, so SpaceTAP doesn't read a VOTable in its place, and the error says to pass `format: :votable`.
+
+With `format: :votable`, MAST answers like the rest. The count comes as an integer, not a string, because its `FIELD` declares a datatype:
+
+```elixir
+{"MAST", mast} = List.keyfind(services, "MAST", 0)
+
+{:ok, %SpaceTAP.Result{rows: [[n]], fields: [field]}} =
+  SpaceTAP.query(mast, adql, format: :votable)
+
+%{tables: n, datatype: field.datatype}
+```
 
 ## The same mistake everywhere
 
@@ -128,7 +139,7 @@ end)
 |> Kino.DataTable.new(keys: ~w(service type status message), name: "Invalid ADQL")
 ```
 
-GAVO's documents start with an `xml-stylesheet` processing instruction and no XML declaration, which the XML parser in OTP misreads unless SpaceTAP helps it. That was issue #10.
+GAVO's documents start with an `xml-stylesheet` processing instruction and no XML declaration. The XML parser in OTP, which SpaceTAP 0.1 used, misread them unless SpaceTAP helped it (issue #10). SpaceTAP now reads XML with Saxy, which doesn't need the help.
 
 KOA and CADC send their message as plain text instead, which DALI 1.1 §4.2 also allows, with HTTP 400. Plain text could come from a proxy as well, so SpaceTAP returns a `:service_error` for it only with a 400, the status for a bad request, and an `:http_error` with any other status (issue #17).
 

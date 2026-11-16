@@ -11,6 +11,10 @@ the sky, and get the table back as Elixir data.
 
 It is not related to the Test Anything Protocol, which shares the acronym.
 
+Coming from Python? The
+[parity livebook](https://github.com/jaimeiniesta/space_tap/blob/main/livebooks/pyvo_parity.livemd)
+runs the same queries through [PyVO][pyvo] and SpaceTAP side by side.
+
 ## Installation
 
 Add `space_tap` to the dependencies in `mix.exs`:
@@ -18,7 +22,7 @@ Add `space_tap` to the dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:space_tap, "~> 0.1.0"}
+    {:space_tap, "~> 0.2.0"}
   ]
 end
 ```
@@ -26,33 +30,37 @@ end
 In Livebook or a script:
 
 ```elixir
-Mix.install([{:space_tap, "~> 0.1.0"}])
+Mix.install([{:space_tap, "~> 0.2.0"}])
 ```
 
 ## Usage
 
 `SpaceTAP.query/3` takes the service URL of a TAP service and an ADQL query.
-This one asks the [Gaia archive][gaia] for the five brightest stars within one
-degree of the centre of the Pleiades:
+This one asks the GAVO Data Center, the German Virtual Observatory's archive,
+for the five brightest stars within one degree of the centre of the Pleiades,
+from its copy of Gaia DR3:
 
 ```elixir
 adql = """
 SELECT TOP 5 source_id, ra, dec, parallax, phot_g_mean_mag
-FROM gaiadr3.gaia_source
+FROM gaia.dr3lite
 WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1
   AND parallax IS NOT NULL AND phot_g_mean_mag IS NOT NULL
 ORDER BY phot_g_mean_mag
 """
 
-{:ok, result} = SpaceTAP.query("https://gea.esac.esa.int/tap-server/tap", adql)
+{:ok, result} = SpaceTAP.query("https://dc.g-vo.org/tap", adql)
 
 result.columns
 #=> ["source_id", "ra", "dec", "parallax", "phot_g_mean_mag"]
 
 hd(result.rows)
 #=> ["66526127137440128", "57.29068893293528", "24.053211829998986",
-#=>  "8.118448445799721", "3.6157947"]
+#=>  "8.118448", "3.6157947"]
 ```
+
+The [Gaia archive][gaia] at ESA, where Gaia's data comes from, answers the same
+query on `gaiadr3.gaia_source` at `https://gea.esac.esa.int/tap-server/tap`.
 
 The service URL is the base URL of the service, what TAP calls its access URL.
 SpaceTAP sends the query to its `/sync` endpoint, so pass the base URL even if
@@ -75,6 +83,8 @@ Enum.map(result.rows, fn row -> Map.new(Enum.zip(result.columns, row)) end)
 
 ### Options
 
+- `:format` is the format to ask the service for: `:csv`, the default, or
+  `:votable`. See [CSV or VOTable](#csv-or-votable).
 - `:maxrec` asks the service to return at most that many rows. The service may
   apply a lower limit of its own. `maxrec: 0` asks for the columns with no rows,
   although GAVO sends one row anyway.
@@ -107,21 +117,21 @@ the rest.
 
 ```elixir
 {:error, error} =
-  SpaceTAP.query(service_url, "SELECT TOP 3 source_id FROM gaiadr3.no_such_table")
+  SpaceTAP.query(service_url, "SELECT TOP 3 source_id FROM gaia.no_such_table")
 
 error.type
 #=> :service_error
 
 Exception.message(error)
-#=> "(HTTP 400) Cannot parse query 'SELECT TOP 3 source_id FROM gaiadr3.no_such_table' ..."
+#=> "(HTTP 500) Field query: Could not locate table 'gaia.no_such_table'"
 ```
 
-## Results come as CSV
+## CSV or VOTable
 
-SpaceTAP 0.1 asks the service for CSV. That keeps it small, but CSV carries
-less than VOTable, the IVOA format for tables:
+SpaceTAP asks the service for CSV by default, as it did in 0.1. CSV is simple,
+but it carries less than VOTable, the IVOA format for tables:
 
-- **Every value is a string.** CSV has no types, so `"8.118448445799721"`
+- **Every value is a string.** CSV has no types, so `"8.118448"`
   stays a string until you convert it, with `Float.parse/1` for example.
 - **An empty cell is `nil`.** No IVOA standard says how CSV represents NULL.
   Gaia sends an empty field, and SpaceTAP can't tell it from an empty string.
@@ -134,27 +144,67 @@ less than VOTable, the IVOA format for tables:
   CSV labelled `text/plain` instead of `text/csv` is read as CSV: the NASA
   Exoplanet Archive and KOA send it that way.
 
-Typed results read from VOTable are planned for a later version, along with
-async queries for long-running and large results.
+With `format: :votable`, SpaceTAP asks for VOTable instead:
+
+```elixir
+{:ok, result} = SpaceTAP.query("https://dc.g-vo.org/tap", adql, format: :votable)
+
+hd(result.rows)
+#=> [66526127137440128, 57.29068893293528, 24.053211829998986,
+#=>  8.118448257446289, 3.6157946586608887]
+
+result.overflow
+#=> false
+```
+
+- **Each value has the type its column declares:** an integer, a float, a
+  boolean, a string, or a list for an array. A null cell is `nil`, and so is a
+  float holding NaN; +Inf and -Inf are `:infinity` and `:neg_infinity`.
+- **`fields` describes each column** with a `SpaceTAP.Field`: its datatype,
+  unit, UCD and description, among others.
+
+  ```elixir
+  Enum.at(result.fields, 4)
+  #=> %SpaceTAP.Field{name: "phot_g_mean_mag", datatype: :float, unit: "mag", ...}
+  ```
+
+- **`overflow` is `true` when the service cut the result short,** at `:maxrec`
+  or at a limit of its own (DALI 1.1 §4.4.1).
+
+`parallax` and `phot_g_mean_mag` are `float`s, 32-bit numbers, and SpaceTAP
+gives the exact value of their 32 bits as an Elixir float: `3.6157946586608887`,
+where the CSV says `3.6157947`. Both are the same number, and PyVO reads the
+same value.
+
+The service picks how the rows travel inside the VOTable, and SpaceTAP reads
+the three serializations TAP services send: TABLEDATA, BINARY and BINARY2. A
+VOTable that comes when CSV was asked for, as MAST sends, is a `:decode_error`
+that says to pass `format: :votable`, so the value types don't depend on the
+service.
+
+Async queries, for long-running and large results, are planned for a later
+version.
 
 ## Compatibility
 
 SpaceTAP follows [TAP 1.1][tap] and works with TAP 1.0 services. It has been
-checked against these services, last on 27 October 2026:
+checked against these services, last on 16 November 2026, except four that
+didn't answer that day: Gaia was last checked on 13 November, IRSA on 10
+November, and VizieR and SIMBAD, both run by CDS, on 27 October, with CSV only.
 
-| Service | Service URL | Checked by | Notes |
-|---|---|---|---|
-| [Gaia archive][gaia] (ESA) | `https://gea.esac.esa.int/tap-server/tap` | Services and parity tests, fixtures, livebooks | Redirects `http://` to `https://`, which loses the query: use `https://`. |
-| GAVO Data Center | `https://dc.g-vo.org/tap` | Integration, services and parity tests, fixtures, livebooks | Runs DaCHS. Holds a copy of Gaia DR3 in `gaia.dr3lite`. Sends error documents with HTTP 500. Sends one row more than `:maxrec` asks for, and one row with `maxrec: 0`, marked as overflow. |
-| NASA Exoplanet Archive | `https://exoplanetarchive.ipac.caltech.edu/TAP` | Services and parity tests, fixtures, livebooks | Labels CSV `text/plain`. Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a sorted result. |
-| IRSA (IPAC) | `https://irsa.ipac.caltech.edu/TAP` | Services and parity tests, fixtures, livebook | |
-| NED (IPAC) | `https://ned.ipac.caltech.edu/tap` | Services and parity tests, fixtures, livebook | |
-| KOA (Keck) | `https://koa.ipac.caltech.edu/TAP` | Services and parity tests, fixtures, livebook | Labels CSV `text/plain`. Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a `:service_error`. |
-| VizieR (CDS) | `https://tapvizier.cds.unistra.fr/TAPVizieR/tap` | Services and parity tests, fixtures, livebook | |
-| SIMBAD (CDS) | `https://simbad.cds.unistra.fr/simbad/sim-tap` | Services and parity tests, fixtures, livebook | |
-| ESO | `https://archive.eso.org/tap_obs` | Services and parity tests, fixtures, livebook | |
-| CADC | `https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus` | Services and parity tests, fixtures, livebook | Redirects each query to its result with a 303 (TAP 1.1 §2.1), which SpaceTAP follows. Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a `:service_error`. |
-| MAST | `https://mast.stsci.edu/vo-tap/api/v0.1/caom` | Services tests, fixtures, livebook | **Doesn't work yet.** It sends VOTable even when CSV is requested, so queries give a `:decode_error`. |
+| Service | Service URL | Formats | Checked by | Notes |
+|---|---|---|---|---|
+| [Gaia archive][gaia] (ESA) | `https://gea.esac.esa.int/tap-server/tap` | CSV, VOTable | Services and parity tests, fixtures, livebook | Redirects `http://` to `https://`, which loses the query: use `https://`. |
+| GAVO Data Center | `https://dc.g-vo.org/tap` | CSV, VOTable | Integration, services and parity tests, fixtures, livebooks | Runs DaCHS. Holds a copy of Gaia DR3 in `gaia.dr3lite`. Sends error documents with HTTP 500. Sends one row more than `:maxrec` asks for, and one row with `maxrec: 0`, marked as overflow. |
+| NASA Exoplanet Archive | `https://exoplanetarchive.ipac.caltech.edu/TAP` | CSV, VOTable | Services and parity tests, fixtures, livebooks | Labels CSV `text/plain`. Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a sorted result. |
+| IRSA (IPAC) | `https://irsa.ipac.caltech.edu/TAP` | CSV, VOTable | Services and parity tests, fixtures, livebook | |
+| NED (IPAC) | `https://ned.ipac.caltech.edu/tap` | CSV, VOTable | Services and parity tests, fixtures, livebook | |
+| KOA (Keck) | `https://koa.ipac.caltech.edu/TAP` | CSV, VOTable | Services and parity tests, fixtures, livebook | Labels CSV `text/plain`. Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a `:service_error`. |
+| VizieR (CDS) | `https://tapvizier.cds.unistra.fr/TAPVizieR/tap` | CSV; VOTable not checked yet | Services and parity tests, fixtures, livebook | |
+| SIMBAD (CDS) | `https://simbad.cds.unistra.fr/simbad/sim-tap` | CSV; VOTable not checked yet | Services and parity tests, fixtures, livebook | |
+| ESO | `https://archive.eso.org/tap_obs` | CSV, VOTable | Services and parity tests, fixtures, livebook | |
+| CADC | `https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus` | CSV, VOTable | Services and parity tests, fixtures, livebook | Redirects each query to its result with a 303 (TAP 1.1 §2.1), which SpaceTAP follows. Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a `:service_error`. |
+| MAST | `https://mast.stsci.edu/vo-tap/api/v0.1/caom` | VOTable only | Services and parity tests, fixtures, livebook | Sends VOTable even when CSV is requested, so pass `format: :votable`. |
 
 Integration, services and parity tests query the live service (see
 [Development](#development)), and fixtures are its responses, captured for the
@@ -180,7 +230,8 @@ mix test --include integration
 
 Parity tests run the same queries through SpaceTAP and through
 [PyVO][pyvo], an Astropy-affiliated Python client for IVOA services, and
-compare the results. They need [`uv`][uv]. Those for GAVO run with:
+compare the results: the columns, the overflow and the value of every cell.
+They need [`uv`][uv]. Those for GAVO run with:
 
 ```sh
 mix test --only pyvo
@@ -191,7 +242,7 @@ before a release.
 
 Services tests send the queries of the fixtures to every service in
 [Compatibility](#compatibility), check that they still answer the same way, and
-run the parity tests for those that send CSV. They are slow, and a failure is a
+run their parity tests. They are slow, and a failure is a
 reason to look into that service, not to hold a release, so `mix test.release`
 leaves them out:
 
@@ -200,8 +251,8 @@ mix test.services
 ```
 
 The [`livebooks`](https://github.com/jaimeiniesta/space_tap/tree/main/livebooks) folder has [Livebook](https://livebook.dev)
-notebooks that run SpaceTAP against Gaia, GAVO, the NASA Exoplanet Archive and
-other services, with tables and charts, and one that runs the parity tests'
+notebooks that run SpaceTAP against Gaia DR3 at GAVO, the NASA Exoplanet
+Archive and other services, with tables and charts, and one that runs the parity tests'
 queries through SpaceTAP and PyVO side by side. They install SpaceTAP from Hex,
 and each one has a "Run in Livebook" button on HexDocs.
 

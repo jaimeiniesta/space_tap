@@ -237,6 +237,13 @@ They need [`uv`][uv]. Those for GAVO run with:
 mix test --only pyvo
 ```
 
+Parity tests on the fixtures have SpaceTAP and PyVO read each VOTable fixture,
+with no network, and CI runs them on every pull request:
+
+```sh
+mix test --only pyvo_fixtures
+```
+
 `mix test.release` runs the unit, integration and parity tests above. Run it
 before a release.
 

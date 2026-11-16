@@ -1,12 +1,12 @@
 # GAVO is the service releases are tested against
 
-`mix test.release` runs integration and parity tests against a live service, and a release waits for them to pass. Until 0.2.0 that service was the Gaia archive at ESA, SpaceTAP's main example. It failed on three days in two weeks: overloaded on 5 November 2026, and down on 15 and 16 November, which held the 0.2.0 release. In the same weeks CDS (VizieR and SIMBAD) didn't answer on 28 and 29 October and on 15 and 16 November, the NASA Exoplanet Archive answered with a maintenance page on 10 November, IRSA's proxy failed on 15 and 16 November, and NED didn't connect on 9 November. GAVO Data Center answered in every run of the services tests and the livebooks since 27 October.
+`mix test.release` runs integration and parity tests against a live service, and a release waits for them to pass, so it also waits whenever that service can't be reached. Until 0.2.0 that service was the Gaia archive at ESA, SpaceTAP's main example, which couldn't be reached on 15 and 16 November 2026, when 0.2.0 was due. Other services in the Compatibility table had such days too: in the same weeks CDS (VizieR and SIMBAD) didn't answer on 28 and 29 October and on 15 and 16 November, the NASA Exoplanet Archive answered with a maintenance page on 10 November, IRSA's proxy failed on 15 and 16 November, and NED didn't connect on 9 November. GAVO Data Center answered in every run of the services tests and the livebooks since 27 October.
 
 So releases are tested against GAVO, on `gaia.dr3lite`, its copy of Gaia DR3: the Pleiades query of the README gives the same five stars there as at ESA, in the same order. Gaia and the NASA Exoplanet Archive join the services tests, which also run before a release, but whose failures don't hold it.
 
 ## Considered Options
 
-- Keep the Gaia archive at ESA. It is where Gaia's data comes from, and the only service in the Compatibility table that sends BINARY2, but its outages decide when SpaceTAP can be released.
+- Keep the Gaia archive at ESA. It is where Gaia's data comes from, and the only service in the Compatibility table that sends BINARY2, but a release would wait whenever it can't be reached, as on the days 0.2.0 was due.
 - The copy of Gaia DR3 at ARI Heidelberg, which holds all of `gaiadr3.gaia_source`. It answered when ESA didn't, but SpaceTAP has used it on three days only, and it is in Heidelberg too, at the same Zentrum für Astronomie as GAVO, so the two may fail together.
 - Several services, all of which must pass. Each one added is one more that can be down on the day of a release.
 - MAST, which hasn't failed either. Its tables aren't Gaia's, so the examples in the README and the livebooks would need other queries and other data.

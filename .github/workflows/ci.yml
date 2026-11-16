@@ -73,3 +73,36 @@ jobs:
 
       - run: mix deps.get
       - run: mix test
+
+  # PyVO, run through uv, reads the VOTable fixtures, and SpaceTAP must read
+  # the same values. One Elixir and OTP is enough: the values come from
+  # SpaceTAP's code, and the other versions run its unit tests.
+  pyvo-fixtures:
+    name: Parity with PyVO on the fixtures
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          otp-version: "29"
+          elixir-version: "1.20"
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: pyvo-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+
+      # setup-uv publishes no major version tags, so it is pinned to the
+      # commit of a release, as its README recommends. The script pins PyVO
+      # and astropy, so the cache follows it.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: true
+          cache-dependency-glob: test/support/pyvo_query.py
+
+      - run: mix deps.get
+      - run: mix test --only pyvo_fixtures

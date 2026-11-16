@@ -44,7 +44,7 @@ defmodule SpaceTAP.MixProject do
 
   defp aliases do
     [
-      "test.release": ["test --include integration --include pyvo"],
+      "test.release": ["test --include integration --include pyvo --include pyvo_fixtures"],
       "test.services": ["test --only services"]
     ]
   end

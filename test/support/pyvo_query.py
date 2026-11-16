@@ -6,24 +6,39 @@
 # ]
 # ///
 
+# Prints what PyVO reads as JSON, for SpaceTAP's parity tests
+# (test/support/pyvo.ex). Either the result of a query sent to a service:
+#
+#     uv run pyvo_query.py SERVICE_URL ADQL [MAXREC]
+#
+# or VOTable files, as an object with what it reads from each path:
+#
+#     uv run pyvo_query.py --files PATH...
+
 import json
 import math
 import sys
 import warnings
 
 import pyvo
+from astropy.io import votable
 from pyvo.dal.exceptions import DALOverflowWarning
 
 
 def main():
-    service_url = sys.argv[1]
-    adql = sys.argv[2]
-    maxrec = int(sys.argv[3]) if len(sys.argv) == 4 else None
-
     # PyVO warns on stderr when the service truncates the result, which the
     # JSON already reports as overflow. GAVO sends one row more than MAXREC,
     # so the warning would show up in every run of the release tests.
     warnings.filterwarnings("ignore", category=DALOverflowWarning)
+
+    if sys.argv[1] == "--files":
+        files = {path: read_file(path) for path in sys.argv[2:]}
+        print(json.dumps(files, allow_nan=False))
+        return 0
+
+    service_url = sys.argv[1]
+    adql = sys.argv[2]
+    maxrec = int(sys.argv[3]) if len(sys.argv) == 4 else None
 
     try:
         result = pyvo.dal.TAPService(service_url).search(adql, maxrec=maxrec)
@@ -33,6 +48,16 @@ def main():
 
     print(json.dumps(to_json(result), allow_nan=False))
     return 0
+
+
+# A file is read as PyVO reads a service's answer: astropy parses the
+# VOTable, and TAPResults reads its QUERY_STATUS and raises DALQueryError on
+# an ERROR. A file it can't read, such as an error document, gives an error.
+def read_file(path):
+    try:
+        return to_json(pyvo.dal.TAPResults(votable.parse(path)))
+    except Exception as error:
+        return {"error": f"{type(error).__name__}: {error}"}
 
 
 def to_json(result):

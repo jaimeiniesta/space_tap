@@ -19,10 +19,14 @@ defmodule SpaceTAP.Test.Pyvo do
   # The test also asks SpaceTAP for CSV and checks that its header names the
   # same columns as the VOTable fields PyVO reads, and that it has as many
   # rows. Pass `csv: false` for a service that doesn't send CSV.
+  #
+  # The parity tests on the fixtures need no service: PyVO reads each file,
+  # SpaceTAP's VOTable reader reads the same bytes, and they compare the same
+  # way, the rows in the order of the file.
 
   import ExUnit.Assertions
 
-  alias SpaceTAP.Result
+  alias SpaceTAP.{Result, VOTable}
 
   @runner Path.expand("pyvo_query.py", __DIR__)
 
@@ -58,15 +62,42 @@ defmodule SpaceTAP.Test.Pyvo do
     assert Enum.sort(Enum.map(rows, &as_json/1)) === Enum.sort(pyvo_rows)
   end
 
+  # Reads VOTable files with PyVO, all in one run of the script. Gives what
+  # PyVO read from each path, or the error it gave.
+  @spec read_files([Path.t()]) :: %{Path.t() => map()}
+  def read_files(paths), do: run(["--files" | paths])
+
+  # Compares what SpaceTAP reads from a VOTable file with what PyVO read
+  # from it. A file both refuse, such as an error document, passes.
+  @spec assert_file_parity(Path.t(), map()) :: true
+  def assert_file_parity(path, pyvo) do
+    case {VOTable.parse(File.read!(path)), pyvo} do
+      {{:ok, table}, %{"columns" => columns, "rows" => rows, "overflow" => overflow}} ->
+        assert Enum.map(table.fields, & &1.name) == columns
+        assert table.overflow == overflow
+        assert Enum.map(table.rows, &as_json/1) === rows
+
+      {{:ok, _table}, %{"error" => error}} ->
+        flunk("SpaceTAP reads #{path} and PyVO doesn't: #{error}")
+
+      {{_refused, _message}, %{"error" => _pyvo_error}} ->
+        true
+
+      {{_refused, message}, _pyvo} ->
+        flunk("PyVO reads #{path} and SpaceTAP doesn't: #{message}")
+    end
+  end
+
   #####################
   # Private functions #
   #####################
 
-  defp query(service_url, adql, opts) do
-    uv = System.find_executable("uv") || flunk("`uv` is required to run the PyVO parity tests")
-    args = ["run", "--quiet", @runner, service_url, adql] ++ maxrec_arg(opts)
+  defp query(service_url, adql, opts), do: run([service_url, adql] ++ maxrec_arg(opts))
 
-    case System.cmd(uv, args) do
+  defp run(args) do
+    uv = System.find_executable("uv") || flunk("`uv` is required to run the PyVO parity tests")
+
+    case System.cmd(uv, ["run", "--quiet", @runner | args]) do
       {output, 0} ->
         assert {:ok, result} = JSON.decode(output)
         result

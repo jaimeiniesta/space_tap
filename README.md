@@ -76,7 +76,8 @@ Enum.map(result.rows, fn row -> Map.new(Enum.zip(result.columns, row)) end)
 ### Options
 
 - `:maxrec` asks the service to return at most that many rows. The service may
-  apply a lower limit of its own. `maxrec: 0` returns the columns with no rows.
+  apply a lower limit of its own. `maxrec: 0` asks for the columns with no rows,
+  although GAVO sends one row anyway.
 - `:req_options` are passed to [Req][req], the HTTP client. Req waits 15 seconds
   for a response by default; for slower queries, raise it:
 
@@ -143,9 +144,9 @@ checked against these services, last on 27 October 2026:
 
 | Service | Service URL | Checked by | Notes |
 |---|---|---|---|
-| [Gaia archive][gaia] (ESA) | `https://gea.esac.esa.int/tap-server/tap` | Integration and parity tests, fixtures, livebooks | Redirects `http://` to `https://`, which loses the query: use `https://`. |
-| GAVO Data Center | `https://dc.g-vo.org/tap` | Services and parity tests, fixtures, livebooks | Runs DaCHS. Sends error documents with HTTP 500. |
-| NASA Exoplanet Archive | `https://exoplanetarchive.ipac.caltech.edu/TAP` | Integration and parity tests, fixtures, livebooks | Labels CSV `text/plain`. Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a sorted result. |
+| [Gaia archive][gaia] (ESA) | `https://gea.esac.esa.int/tap-server/tap` | Services and parity tests, fixtures, livebooks | Redirects `http://` to `https://`, which loses the query: use `https://`. |
+| GAVO Data Center | `https://dc.g-vo.org/tap` | Integration, services and parity tests, fixtures, livebooks | Runs DaCHS. Holds a copy of Gaia DR3 in `gaia.dr3lite`. Sends error documents with HTTP 500. Sends one row more than `:maxrec` asks for, and one row with `maxrec: 0`, marked as overflow. |
+| NASA Exoplanet Archive | `https://exoplanetarchive.ipac.caltech.edu/TAP` | Services and parity tests, fixtures, livebooks | Labels CSV `text/plain`. Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a sorted result. |
 | IRSA (IPAC) | `https://irsa.ipac.caltech.edu/TAP` | Services and parity tests, fixtures, livebook | |
 | NED (IPAC) | `https://ned.ipac.caltech.edu/tap` | Services and parity tests, fixtures, livebook | |
 | KOA (Keck) | `https://koa.ipac.caltech.edu/TAP` | Services and parity tests, fixtures, livebook | Labels CSV `text/plain`. Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a `:service_error`. |
@@ -170,8 +171,8 @@ Run the unit tests, which don't need network access:
 mix test
 ```
 
-Integration tests run queries against the Gaia archive and the NASA Exoplanet
-Archive, and are excluded by default:
+Integration tests run queries against GAVO, on its copy of Gaia DR3, and are
+excluded by default:
 
 ```sh
 mix test --include integration
@@ -179,8 +180,7 @@ mix test --include integration
 
 Parity tests run the same queries through SpaceTAP and through
 [PyVO][pyvo], an Astropy-affiliated Python client for IVOA services, and
-compare the results. They need [`uv`][uv]. Those for Gaia and the NASA
-Exoplanet Archive run with:
+compare the results. They need [`uv`][uv]. Those for GAVO run with:
 
 ```sh
 mix test --only pyvo
@@ -189,7 +189,7 @@ mix test --only pyvo
 `mix test.release` runs the unit, integration and parity tests above. Run it
 before a release.
 
-Services tests send the queries of the fixtures to the other services in
+Services tests send the queries of the fixtures to every service in
 [Compatibility](#compatibility), check that they still answer the same way, and
 run the parity tests for those that send CSV. They are slow, and a failure is a
 reason to look into that service, not to hold a release, so `mix test.release`

@@ -1,10 +1,9 @@
 defmodule SpaceTAP.Test.Services do
   @moduledoc false
 
-  # The services in the README's Compatibility table other than Gaia and the
-  # NASA Exoplanet Archive, which the integration tests cover, with the
-  # queries of their fixtures as {adql, expected} pairs. A result expects
-  # these columns and this many rows, with VOTable and with CSV, unless
+  # The services in the README's Compatibility table, with the queries of
+  # their fixtures as {adql, expected} pairs. A result expects these columns
+  # and this many rows, with VOTable and with CSV, unless
   # `csv_result` says what CSV gives instead; an error expects its type,
   # status and a part of its message that the service is unlikely to reword.
   # The services tests and the parity tests both read them, so a service that
@@ -26,6 +25,16 @@ defmodule SpaceTAP.Test.Services do
 
   @services [
     %{
+      service: "Gaia",
+      url: "https://gea.esac.esa.int/tap-server/tap",
+      result:
+        {"SELECT TOP 5 source_id, designation, ra, dec, parallax, phot_g_mean_mag FROM gaiadr3.gaia_source WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1 AND parallax IS NOT NULL AND phot_g_mean_mag IS NOT NULL ORDER BY phot_g_mean_mag",
+         {:ok, ["source_id", "designation", "ra", "dec", "parallax", "phot_g_mean_mag"], 5}},
+      syntax_error:
+        {"SELEC TOP 3 source_id FROM gaiadr3.gaia_source",
+         {:error, :service_error, 400, "Cannot parse query 'SELEC TOP 3 source_id"}}
+    },
+    %{
       service: "GAVO",
       url: "https://dc.g-vo.org/tap",
       result:
@@ -34,6 +43,20 @@ defmodule SpaceTAP.Test.Services do
       syntax_error:
         {"SELEC TOP 3 table_name FROM tap_schema.tables",
          {:error, :service_error, 500, "Field query: Could not parse your query: Expected SELECT"}}
+    },
+    %{
+      service: "NASA Exoplanet Archive",
+      url: "https://exoplanetarchive.ipac.caltech.edu/TAP",
+      # The archive applies TOP before ORDER BY, so TOP 3, the query of
+      # planets.csv, may give other planets each time, and the parity tests
+      # would compare different rows. This query names its planets instead,
+      # and default_flag = 1 picks one row of parameters for each.
+      result:
+        {"SELECT pl_name, disc_year FROM ps WHERE default_flag = 1 AND pl_name IN ('WASP-39 b', 'GJ 436 b', 'HAT-P-1 b')",
+         {:ok, ["pl_name", "disc_year"], 3}},
+      syntax_error:
+        {"SELEC TOP 3 table_name FROM TAP_SCHEMA.tables",
+         {:error, :service_error, 400, "Query is not a SELECT statemement."}}
     },
     %{
       service: "IRSA",

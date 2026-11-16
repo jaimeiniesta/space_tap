@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-16
+
 ### Changed
 
 - SpaceTAP reads TABLEDATA results about a third faster, 1.9 s instead of 2.9 s for 100,000 rows of six columns, and reads every value as before.
@@ -41,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A README with usage, errors, the limits of CSV results and the TAP services SpaceTAP has been checked against, and HexDocs with the SpaceTAP icon.
 - Livebooks that run SpaceTAP against Gaia, GAVO, the NASA Exoplanet Archive and other TAP services, with tables and charts, each with a "Run in Livebook" button on HexDocs.
 
-[Unreleased]: https://github.com/jaimeiniesta/space_tap/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jaimeiniesta/space_tap/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/jaimeiniesta/space_tap/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jaimeiniesta/space_tap/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jaimeiniesta/space_tap/releases/tag/v0.1.0

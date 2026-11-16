@@ -1,10 +1,10 @@
 defmodule SpaceTAPServicesLiveTest do
-  # The services in the README's Compatibility table other than Gaia and the
-  # NASA Exoplanet Archive, which the integration tests cover. Each one gets
-  # the queries of its fixtures, to check that it still answers the way they
-  # say. Some are slow, and a failure is a reason to look into that service,
-  # not to hold a release, so `mix test.release` leaves them out: run them
-  # with `mix test.services`. Parameters run concurrently, so the services are
+  # The services in the README's Compatibility table. Each one gets the
+  # queries of its fixtures, to check that it still answers the way they say.
+  # GAVO, the service releases are tested against, has integration tests too.
+  # Some are slow, and a failure is a reason to look into that service, not
+  # to hold a release, so `mix test.release` leaves them out: run them with
+  # `mix test.services`. Parameters run concurrently, so the services are
   # queried in parallel and each one gets one request at a time.
   alias SpaceTAP.{Error, Result}
   alias SpaceTAP.Test.Services

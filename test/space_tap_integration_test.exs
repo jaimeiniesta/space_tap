@@ -1,117 +1,89 @@
 defmodule SpaceTAPIntegrationTest do
+  # Queries to GAVO, the service `mix test.release` runs against before a
+  # release (docs/adr/0009-gavo-is-the-service-releases-are-tested-against.md),
+  # on its copy of Gaia DR3. The other services have theirs in
+  # SpaceTAPServicesLiveTest.
   use ExUnit.Case, async: false
 
   alias SpaceTAP.{Error, Result}
 
   @moduletag :integration
 
-  @service_url "https://gea.esac.esa.int/tap-server/tap"
+  @service_url "https://dc.g-vo.org/tap"
+
+  @pleiades """
+  SELECT TOP 5 source_id, ra, dec, parallax, phot_g_mean_mag
+  FROM gaia.dr3lite
+  WHERE CONTAINS(
+    POINT('ICRS', ra, dec),
+    CIRCLE('ICRS', 56.75, 24.12, 1.0)
+  ) = 1
+  AND parallax IS NOT NULL
+  AND phot_g_mean_mag IS NOT NULL
+  ORDER BY phot_g_mean_mag
+  """
 
   test "runs a Pleiades cone search" do
-    adql = """
-    SELECT TOP 5 source_id, designation, ra, dec, parallax, phot_g_mean_mag
-    FROM gaiadr3.gaia_source
-    WHERE CONTAINS(
-      POINT('ICRS', ra, dec),
-      CIRCLE('ICRS', 56.75, 24.12, 1.0)
-    ) = 1
-    AND parallax IS NOT NULL
-    AND phot_g_mean_mag IS NOT NULL
-    ORDER BY phot_g_mean_mag
-    """
+    assert {:ok, %Result{columns: columns, rows: rows}} = SpaceTAP.query(@service_url, @pleiades)
 
-    assert {:ok, %Result{columns: columns, rows: rows}} =
-             SpaceTAP.query(@service_url, adql)
-
-    assert columns == [
-             "source_id",
-             "designation",
-             "ra",
-             "dec",
-             "parallax",
-             "phot_g_mean_mag"
-           ]
-
+    assert columns == ["source_id", "ra", "dec", "parallax", "phot_g_mean_mag"]
     assert length(rows) == 5
   end
 
-  test "reads Gaia's VOTable with typed values" do
-    adql = """
-    SELECT TOP 5 source_id, designation, ra, dec, parallax, phot_g_mean_mag
-    FROM gaiadr3.gaia_source
-    WHERE CONTAINS(
-      POINT('ICRS', ra, dec),
-      CIRCLE('ICRS', 56.75, 24.12, 1.0)
-    ) = 1
-    AND parallax IS NOT NULL
-    AND phot_g_mean_mag IS NOT NULL
-    ORDER BY phot_g_mean_mag
-    """
-
+  test "reads the VOTable with typed values" do
     assert {:ok, %Result{columns: columns, rows: rows, fields: fields, overflow: false}} =
-             SpaceTAP.query(@service_url, adql, format: :votable)
+             SpaceTAP.query(@service_url, @pleiades, format: :votable)
 
-    assert columns == ["source_id", "designation", "ra", "dec", "parallax", "phot_g_mean_mag"]
-    assert Enum.map(fields, & &1.datatype) == [:long, :char, :double, :double, :double, :float]
+    assert columns == ["source_id", "ra", "dec", "parallax", "phot_g_mean_mag"]
+    # gaia.dr3lite declares parallax a float, where Gaia's archive has a double.
+    assert Enum.map(fields, & &1.datatype) == [:long, :double, :double, :float, :float]
     assert length(rows) == 5
 
-    for [source_id, designation, ra, dec, parallax, magnitude] <- rows do
+    for [source_id | values] <- rows do
       assert is_integer(source_id)
-      assert designation == "Gaia DR3 #{source_id}"
-      assert Enum.all?([ra, dec, parallax, magnitude], &is_float/1)
+      assert Enum.all?(values, &is_float/1)
     end
   end
 
-  test "sets overflow when Gaia stops at MAXREC" do
-    adql = "SELECT TOP 10 source_id FROM gaiadr3.gaia_source"
+  # DALI 1.1 §3.4.4: "If the size of the result exceeds the resulting limit,
+  # the service must only return the requested number of rows." GAVO sends
+  # one row more, and SpaceTAP returns the rows the service sends.
+  test "sets overflow when MAXREC cuts the result, with the row GAVO adds" do
+    adql = "SELECT TOP 10 source_id FROM gaia.dr3lite ORDER BY source_id"
 
     assert {:ok, %Result{rows: rows, overflow: true}} =
              SpaceTAP.query(@service_url, adql, format: :votable, maxrec: 3)
 
-    assert length(rows) == 3
+    assert length(rows) == 4
   end
 
-  test "returns a service error for invalid ADQL" do
-    adql = "SELEC TOP 3 source_id FROM gaiadr3.gaia_source"
-
-    assert {:error, %Error{type: :service_error, status: 400, message: message}} =
-             SpaceTAP.query(@service_url, adql)
-
-    assert message =~ "Cannot parse query 'SELEC TOP 3 source_id"
-  end
-
-  test "returns columns and no rows when MAXREC is zero" do
-    adql = "SELECT TOP 3 source_id, ra, dec FROM gaiadr3.gaia_source"
-
-    # DALI 1.1 §3.4.4 defines MAXREC=0 as a metadata-only request.
-    assert {:ok, %Result{columns: ["source_id", "ra", "dec"], rows: []}} =
-             SpaceTAP.query(@service_url, adql, maxrec: 0)
-  end
-
-  test "limits rows to MAXREC" do
-    adql = "SELECT TOP 10 source_id FROM gaiadr3.gaia_source"
+  test "sends MAXREC with CSV, and gets the row GAVO adds" do
+    adql = "SELECT TOP 10 source_id FROM gaia.dr3lite ORDER BY source_id"
 
     assert {:ok, %Result{columns: ["source_id"], rows: rows}} =
              SpaceTAP.query(@service_url, adql, maxrec: 3)
 
-    assert length(rows) == 3
+    assert length(rows) == 4
   end
 
-  test "reads the NASA Exoplanet Archive's CSV, which it sends as text/plain" do
-    adql = "SELECT TOP 3 pl_name, disc_year FROM ps"
+  # DALI 1.1 §3.4.4 says MAXREC=0 asks for "metadata, no results, and an
+  # overflow indicator". GAVO sends the overflow indicator and one row.
+  test "returns the columns and overflow when MAXREC is zero, with the row GAVO adds" do
+    adql = "SELECT TOP 3 source_id, ra, dec FROM gaia.dr3lite"
 
-    assert {:ok, %Result{columns: ["pl_name", "disc_year"], rows: rows}} =
-             SpaceTAP.query("https://exoplanetarchive.ipac.caltech.edu/TAP", adql)
+    assert {:ok, %Result{columns: ["source_id", "ra", "dec"], rows: rows, overflow: true}} =
+             SpaceTAP.query(@service_url, adql, format: :votable, maxrec: 0)
 
-    assert length(rows) == 3
+    assert length(rows) == 1
   end
 
-  test "returns the NASA Exoplanet Archive's error document as a service error" do
-    adql = "SELEC TOP 3 table_name FROM TAP_SCHEMA.tables"
+  # DaCHS sends its error documents with HTTP 500.
+  test "returns a service error for invalid ADQL" do
+    adql = "SELEC TOP 3 source_id FROM gaia.dr3lite"
 
-    assert {:error, %Error{type: :service_error, status: 400, message: message}} =
-             SpaceTAP.query("https://exoplanetarchive.ipac.caltech.edu/TAP", adql)
+    assert {:error, %Error{type: :service_error, status: 500, message: message}} =
+             SpaceTAP.query(@service_url, adql)
 
-    assert message =~ "Query is not a SELECT statemement."
+    assert message =~ "Could not parse your query"
   end
 end

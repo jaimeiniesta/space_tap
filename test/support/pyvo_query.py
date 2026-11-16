@@ -9,14 +9,21 @@
 import json
 import math
 import sys
+import warnings
 
 import pyvo
+from pyvo.dal.exceptions import DALOverflowWarning
 
 
 def main():
     service_url = sys.argv[1]
     adql = sys.argv[2]
     maxrec = int(sys.argv[3]) if len(sys.argv) == 4 else None
+
+    # PyVO warns on stderr when the service truncates the result, which the
+    # JSON already reports as overflow. GAVO sends one row more than MAXREC,
+    # so the warning would show up in every run of the release tests.
+    warnings.filterwarnings("ignore", category=DALOverflowWarning)
 
     try:
         result = pyvo.dal.TAPService(service_url).search(adql, maxrec=maxrec)

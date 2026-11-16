@@ -32,3 +32,16 @@ The VOTable result was captured on 2026-11-10 with the same request and `FORMAT=
 | `hipparcos.xml` | `SELECT TOP 5 hipno, ra, dec, vmag, parallax, sptype FROM hipparcos.main WHERE hipno <= 5` | 200 | `application/x-votable+xml` |
 
 Its rows are BINARY, and `hipno` has `VALUES null="-2147483648"`.
+
+The Pleiades query of the README, on GAVO's copy of Gaia DR3, was captured on
+2026-11-16 with the same request, `FORMAT=csv` and `FORMAT=votable`:
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `pleiades.csv` | `SELECT TOP 5 source_id, ra, dec, parallax, phot_g_mean_mag FROM gaia.dr3lite WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1 AND parallax IS NOT NULL AND phot_g_mean_mag IS NOT NULL ORDER BY phot_g_mean_mag` | 200 | `text/csv;header=present` |
+| `pleiades.xml` | the same | 200 | `application/x-votable+xml` |
+
+They hold the same five stars as `gaia/pleiades.csv`, in the same order, but
+`gaia.dr3lite` declares `parallax` a `float`, where Gaia's own archive has a
+`double`, so the CSV writes `8.118448` where Gaia's writes `8.118448445799721`.
+The VOTable rows are BINARY.

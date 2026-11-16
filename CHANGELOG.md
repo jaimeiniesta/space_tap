@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-16
+
 ### Added
 
 - `format: :votable` in `SpaceTAP.query/3`, which asks the TAP service for VOTable and reads its rows in the serialization the service sends, TABLEDATA, BINARY or BINARY2, into typed values: integers, floats, booleans, strings and lists, with `nil` for a null cell or NaN. CSV stays the default.
@@ -33,5 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A README with usage, errors, the limits of CSV results and the TAP services SpaceTAP has been checked against, and HexDocs with the SpaceTAP icon.
 - Livebooks that run SpaceTAP against Gaia, GAVO, the NASA Exoplanet Archive and other TAP services, with tables and charts, each with a "Run in Livebook" button on HexDocs.
 
-[Unreleased]: https://github.com/jaimeiniesta/space_tap/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jaimeiniesta/space_tap/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/jaimeiniesta/space_tap/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jaimeiniesta/space_tap/releases/tag/v0.1.0

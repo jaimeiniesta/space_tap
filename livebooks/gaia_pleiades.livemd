@@ -10,36 +10,38 @@ Mix.install([
 
 ## The cluster
 
-The Pleiades (M45) is an open cluster: a few thousand stars born together about 100 million years ago, some 135 parsecs away. [Gaia](https://www.cosmos.esa.int/web/gaia) measures the position, parallax, proper motion and colour of nearly two billion stars, and its archive is a TAP service.
+The Pleiades (M45) is an open cluster: a few thousand stars born together about 100 million years ago, some 135 parsecs away. [Gaia](https://www.cosmos.esa.int/web/gaia) measures the position, parallax, proper motion and colour of nearly two billion stars. Its archive at ESA is a TAP service, and so is the GAVO Data Center, the German Virtual Observatory's archive, which holds a copy of Gaia DR3 in `gaia.dr3lite`.
 
-This notebook asks Gaia for the stars around the cluster, picks out the members by how they move, and draws their colour–magnitude diagram, the observer's version of the Hertzsprung–Russell diagram.
+This notebook asks GAVO for the stars around the cluster, picks out the members by how they move, and draws their colour–magnitude diagram, the observer's version of the Hertzsprung–Russell diagram.
 
 ## The query
 
-A cone of 2° around the centre of the cluster. The parallax filter keeps stars between 100 and 200 parsecs away (parallaxes of 10 to 5 milliarcseconds), which drops most of the stars in front of and behind the cluster. `bp_rp` is the colour, the difference between Gaia's blue and red magnitudes, and the diagram needs it.
+A cone of 2° around the centre of the cluster. The parallax filter keeps stars between 100 and 200 parsecs away (parallaxes of 10 to 5 milliarcseconds), which drops most of the stars in front of and behind the cluster. `bp_rp` is the colour, the difference between Gaia's blue and red magnitudes, and the diagram needs it. `gaia.dr3lite` has the two magnitudes but not their difference, so the query computes it.
 
-`format: :votable` asks Gaia for VOTable instead of CSV, so each value comes with the type its column declares: numbers to compute with, not strings to parse.
+`format: :votable` asks GAVO for VOTable instead of CSV, so each value comes with the type its column declares: numbers to compute with, not strings to parse.
 
 ```elixir
 alias VegaLite, as: Vl
 
-gaia = "https://gea.esac.esa.int/tap-server/tap"
+gavo = "https://dc.g-vo.org/tap"
 
 adql = """
-SELECT source_id, ra, dec, parallax, pmra, pmdec, phot_g_mean_mag, bp_rp
-FROM gaiadr3.gaia_source
+SELECT source_id, ra, dec, parallax, pmra, pmdec, phot_g_mean_mag,
+  phot_bp_mean_mag - phot_rp_mean_mag AS bp_rp
+FROM gaia.dr3lite
 WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 2.0)) = 1
   AND parallax BETWEEN 5 AND 10
-  AND bp_rp IS NOT NULL
+  AND phot_bp_mean_mag IS NOT NULL
+  AND phot_rp_mean_mag IS NOT NULL
 """
 
 {:ok, result} =
-  SpaceTAP.query(gaia, adql, format: :votable, req_options: [receive_timeout: 60_000])
+  SpaceTAP.query(gavo, adql, format: :votable, req_options: [receive_timeout: 60_000])
 
 %{stars: length(result.rows), overflow: result.overflow}
 ```
 
-`overflow` is `false`, so Gaia sent every star that matches: it didn't cut the result at a limit of its own (DALI 1.1 §4.4.1). A CSV result couldn't say.
+`overflow` is `false`, so GAVO sent every star that matches: it didn't cut the result at a limit of its own (DALI 1.1 §4.4.1). A CSV result couldn't say.
 
 The VOTable describes each column too, with the unit and the UCD, a standard label for what the column measures:
 

@@ -36,27 +36,31 @@ Mix.install([{:space_tap, "~> 0.2.0"}])
 ## Usage
 
 `SpaceTAP.query/3` takes the service URL of a TAP service and an ADQL query.
-This one asks the [Gaia archive][gaia] for the five brightest stars within one
-degree of the centre of the Pleiades:
+This one asks the GAVO Data Center, the German Virtual Observatory's archive,
+for the five brightest stars within one degree of the centre of the Pleiades,
+from its copy of Gaia DR3:
 
 ```elixir
 adql = """
 SELECT TOP 5 source_id, ra, dec, parallax, phot_g_mean_mag
-FROM gaiadr3.gaia_source
+FROM gaia.dr3lite
 WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1
   AND parallax IS NOT NULL AND phot_g_mean_mag IS NOT NULL
 ORDER BY phot_g_mean_mag
 """
 
-{:ok, result} = SpaceTAP.query("https://gea.esac.esa.int/tap-server/tap", adql)
+{:ok, result} = SpaceTAP.query("https://dc.g-vo.org/tap", adql)
 
 result.columns
 #=> ["source_id", "ra", "dec", "parallax", "phot_g_mean_mag"]
 
 hd(result.rows)
 #=> ["66526127137440128", "57.29068893293528", "24.053211829998986",
-#=>  "8.118448445799721", "3.6157947"]
+#=>  "8.118448", "3.6157947"]
 ```
+
+The [Gaia archive][gaia] at ESA, where Gaia's data comes from, answers the same
+query on `gaiadr3.gaia_source` at `https://gea.esac.esa.int/tap-server/tap`.
 
 The service URL is the base URL of the service, what TAP calls its access URL.
 SpaceTAP sends the query to its `/sync` endpoint, so pass the base URL even if
@@ -113,13 +117,13 @@ the rest.
 
 ```elixir
 {:error, error} =
-  SpaceTAP.query(service_url, "SELECT TOP 3 source_id FROM gaiadr3.no_such_table")
+  SpaceTAP.query(service_url, "SELECT TOP 3 source_id FROM gaia.no_such_table")
 
 error.type
 #=> :service_error
 
 Exception.message(error)
-#=> "(HTTP 400) Cannot parse query 'SELECT TOP 3 source_id FROM gaiadr3.no_such_table' ..."
+#=> "(HTTP 500) Field query: Could not locate table 'gaia.no_such_table'"
 ```
 
 ## CSV or VOTable
@@ -127,7 +131,7 @@ Exception.message(error)
 SpaceTAP asks the service for CSV by default, as it did in 0.1. CSV is simple,
 but it carries less than VOTable, the IVOA format for tables:
 
-- **Every value is a string.** CSV has no types, so `"8.118448445799721"`
+- **Every value is a string.** CSV has no types, so `"8.118448"`
   stays a string until you convert it, with `Float.parse/1` for example.
 - **An empty cell is `nil`.** No IVOA standard says how CSV represents NULL.
   Gaia sends an empty field, and SpaceTAP can't tell it from an empty string.
@@ -143,12 +147,11 @@ but it carries less than VOTable, the IVOA format for tables:
 With `format: :votable`, SpaceTAP asks for VOTable instead:
 
 ```elixir
-{:ok, result} =
-  SpaceTAP.query("https://gea.esac.esa.int/tap-server/tap", adql, format: :votable)
+{:ok, result} = SpaceTAP.query("https://dc.g-vo.org/tap", adql, format: :votable)
 
 hd(result.rows)
 #=> [66526127137440128, 57.29068893293528, 24.053211829998986,
-#=>  8.118448445799721, 3.6157946586608887]
+#=>  8.118448257446289, 3.6157946586608887]
 
 result.overflow
 #=> false
@@ -168,9 +171,10 @@ result.overflow
 - **`overflow` is `true` when the service cut the result short,** at `:maxrec`
   or at a limit of its own (DALI 1.1 §4.4.1).
 
-`phot_g_mean_mag` is a `float`, a 32-bit number, and SpaceTAP gives the exact
-value of its 32 bits as an Elixir float: `3.6157946586608887`, where the CSV
-says `3.6157947`. Both are the same number, and PyVO reads the same value.
+`parallax` and `phot_g_mean_mag` are `float`s, 32-bit numbers, and SpaceTAP
+gives the exact value of their 32 bits as an Elixir float: `3.6157946586608887`,
+where the CSV says `3.6157947`. Both are the same number, and PyVO reads the
+same value.
 
 The service picks how the rows travel inside the VOTable, and SpaceTAP reads
 the three serializations TAP services send: TABLEDATA, BINARY and BINARY2. A
@@ -184,13 +188,13 @@ version.
 ## Compatibility
 
 SpaceTAP follows [TAP 1.1][tap] and works with TAP 1.0 services. It has been
-checked against these services, last on 15 November 2026, except four that
+checked against these services, last on 16 November 2026, except four that
 didn't answer that day: Gaia was last checked on 13 November, IRSA on 10
 November, and VizieR and SIMBAD, both run by CDS, on 27 October, with CSV only.
 
 | Service | Service URL | Formats | Checked by | Notes |
 |---|---|---|---|---|
-| [Gaia archive][gaia] (ESA) | `https://gea.esac.esa.int/tap-server/tap` | CSV, VOTable | Services and parity tests, fixtures, livebooks | Redirects `http://` to `https://`, which loses the query: use `https://`. |
+| [Gaia archive][gaia] (ESA) | `https://gea.esac.esa.int/tap-server/tap` | CSV, VOTable | Services and parity tests, fixtures, livebook | Redirects `http://` to `https://`, which loses the query: use `https://`. |
 | GAVO Data Center | `https://dc.g-vo.org/tap` | CSV, VOTable | Integration, services and parity tests, fixtures, livebooks | Runs DaCHS. Holds a copy of Gaia DR3 in `gaia.dr3lite`. Sends error documents with HTTP 500. Sends one row more than `:maxrec` asks for, and one row with `maxrec: 0`, marked as overflow. |
 | NASA Exoplanet Archive | `https://exoplanetarchive.ipac.caltech.edu/TAP` | CSV, VOTable | Services and parity tests, fixtures, livebooks | Labels CSV `text/plain`. Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a sorted result. |
 | IRSA (IPAC) | `https://irsa.ipac.caltech.edu/TAP` | CSV, VOTable | Services and parity tests, fixtures, livebook | |
@@ -247,8 +251,8 @@ mix test.services
 ```
 
 The [`livebooks`](https://github.com/jaimeiniesta/space_tap/tree/main/livebooks) folder has [Livebook](https://livebook.dev)
-notebooks that run SpaceTAP against Gaia, GAVO, the NASA Exoplanet Archive and
-other services, with tables and charts, and one that runs the parity tests'
+notebooks that run SpaceTAP against Gaia DR3 at GAVO, the NASA Exoplanet
+Archive and other services, with tables and charts, and one that runs the parity tests'
 queries through SpaceTAP and PyVO side by side. They install SpaceTAP from Hex,
 and each one has a "Run in Livebook" button on HexDocs.
 

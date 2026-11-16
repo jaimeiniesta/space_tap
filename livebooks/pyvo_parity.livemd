@@ -112,30 +112,30 @@ defmodule Parity do
 end
 ```
 
-## The Pleiades on Gaia
+## The Pleiades on GAVO
 
-The five brightest stars within one degree of the centre of the Pleiades. The service URL and the query are Elixir variables, defined once and used by both clients:
+The five brightest stars within one degree of the centre of the Pleiades, from `gaia.dr3lite`, the copy of Gaia DR3 at the GAVO Data Center, the German Virtual Observatory's archive. The service URL and the query are Elixir variables, defined once and used by both clients:
 
 ```elixir
-gaia = "https://gea.esac.esa.int/tap-server/tap"
+gavo = "https://dc.g-vo.org/tap"
 
 adql = """
-SELECT TOP 5 source_id, designation, ra, dec, parallax, phot_g_mean_mag
-FROM gaiadr3.gaia_source
+SELECT TOP 5 source_id, ra, dec, parallax, phot_g_mean_mag
+FROM gaia.dr3lite
 WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1
   AND parallax IS NOT NULL
   AND phot_g_mean_mag IS NOT NULL
 ORDER BY phot_g_mean_mag
 """
 
-{:ok, pleiades} = SpaceTAP.query(gaia, adql, format: :votable)
+{:ok, pleiades} = SpaceTAP.query(gavo, adql, format: :votable)
 pleiades
 ```
 
 PyVO returns a `TAPResults`:
 
 ```python
-pyvo_pleiades = pyvo_query(gaia, adql)
+pyvo_pleiades = pyvo_query(gavo, adql)
 pleiades_from_pyvo = pyvo_result(pyvo_pleiades)
 pyvo_pleiades
 ```
@@ -165,7 +165,7 @@ pyvo_fields = [
 ```
 
 ```elixir
-{:ok, %SpaceTAP.Result{rows: [csv_row | _]}} = SpaceTAP.query(gaia, adql)
+{:ok, %SpaceTAP.Result{rows: [csv_row | _]}} = SpaceTAP.query(gavo, adql)
 [votable_row | _] = pleiades.rows
 
 [Pythonx.decode(pyvo_fields), csv_row, votable_row]
@@ -188,24 +188,23 @@ end)
 From CSV every value is the text of a cell. From VOTable, SpaceTAP and PyVO give each one the type its `FIELD` declares (VOTable 1.4 §6):
 
 * `source_id` is a `long`, a 64-bit integer. PyVO reads a `numpy.int64` and SpaceTAP an integer.
-* `designation` is `char`, text, and is a string everywhere.
-* `ra`, `dec` and `parallax` are `double`, 64-bit floats like Elixir's.
-* `phot_g_mean_mag` is a `float`, a 32-bit float. PyVO keeps a `numpy.float32`, and SpaceTAP gives the exact value of its 32 bits as an Elixir float, whose floats all have 64 bits: `3.6157946586608887` where the CSV says `3.6157947`. Both are the same 32-bit number, and the numpy one turns into that same 64-bit value, so the comparison needs no tolerance.
+* `ra` and `dec` are `double`, 64-bit floats like Elixir's.
+* `parallax` and `phot_g_mean_mag` are `float`, 32-bit floats. PyVO keeps a `numpy.float32`, and SpaceTAP gives the exact value of its 32 bits as an Elixir float, whose floats all have 64 bits: `3.6157946586608887` where the CSV says `3.6157947`. Both are the same 32-bit number, and the numpy one turns into that same 64-bit value, so the comparison needs no tolerance.
 
-## MAXREC on Gaia
+## MAXREC on GAVO
 
 `MAXREC` caps the number of rows the service sends (DALI 1.1 §3.4.4). The query asks for ten rows and `maxrec`, another Elixir variable both clients use, lets three through. `ORDER BY` makes both clients get the same three:
 
 ```elixir
-adql = "SELECT TOP 10 source_id FROM gaiadr3.gaia_source ORDER BY source_id"
+adql = "SELECT TOP 10 source_id FROM gaia.dr3lite ORDER BY source_id"
 maxrec = 3
 
-{:ok, truncated} = SpaceTAP.query(gaia, adql, maxrec: maxrec, format: :votable)
+{:ok, truncated} = SpaceTAP.query(gavo, adql, maxrec: maxrec, format: :votable)
 truncated.overflow
 ```
 
 ```python
-pyvo_truncated = pyvo_query(gaia, adql, maxrec=maxrec)
+pyvo_truncated = pyvo_query(gavo, adql, maxrec=maxrec)
 truncated_from_pyvo = pyvo_result(pyvo_truncated)
 pyvo_truncated.query_status
 ```
@@ -214,7 +213,7 @@ pyvo_truncated.query_status
 Parity.compare(truncated, truncated_from_pyvo)
 ```
 
-Both get three rows, and both know there were more. When `MAXREC` cuts a result, the service says so in the VOTable with `<INFO name="QUERY_STATUS" value="OVERFLOW"/>` (DALI 1.1 §4.4.1). PyVO shows it as `query_status`, and SpaceTAP sets `overflow`. CSV has nowhere to put it, so a CSV result has `overflow: nil`.
+Both get four rows: GAVO sends one more than `MAXREC` asks for, although DALI 1.1 §3.4.4 says the service "must only return the requested number of rows", and PyVO warns about it. Both know there were more. When `MAXREC` cuts a result, the service says so in the VOTable with `<INFO name="QUERY_STATUS" value="OVERFLOW"/>` (DALI 1.1 §4.4.1). PyVO shows it as `query_status`, and SpaceTAP sets `overflow`. CSV has nowhere to put it, so a CSV result has `overflow: nil`.
 
 ## The NASA Exoplanet Archive
 
@@ -246,4 +245,4 @@ Parity.compare(planets, planets_from_pyvo)
 
 ## The parity tests
 
-The parity tests make these comparisons without Livebook. `test/support/pyvo.ex` calls a script that runs the query with PyVO through `uv run` and prints the column names, rows and overflow as JSON, with the rules of `value` above. They also ask SpaceTAP for CSV and check that it has the same columns and as many rows. Those for Gaia and the NASA Exoplanet Archive run with `mix test --only pyvo`, and those for the other services with `mix test.services`.
+The parity tests make these comparisons without Livebook. `test/support/pyvo.ex` calls a script that runs the query with PyVO through `uv run` and prints the column names, rows and overflow as JSON, with the rules of `value` above. They also ask SpaceTAP for CSV and check that it has the same columns and as many rows. Those for GAVO run with `mix test --only pyvo` and before every release, and those for every service in the README's Compatibility table with `mix test.services`.

@@ -20,7 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SpaceTAP reads XML with Saxy, a new dependency, instead of xmerl.
 - A VOTable error document is a `:service_error` only when its `QUERY_STATUS` is directly inside the `RESOURCE` of type `results`, where DALI 1.1 §4.4 puts it, rather than anywhere in the document. Every service SpaceTAP has been checked against puts it there.
 - MAST works with `format: :votable`, so the README no longer lists it as not working.
-- The Pleiades livebook reads Gaia's VOTable, so its colour–magnitude diagram uses typed values instead of parsing strings. The getting-started livebook shows typed values and overflow, and the tour of TAP services queries MAST with `format: :votable`.
+- The README's examples and the livebooks that read Gaia DR3 query its copy at the GAVO Data Center, which has answered more reliably than the Gaia archive at ESA (`docs/adr/0009-gavo-is-the-service-releases-are-tested-against.md`).
+- The Pleiades livebook reads VOTable, so its colour–magnitude diagram uses typed values instead of parsing strings. The getting-started livebook shows typed values and overflow, and the tour of TAP services queries MAST with `format: :votable`.
 
 ## [0.1.0] - 2026-10-28
 

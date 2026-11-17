@@ -31,7 +31,7 @@ defmodule SpaceTAP.Job do
   Errors come as `{:error, %SpaceTAP.Error{}}`, as from `SpaceTAP.query/3`.
   """
 
-  alias SpaceTAP.{Error, HTTP, UWS, VOTable}
+  alias SpaceTAP.{Error, HTTP, Result, UWS, VOTable}
 
   @enforce_keys [:url, :phase, :format]
   defstruct [:url, :phase, :format, :error_summary, :result_url]
@@ -113,7 +113,9 @@ defmodule SpaceTAP.Job do
 
   Returns the job as the service then describes it: usually `:queued` or
   `:executing`, or already ended when the service runs a small query
-  straight away.
+  straight away. When the service creates the job but it can't be read or
+  started, `submit/3` deletes it and returns the error, since the error
+  doesn't give the job's URL.
 
   ## Options
 
@@ -134,12 +136,24 @@ defmodule SpaceTAP.Job do
     req_options = HTTP.req_options(opts[:req_options])
     url = String.trim_trailing(service_url, "/") <> "/async"
 
-    # The service answers 303 with the URL of the job, and Req reads the job
-    # there with a GET. Where the redirects end is the URL of the job: the
-    # NASA Exoplanet Archive gives an http:// URL, which it redirects to
-    # https://.
-    with {:ok, job} <- request(req_options, opts[:format], method: :post, url: url, form: form) do
-      start(job, req_options)
+    # The service answers 303 with the URL of the job (UWS 1.1 §2.2.3.1),
+    # which isn't followed, so that SpaceTAP knows the job exists even if
+    # what comes next fails.
+    {_url, response} =
+      HTTP.run(req_options, method: :post, url: url, form: form, redirect: false)
+
+    case response do
+      {:ok, %Req.Response{status: status} = response} when status in 300..399 ->
+        case Req.Response.get_header(response, "location") do
+          [location | _locations] -> run(URI.merge(url, location), opts[:format], req_options)
+          [] -> HTTP.error(:http_error, "no Location for the new job", status)
+        end
+
+      response ->
+        HTTP.classify(response, &read_job/1, fn _body, media_type, status ->
+          message = "expected a redirect to the new job, got #{media_type || "no Content-Type"}"
+          HTTP.error(:decode_error, message, status)
+        end)
     end
   end
 
@@ -215,6 +229,38 @@ defmodule SpaceTAP.Job do
   end
 
   @doc """
+  Reads the result of `job`, which must have stopped, as `SpaceTAP.query/3`
+  reads the result of a sync query, in the format the job was submitted
+  with.
+
+  A `:completed` job's result comes from its `:result_url`. A job that
+  stopped in another phase has none, and gives a `:service_error` that
+  names the phase and adds the service's message, if any: an `:error` job
+  failed, and an `:aborted` one was stopped, by the client or by the
+  service, as the Gaia archive stops a job of an anonymous user after 60
+  seconds.
+
+  The result never comes over `http://` for a job at an `https://` URL. When
+  the service lists an `http://` URL on the job's host, as GAVO does, the
+  result is read with `https://`, and from another host it isn't read. On
+  another host, such as CADC's `ws-cadc.canfar.net`, the `authorization`
+  header and Req's `:auth` option aren't sent, as Req does when a redirect
+  leads to another host.
+
+  Raises `ArgumentError` for a job that hasn't stopped: wait for it with
+  `wait/2` first.
+
+  ## Options
+
+    * `:req_options` - a keyword list of options for `Req.new/1`.
+  """
+  @spec result(t(), [option()]) :: {:ok, Result.t()} | {:error, Error.t()}
+  def result(%__MODULE__{} = job, opts \\ []) do
+    opts = Keyword.validate!(opts, req_options: [])
+    read_result(job, HTTP.req_options(opts[:req_options]))
+  end
+
+  @doc """
   Deletes `job` from the TAP service, which stops it if it is still running
   (UWS 1.1 §2.2.3.2).
 
@@ -253,9 +299,45 @@ defmodule SpaceTAP.Job do
     end
   end
 
+  # Raises for a :timeout wait/2 can't use, which SpaceTAP.async_query/3
+  # checks before it creates a job.
+  @doc false
+  @spec timeout!(term()) :: timeout()
+  def timeout!(timeout) when timeout == :infinity or (is_integer(timeout) and timeout >= 0),
+    do: timeout
+
+  def timeout!(timeout) do
+    raise ArgumentError,
+          "expected :timeout to be a non-negative integer or :infinity, got: #{inspect(timeout)}"
+  end
+
   #####################
   # Private functions #
   #####################
+
+  # Reads the new job, where the redirects end, which is its URL: the NASA
+  # Exoplanet Archive gives an http:// URL, which it redirects to https://.
+  # A job SpaceTAP can't read or start is deleted, since the error doesn't
+  # give its URL, and nothing else could delete it before the service
+  # destroys it, which IRSA never does.
+  defp run(job_url, format, req_options) do
+    {url, response} = HTTP.run(req_options, method: :get, url: URI.to_string(job_url))
+
+    result =
+      with {:ok, job} <- HTTP.classify(response, &read_job/1, &job(&1, url, format, &2, &3)) do
+        start(job, req_options)
+      end
+
+    case result do
+      {:ok, job} ->
+        {:ok, job}
+
+      {:error, _error} ->
+        job = %__MODULE__{url: url, phase: :unknown, format: format}
+        _deleted = delete(job, req_options: req_options)
+        result
+    end
+  end
 
   # A service may start a job from the request that creates it, but GAVO,
   # ESO and CADC don't, so SpaceTAP starts it with a request of its own, and
@@ -276,12 +358,11 @@ defmodule SpaceTAP.Job do
 
   defp start(job, _req_options), do: {:ok, job}
 
-  defp deadline(:infinity), do: :infinity
-  defp deadline(timeout) when is_integer(timeout) and timeout >= 0, do: now() + timeout
-
   defp deadline(timeout) do
-    raise ArgumentError,
-          "expected :timeout to be a non-negative integer or :infinity, got: #{inspect(timeout)}"
+    case timeout!(timeout) do
+      :infinity -> :infinity
+      timeout -> now() + timeout
+    end
   end
 
   defp now, do: System.monotonic_time(:millisecond)
@@ -298,11 +379,7 @@ defmodule SpaceTAP.Job do
   defp poll(job, state, pause) do
     case remaining(state.deadline) do
       0 ->
-        message =
-          "the job is still #{job.phase |> Atom.to_string() |> String.upcase()} " <>
-            "after #{state.timeout} ms"
-
-        HTTP.error(:timeout, message, nil)
+        HTTP.error(:timeout, "the job is still #{name(job.phase)} after #{state.timeout} ms", nil)
 
       remaining ->
         wait = min(@wait, div_seconds(remaining))
@@ -331,6 +408,76 @@ defmodule SpaceTAP.Job do
   end
 
   defp next_poll(_job, next, state, _wait, _pause), do: poll(next, state, @first_pause)
+
+  defp read_result(%__MODULE__{phase: phase}, _req_options) when phase in @moving do
+    raise ArgumentError,
+          "the job is #{name(phase)}: wait for it to stop with SpaceTAP.Job.wait/2 " <>
+            "before reading its result"
+  end
+
+  defp read_result(%__MODULE__{phase: :completed, result_url: nil}, _req_options) do
+    HTTP.error(:decode_error, "the job is COMPLETED and lists no result", nil)
+  end
+
+  defp read_result(%__MODULE__{phase: :completed} = job, req_options) do
+    with {:ok, url} <- secure(job.url, job.result_url) do
+      {_url, response} = HTTP.run(credentials(req_options, job.url, url), method: :get, url: url)
+      HTTP.read_result(response, job.format)
+    end
+  end
+
+  # A job that stopped in another phase has no result (UWS 1.1 §2.1.3).
+  defp read_result(%__MODULE__{phase: phase, error_summary: summary}, _req_options) do
+    message = "the job is #{name(phase)}" <> if(summary, do: ": " <> summary, else: "")
+    HTTP.error(:service_error, message, nil)
+  end
+
+  defp name(phase), do: phase |> Atom.to_string() |> String.upcase()
+
+  # A result is never read over http:// for a job at an https:// URL. GAVO
+  # lists http:// URLs on its own host, which it serves with https:// too,
+  # and the NASA Exoplanet Archive redirects them to https://.
+  defp secure(job_url, result_url) do
+    job = URI.parse(job_url)
+    result = URI.parse(result_url)
+
+    cond do
+      job.scheme != "https" or result.scheme != "http" ->
+        {:ok, result_url}
+
+      result.host == job.host and result.port == 80 ->
+        {:ok, URI.to_string(%{result | scheme: "https", port: 443})}
+
+      true ->
+        message =
+          "the job is at an https:// URL and lists its result at an http:// one: #{result_url}"
+
+        HTTP.error(:decode_error, message, nil)
+    end
+  end
+
+  # Credentials stay with the job's host, scheme and port, as Req keeps them
+  # from a redirect that leaves them (its :redirect_trusted option).
+  defp credentials(req_options, job_url, result_url) do
+    if origin(job_url) == origin(result_url) do
+      req_options
+    else
+      req_options
+      |> Keyword.delete(:auth)
+      |> Keyword.replace_lazy(:headers, &without_authorization/1)
+    end
+  end
+
+  defp origin(url) do
+    uri = URI.parse(url)
+    {uri.scheme, uri.host, uri.port}
+  end
+
+  defp without_authorization(headers) do
+    Enum.reject(headers, fn {name, _value} ->
+      name |> to_string() |> String.downcase() == "authorization"
+    end)
+  end
 
   # The job keeps its URL: the request went to one with WAIT in it. Asked to
   # block, GAVO answers 5 to 7 seconds after the WAIT is over.

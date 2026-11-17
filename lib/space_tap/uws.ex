@@ -15,23 +15,11 @@ defmodule SpaceTAP.UWS do
 
   @behaviour Saxy.Handler
 
-  alias SpaceTAP.XML
+  alias SpaceTAP.{Job, XML}
 
-  @typedoc "One of the ten phases of a UWS job (UWS 1.1 §2.1.3)."
-  @type phase ::
-          :pending
-          | :queued
-          | :executing
-          | :completed
-          | :error
-          | :aborted
-          | :unknown
-          | :held
-          | :suspended
-          | :archived
+  @type job :: %{phase: Job.phase(), error_summary: String.t() | nil, result: String.t() | nil}
 
-  @type job :: %{phase: phase(), error_summary: String.t() | nil, result: String.t() | nil}
-
+  # The ten phases of UWS 1.1 §2.1.3, by the name the job document gives them.
   @phases Map.new(
             ~w(pending queued executing completed error aborted unknown held suspended archived)a,
             &{&1 |> Atom.to_string() |> String.upcase(), &1}

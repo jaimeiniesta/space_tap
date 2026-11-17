@@ -1,6 +1,7 @@
 defmodule SpaceTAP.Error do
   @moduledoc """
-  The error a query returns, as `{:error, %SpaceTAP.Error{}}`.
+  The error a query, or a request about an async job, returns, as
+  `{:error, %SpaceTAP.Error{}}`.
 
   `:type` says what went wrong:
 
@@ -20,7 +21,7 @@ defmodule SpaceTAP.Error do
       timed out, or the redirects never ended. `:status` is `nil`.
     * `:decode_error` - a successful response that can't be read as a
       result, such as malformed CSV, a VOTable SpaceTAP can't read, or a
-      format other than the one requested.
+      format other than the one requested, or as a job document.
 
   Later versions may add types, so when you match on `:type`, keep a
   clause for the rest.
@@ -38,7 +39,7 @@ defmodule SpaceTAP.Error do
   @typedoc "What went wrong. See the module documentation for each type."
   @type type :: :service_error | :http_error | :transport_error | :decode_error
 
-  @typedoc "An error from `SpaceTAP.query/3`, with the HTTP status when a response arrived."
+  @typedoc "An error from `SpaceTAP.query/3` or `SpaceTAP.Job`, with the HTTP status when a response arrived."
   @type t :: %__MODULE__{
           type: type(),
           message: String.t(),

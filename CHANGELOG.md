@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `SpaceTAP.Job`, the first steps of async queries, which a TAP service runs as jobs (TAP 1.1 §2.2): `submit/3` creates a job and starts it, `get/2` reads a job from its URL, and `delete/2` deletes it. A `SpaceTAP.Job` holds the URL of the job, its phase, the format of its result, the message the service gives when it fails, and the URL of its result.
+
 ## [0.2.1] - 2026-11-16
 
 ### Changed

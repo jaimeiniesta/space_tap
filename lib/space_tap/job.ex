@@ -8,8 +8,8 @@ defmodule SpaceTAP.Job do
   result or delete it, from any process and at any time
   ([UWS 1.1](https://www.ivoa.net/documents/UWS/20161024/REC-UWS-1.1-20161024.html)).
 
-  `submit/3` creates a job and starts it, `get/2` reads a job from its URL,
-  and `delete/2` deletes it:
+  `submit/3` creates a job and starts it, `wait/2` waits for it to stop,
+  `get/2` reads a job from its URL, and `delete/2` deletes it:
 
       {:ok, job} =
         SpaceTAP.Job.submit(
@@ -19,8 +19,11 @@ defmodule SpaceTAP.Job do
         )
       #=> {:ok, %SpaceTAP.Job{url: "https://dc.g-vo.org/__system__/tap/run/async/bjk2rbdl", phase: :queued, format: :votable, ...}}
 
-      SpaceTAP.Job.get(job.url, format: :votable)
+      {:ok, job} = SpaceTAP.Job.wait(job)
       #=> {:ok, %SpaceTAP.Job{phase: :completed, result_url: "http://dc.g-vo.org/__system__/tap/run/async/bjk2rbdl/results/result", ...}}
+
+      SpaceTAP.Job.get(job.url, format: :votable)
+      #=> {:ok, %SpaceTAP.Job{phase: :completed, ...}}
 
       SpaceTAP.Job.delete(job)
       #=> :ok
@@ -32,6 +35,22 @@ defmodule SpaceTAP.Job do
 
   @enforce_keys [:url, :phase, :format]
   defstruct [:url, :phase, :format, :error_summary, :result_url]
+
+  # The phases the service moves a job on from (UWS 1.1 §2.1.3): a queued or
+  # executing job runs, a suspended one is resumed, and an unknown one may
+  # become known.
+  @moving [:queued, :executing, :suspended, :unknown]
+
+  # The longest a request asks the service to block, in seconds, well under
+  # the 120 after which something in front of GAVO cuts the connection
+  # without a response. A service that doesn't block is asked again after a
+  # pause, from 1 to 30 seconds, 1.5 times longer each time.
+  @wait 30
+  @first_pause 1_000
+  @max_pause 30_000
+
+  # Req's default.
+  @receive_timeout 15_000
 
   @typedoc """
   The state of a job, one of the ten phases of UWS 1.1 §2.1.3.
@@ -75,9 +94,12 @@ defmodule SpaceTAP.Job do
           result_url: String.t() | nil
         }
 
-  @typedoc "An option for `submit/3`, `get/2` or `delete/2`."
+  @typedoc "An option for `submit/3`, `get/2`, `wait/2` or `delete/2`."
   @type option ::
-          {:format, :csv | :votable} | {:maxrec, non_neg_integer()} | {:req_options, keyword()}
+          {:format, :csv | :votable}
+          | {:maxrec, non_neg_integer()}
+          | {:timeout, timeout()}
+          | {:req_options, keyword()}
 
   @doc """
   Creates a job that runs `adql` on the TAP service at `service_url`, and
@@ -146,6 +168,53 @@ defmodule SpaceTAP.Job do
   end
 
   @doc """
+  Waits for `job` to stop, and returns it as the service then describes it.
+
+  The wait ends when the job reaches a phase it won't leave without the
+  client (UWS 1.1 §2.1.3): `:completed`, `:error`, `:aborted` or
+  `:archived`, or `:pending` or `:held`, which wait for the client to start
+  the job. While it is `:queued`, `:executing`, `:suspended` or `:unknown`,
+  the service moves it on, and `wait/2` keeps asking.
+
+  Each request asks the service to answer when the phase changes, or after
+  30 seconds (the `WAIT` parameter of UWS 1.1 §2.2.1.2). A service that
+  answers straight away instead, as the Gaia archive and IRSA do, is asked
+  again after a pause that starts at a second and grows to 30 seconds.
+
+      {:ok, job} = SpaceTAP.Job.wait(job, timeout: :timer.minutes(10))
+      #=> {:ok, %SpaceTAP.Job{phase: :completed, ...}}
+
+  ## Options
+
+    * `:timeout` - how long to wait, in milliseconds, or `:infinity` (the
+      default). A service stops a job that runs longer than its limit, 60
+      seconds for anonymous users of the Gaia archive, but not one that
+      waits in its queue, and some limits are long: IRSA's is 3 days. So
+      without a `:timeout` the wait lasts as long as the job, queue
+      included. When the time runs out, `wait/2` returns a `:timeout` error
+      and leaves the job on the service. The time is checked between
+      requests, so a request under way may end a few seconds after it.
+    * `:req_options` - a keyword list of options for `Req.new/1`. A request
+      that asks the service to wait gets a `:receive_timeout` long enough for
+      it, whatever this one says.
+
+  An unknown option, or a `:timeout` that isn't what the list says, raises
+  `ArgumentError`.
+  """
+  @spec wait(t(), [option()]) :: {:ok, t()} | {:error, Error.t()}
+  def wait(%__MODULE__{} = job, opts \\ []) do
+    opts = Keyword.validate!(opts, timeout: :infinity, req_options: [])
+
+    state = %{
+      req_options: HTTP.req_options(opts[:req_options]),
+      timeout: opts[:timeout],
+      deadline: deadline(opts[:timeout])
+    }
+
+    poll(job, state, @first_pause)
+  end
+
+  @doc """
   Deletes `job` from the TAP service, which stops it if it is still running
   (UWS 1.1 §2.2.3.2).
 
@@ -177,10 +246,10 @@ defmodule SpaceTAP.Job do
             redirect: false
           )
 
-        deleted(response)
+        accepted(response)
 
       {_url, response} ->
-        deleted(response)
+        accepted(response)
     end
   end
 
@@ -191,13 +260,101 @@ defmodule SpaceTAP.Job do
   # A service may start a job from the request that creates it, but GAVO,
   # ESO and CADC don't, so SpaceTAP starts it with a request of its own, and
   # only while it is PENDING, the one phase a client may change it in (DALI
-  # 1.1 §2.1). The service answers 303 to the job (UWS 1.1 §2.2.3.5).
-  defp start(%__MODULE__{phase: :pending, url: url, format: format}, req_options) do
+  # 1.1 §2.1). UWS 1.1 §2.2.3.5 answers it with a 303 to the job, but the
+  # Gaia archive's points to <job>/phase, so the 303 isn't followed and the
+  # job is read at its own URL.
+  defp start(%__MODULE__{phase: :pending, url: url} = job, req_options) do
     phase_url = url |> URI.parse() |> URI.append_path("/phase") |> URI.to_string()
-    request(req_options, format, method: :post, url: phase_url, form: [PHASE: "RUN"])
+
+    {_url, response} =
+      HTTP.run(req_options, method: :post, url: phase_url, form: [PHASE: "RUN"], redirect: false)
+
+    with :ok <- accepted(response) do
+      refresh(job, req_options, method: :get, url: url)
+    end
   end
 
   defp start(job, _req_options), do: {:ok, job}
+
+  defp deadline(:infinity), do: :infinity
+  defp deadline(timeout) when is_integer(timeout) and timeout >= 0, do: now() + timeout
+
+  defp deadline(timeout) do
+    raise ArgumentError,
+          "expected :timeout to be a non-negative integer or :infinity, got: #{inspect(timeout)}"
+  end
+
+  defp now, do: System.monotonic_time(:millisecond)
+
+  defp remaining(:infinity), do: :infinity
+  defp remaining(deadline), do: max(deadline - now(), 0)
+
+  # A job that has stopped is read once, without WAIT: GAVO blocks a PENDING
+  # job for the whole WAIT, although only the client can start it.
+  defp poll(%{phase: phase} = job, state, pause) when phase not in @moving do
+    with {:ok, next} <- read(job, state, nil), do: next_poll(job, next, state, nil, pause)
+  end
+
+  defp poll(job, state, pause) do
+    case remaining(state.deadline) do
+      0 ->
+        message =
+          "the job is still #{job.phase |> Atom.to_string() |> String.upcase()} " <>
+            "after #{state.timeout} ms"
+
+        HTTP.error(:timeout, message, nil)
+
+      remaining ->
+        wait = min(@wait, div_seconds(remaining))
+        started = now()
+
+        with {:ok, next} <- read(job, state, wait) do
+          next_poll(job, next, state, {wait, now() - started}, pause)
+        end
+    end
+  end
+
+  defp div_seconds(:infinity), do: @wait
+  defp div_seconds(milliseconds), do: div(milliseconds, 1000)
+
+  defp next_poll(_job, %{phase: phase} = next, _state, _wait, _pause) when phase not in @moving do
+    {:ok, next}
+  end
+
+  # A service that answers before the WAIT is over, and not because the
+  # phase changed, ignored it, and is asked again after a pause, never
+  # longer than the time left.
+  defp next_poll(job, next, state, {wait, elapsed}, pause)
+       when next.phase == job.phase and (wait == 0 or elapsed < wait * 1000) do
+    Process.sleep(min(pause, remaining(state.deadline)))
+    poll(next, state, min(round(pause * 1.5), @max_pause))
+  end
+
+  defp next_poll(_job, next, state, _wait, _pause), do: poll(next, state, @first_pause)
+
+  # The job keeps its URL: the request went to one with WAIT in it. Asked to
+  # block, GAVO answers 5 to 7 seconds after the WAIT is over.
+  defp read(job, state, nil) do
+    refresh(job, state.req_options, method: :get, url: job.url)
+  end
+
+  defp read(job, state, wait) do
+    receive_timeout =
+      max(Keyword.get(state.req_options, :receive_timeout, @receive_timeout), (wait + 30) * 1000)
+
+    refresh(job, state.req_options,
+      method: :get,
+      url: job.url,
+      params: [WAIT: wait],
+      receive_timeout: receive_timeout
+    )
+  end
+
+  defp refresh(job, req_options, options) do
+    with {:ok, next} <- request(req_options, job.format, options) do
+      {:ok, %{next | url: job.url}}
+    end
+  end
 
   defp request(req_options, format, options) do
     {url, response} = HTTP.run(req_options, options)
@@ -238,10 +395,11 @@ defmodule SpaceTAP.Job do
     HTTP.error(:decode_error, message, status)
   end
 
-  # The 303 to the list of jobs, or a 2xx that isn't an error document.
-  defp deleted({:ok, %Req.Response{status: status}}) when status in 300..399, do: :ok
+  # A request that changes a job is answered with a 303 (UWS 1.1 §2.2.3),
+  # or a 2xx that isn't an error document.
+  defp accepted({:ok, %Req.Response{status: status}}) when status in 300..399, do: :ok
 
-  defp deleted(response) do
+  defp accepted(response) do
     HTTP.classify(response, &{:votable, VOTable.parse(&1)}, fn _body, _media_type, _status ->
       :ok
     end)

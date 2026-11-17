@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `SpaceTAP.Job`, the first steps of async queries, which a TAP service runs as jobs (TAP 1.1 §2.2): `submit/3` creates a job and starts it, `wait/2` waits for it to stop, `get/2` reads a job from its URL, and `delete/2` deletes it. A `SpaceTAP.Job` holds the URL of the job, its phase, the format of its result, the message the service gives when it fails, and the URL of its result.
+- `SpaceTAP.async_query/3`, which runs a query as a job: it submits the job, waits for it, reads its result as `query/3` reads a sync one, and deletes the job whatever happens. It takes the options of `query/3` and a `:timeout`. A job that stops in another phase than COMPLETED, such as ERROR or ABORTED, is a `:service_error` with the service's message (`docs/adr/0010-async-query-starts-waits-for-and-deletes-a-job.md`).
+- `SpaceTAP.Job`, the steps of an async query, which a TAP service runs as a job (TAP 1.1 §2.2): `submit/3` creates a job and starts it, and deletes it if it can't, `wait/2` waits for it to stop, `result/2` reads its result, `get/2` reads a job from its URL, and `delete/2` deletes it. A `SpaceTAP.Job` holds the URL of the job, its phase, the format of its result, the message the service gives when it fails, and the URL of its result.
+- `result/2` never reads a result over `http://` for a job at an `https://` URL, and doesn't send the `authorization` header or Req's `:auth` to a result on another host.
 - `wait/2` asks the service to answer when the phase of the job changes, with the `WAIT` parameter of UWS 1.1, and pauses between requests to a service that answers at once instead. Its `:timeout` option, `:infinity` by default, gives a new error type, `:timeout`, when it runs out.
 
 ## [0.2.1] - 2026-11-16

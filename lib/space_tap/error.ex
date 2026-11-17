@@ -11,7 +11,10 @@ defmodule SpaceTAP.Error do
       plain text with HTTP 400 (DALI 1.1 §4.2). `:message` is its message,
       or says that it had none, since the message is optional (DALI 1.1
       §4.4.2). A VOTable error document can come with HTTP 200 as well as
-      4xx or 5xx (TAP 1.1 §3.3).
+      4xx or 5xx (TAP 1.1 §3.3). An async job that stopped in a phase other
+      than `:completed`, such as `:error` or `:aborted`, is a service error
+      too, whose `:message` names the phase and adds the service's message,
+      and whose `:status` is `nil`.
     * `:http_error` - an HTTP error status without an error document from
       the TAP service, such as an HTML page from a proxy. Plain text with
       any status other than 400 is an HTTP error too, because a proxy or

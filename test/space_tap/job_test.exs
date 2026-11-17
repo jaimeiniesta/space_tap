@@ -1,13 +1,14 @@
 defmodule SpaceTAP.JobTest do
   use ExUnit.Case, async: true
 
-  alias SpaceTAP.{Error, Job}
+  import SpaceTAP.Test.AsyncService
+
+  alias SpaceTAP.{Error, Job, Result}
 
   @service_url "https://tap.example.org/tap"
   @job_url "https://tap.example.org/tap/async/42"
   @adql "SELECT TOP 5 hipno FROM hipparcos.main"
-  @req_options [plug: {Req.Test, SpaceTAP.Job}]
-  @fixtures Path.expand("../fixtures", __DIR__)
+  @req_options req_options()
 
   # Req logs each redirect, and a job comes after one.
   @moduletag :capture_log
@@ -81,7 +82,7 @@ defmodule SpaceTAP.JobTest do
       assert {:ok, %Job{url: @job_url, phase: :executing}} = submit()
     end
 
-    test "returns the error a service gives when it won't start the job" do
+    test "returns the error a service gives when it won't start the job, and deletes the job" do
       expect_request("POST", "/tap/async", &redirect(&1, 303, @job_url))
       expect_request("GET", "/tap/async/42", &job_document(&1, "gavo", "pending.xml"))
 
@@ -90,6 +91,9 @@ defmodule SpaceTAP.JobTest do
         "/tap/async/42/phase",
         &respond(&1, 403, "text/xml", fixture("gaia", "syntax_error.xml"))
       )
+
+      # The error doesn't give the job's URL, so nothing else could delete it.
+      expect_request("DELETE", "/tap/async/42", &redirect(&1, 303, @service_url <> "/async"))
 
       assert {:error, %Error{type: :service_error, status: 403}} = submit()
     end
@@ -136,9 +140,10 @@ defmodule SpaceTAP.JobTest do
       assert {:error, %Error{type: :service_error, status: 400}} = submit()
     end
 
-    test "is a :decode_error when the job document can't be read" do
+    test "is a :decode_error when the job document can't be read, and deletes the job" do
       expect_request("POST", "/tap/async", &redirect(&1, 303, @job_url))
       expect_request("GET", "/tap/async/42", &respond(&1, 200, "text/html", "<html></html>"))
+      expect_request("DELETE", "/tap/async/42", &redirect(&1, 303, @service_url <> "/async"))
 
       assert submit() ==
                {:error,
@@ -150,10 +155,29 @@ defmodule SpaceTAP.JobTest do
 
       expect_request("POST", "/tap/async", &redirect(&1, 303, @job_url))
       expect_request("GET", "/tap/async/42", &respond(&1, 200, "text/xml", "<job/>"))
+      expect_request("DELETE", "/tap/async/42", &redirect(&1, 303, @service_url <> "/async"))
 
       assert submit() ==
                {:error,
                 %Error{type: :decode_error, message: "the job document has no phase", status: 200}}
+    end
+
+    test "creates nothing to delete when the service doesn't answer with the job's URL" do
+      expect_request("POST", "/tap/async", &respond(&1, 200, "text/xml", "<job/>"))
+
+      assert submit() ==
+               {:error,
+                %Error{
+                  type: :decode_error,
+                  message: "expected a redirect to the new job, got text/xml",
+                  status: 200
+                }}
+
+      expect_request("POST", "/tap/async", &Plug.Conn.send_resp(&1, 303, ""))
+
+      assert submit() ==
+               {:error,
+                %Error{type: :http_error, message: "no Location for the new job", status: 303}}
     end
 
     test "is a :transport_error when the service can't be reached" do
@@ -346,6 +370,129 @@ defmodule SpaceTAP.JobTest do
     end
   end
 
+  describe "result/2" do
+    test "reads the result of a COMPLETED job in the format it was submitted with" do
+      expect_request("GET", "/tap/async/42/results/result", fn conn ->
+        respond(conn, 200, "application/x-votable+xml", fixture("gavo", "hipparcos.xml"))
+      end)
+
+      assert {:ok, %Result{columns: columns, rows: [[1 | _values] | _rows], overflow: false}} =
+               result(completed(:votable))
+
+      assert columns == ["hipno", "ra", "dec", "vmag", "parallax", "SpType"]
+
+      expect_request("GET", "/tap/async/42/results/result", fn conn ->
+        respond(conn, 200, "text/csv;header=present", fixture("gavo", "hipparcos.csv"))
+      end)
+
+      assert {:ok, %Result{rows: [["1" | _values] | _rows], fields: nil}} =
+               result(completed(:csv))
+    end
+
+    test "reads it as query/3 reads a sync result, errors included" do
+      expect_request("GET", "/tap/async/42/results/result", fn conn ->
+        respond(conn, 200, "application/x-votable+xml", fixture("gavo", "hipparcos.xml"))
+      end)
+
+      assert {:error, %Error{type: :decode_error, message: "expected text/csv, got " <> _rest}} =
+               result(completed(:csv))
+
+      expect_request("GET", "/tap/async/42/results/result", fn conn ->
+        respond(conn, 200, "text/xml", fixture("gaia", "syntax_error.xml"))
+      end)
+
+      assert {:error, %Error{type: :service_error, status: 200}} = result(completed(:votable))
+    end
+
+    test "reads an http:// result on the job's host with https://, as GAVO lists it" do
+      expect_request("GET", "/tap/async/42/results/result", fn conn ->
+        assert conn.scheme == :https
+        respond(conn, 200, "text/csv", fixture("gavo", "hipparcos.csv"))
+      end)
+
+      job = %{completed(:csv) | result_url: "http://tap.example.org/tap/async/42/results/result"}
+      assert {:ok, %Result{}} = result(job)
+    end
+
+    test "doesn't read an http:// result on another host for a job at an https:// URL" do
+      job = %{completed(:csv) | result_url: "http://results.example.org/42.csv"}
+
+      assert result(job) ==
+               {:error,
+                %Error{
+                  type: :decode_error,
+                  message:
+                    "the job is at an https:// URL and lists its result at an http:// one: " <>
+                      "http://results.example.org/42.csv",
+                  status: nil
+                }}
+    end
+
+    test "keeps credentials from another host, as Req does on a redirect, but not other headers" do
+      # CADC lists its results on ws-cadc.canfar.net.
+      job = %{completed(:csv) | result_url: "https://results.example.org/42.csv"}
+
+      for req_options <- [
+            [headers: [{"Authorization", "Bearer secret"}, {"x-request-id", "42"}]],
+            [headers: %{"x-request-id" => "42"}, auth: {:bearer, "secret"}]
+          ] do
+        expect_request("GET", "/42.csv", fn conn ->
+          assert conn.host == "results.example.org"
+          assert Plug.Conn.get_req_header(conn, "authorization") == []
+          assert Plug.Conn.get_req_header(conn, "x-request-id") == ["42"]
+          respond(conn, 200, "text/csv", fixture("gavo", "hipparcos.csv"))
+        end)
+
+        assert {:ok, %Result{}} = result(job, req_options: req_options ++ req_options())
+      end
+
+      # They go to the job's host.
+      expect_request("GET", "/tap/async/42/results/result", fn conn ->
+        assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer secret"]
+        respond(conn, 200, "text/csv", fixture("gavo", "hipparcos.csv"))
+      end)
+
+      assert {:ok, %Result{}} =
+               result(completed(:csv), req_options: [auth: {:bearer, "secret"}] ++ req_options())
+    end
+
+    test "gives a :service_error naming the phase of a job that stopped without a result" do
+      for {phase, summary, message} <- [
+            {:error, "Field query: No such field known",
+             "the job is ERROR: Field query: No such field known"},
+            {:aborted, nil, "the job is ABORTED"},
+            {:archived, nil, "the job is ARCHIVED"},
+            {:held, nil, "the job is HELD"},
+            {:pending, nil, "the job is PENDING"}
+          ] do
+        job = %{job(phase) | error_summary: summary}
+
+        assert result(job) ==
+                 {:error, %Error{type: :service_error, message: message, status: nil}}
+      end
+    end
+
+    test "is a :decode_error for a COMPLETED job without a result" do
+      assert {:error,
+              %Error{type: :decode_error, message: "the job is COMPLETED and lists no result"}} =
+               result(job(:completed))
+    end
+
+    test "raises for a job that hasn't stopped" do
+      for phase <- [:queued, :executing, :suspended, :unknown] do
+        assert_raise ArgumentError, ~r/wait for it to stop with SpaceTAP.Job.wait\/2/, fn ->
+          result(job(phase))
+        end
+      end
+    end
+
+    test "raises on an option it doesn't know" do
+      assert_raise ArgumentError, ~r/unknown keys \[:format\]/, fn ->
+        result(completed(:csv), format: :votable)
+      end
+    end
+  end
+
   describe "delete/2" do
     test "sends DELETE, without following the 303 to the list of jobs" do
       expect_request("DELETE", "/tap/async/42", &redirect(&1, 303, @service_url <> "/async"))
@@ -360,7 +507,7 @@ defmodule SpaceTAP.JobTest do
         expect_request("POST", "/tap/async/42", fn conn ->
           if answer == 303,
             do: redirect(conn, 303, @service_url <> "/async"),
-            else: respond(conn, 200, "text/xml", fixture("koa", "completed.xml", "jobs"))
+            else: respond(conn, 200, "text/xml", fixture("koa", "jobs/completed.xml"))
         end)
 
         assert delete() == :ok
@@ -399,63 +546,24 @@ defmodule SpaceTAP.JobTest do
     Job.delete(job, Keyword.put_new(opts, :req_options, @req_options))
   end
 
-  # Stands in for the next request the TAP service gets: checks its method
-  # and path, sends it to the test process with the parameters of its URL
-  # and form decoded, and answers with respond.
-  defp expect_request(method, path, respond) do
-    test = self()
-
-    Req.Test.expect(SpaceTAP.Job, fn conn ->
-      assert {conn.method, conn.request_path} == {method, path}
-      send_request(test, conn, respond)
-    end)
-  end
-
-  # The same for every request the service gets, however many.
-  defp stub_requests(respond) do
-    test = self()
-    Req.Test.stub(SpaceTAP.Job, &send_request(test, &1, respond))
-  end
-
-  defp send_request(test, conn, respond) do
-    {:ok, form, conn} = Plug.Conn.read_body(conn)
-    params = Map.merge(URI.decode_query(conn.query_string), URI.decode_query(form))
-    send(test, {:request, conn.method, conn.request_path, params})
-    respond.(conn)
-  end
-
-  defp phase_document(conn, phase) do
-    results =
-      if phase == "COMPLETED",
-        do: ~s(<results><result id="result" href="42/results/result"/></results>),
-        else: ""
-
-    respond(conn, 200, "text/xml", "<job><phase>#{phase}</phase>#{results}</job>")
-  end
-
   defp wait(job, opts \\ []) do
     Job.wait(job, Keyword.put_new(opts, :req_options, @req_options))
   end
 
+  defp result(job, opts \\ []) do
+    Job.result(job, Keyword.put_new(opts, :req_options, @req_options))
+  end
+
+  defp completed(format) do
+    %Job{
+      url: @job_url,
+      phase: :completed,
+      format: format,
+      result_url: @job_url <> "/results/result"
+    }
+  end
+
   defp job(phase), do: %Job{url: @job_url, phase: phase, format: :votable}
-
-  defp respond(conn, status, content_type, body) do
-    conn
-    |> Plug.Conn.put_resp_header("content-type", content_type)
-    |> Plug.Conn.send_resp(status, body)
-  end
-
-  defp redirect(conn, status, location) do
-    conn
-    |> Plug.Conn.put_resp_header("location", location)
-    |> Plug.Conn.send_resp(status, "")
-  end
-
-  defp job_document(conn, service, name),
-    do: respond(conn, 200, "text/xml", fixture(service, name, "jobs"))
-
-  defp fixture(service, name, folder \\ "."),
-    do: File.read!(Path.join([@fixtures, service, folder, name]))
 
   defp user_agent, do: "space_tap/" <> to_string(Application.spec(:space_tap, :vsn))
 end

@@ -5,16 +5,22 @@ defmodule SpaceTAP do
 
   `query/3` sends a query written in ADQL to a TAP service and returns its
   result as a `SpaceTAP.Result`, or a `SpaceTAP.Error` when it fails.
+  `async_query/3` does the same with a query the service runs as a job, for
+  queries that take longer than a sync query may; `SpaceTAP.Job` has each
+  step of it.
 
   SpaceTAP follows [TAP 1.1](https://www.ivoa.net/documents/TAP/20190927/REC-TAP-1.1.html)
   and works with TAP 1.0 services.
   """
 
-  alias SpaceTAP.{CSV, Error, HTTP, Result, VOTable}
+  alias SpaceTAP.{Error, HTTP, Job, Result}
 
-  @typedoc "An option for `query/3`."
+  @typedoc "An option for `query/3` or `async_query/3`."
   @type option ::
           {:format, :csv | :votable} | {:maxrec, non_neg_integer()} | {:req_options, keyword()}
+
+  @typedoc "An option for `async_query/3`."
+  @type async_option :: option() | {:timeout, timeout()}
 
   @doc """
   Runs a sync query: sends `adql` to the TAP service at `service_url` and
@@ -82,64 +88,65 @@ defmodule SpaceTAP do
       |> HTTP.req_options()
       |> HTTP.run(method: :post, url: url, form: form)
 
-    # XML is read as a VOTable whatever the status, since an error document
-    # may come with any.
-    HTTP.classify(response, &{:votable, VOTable.parse(&1)}, &result(&1, opts[:format], &2, &3))
+    HTTP.read_result(response, opts[:format])
   end
 
-  #####################
-  # Private functions #
-  #####################
+  @doc """
+  Runs an async query: sends `adql` to the TAP service at `service_url` as
+  a job, waits for it, reads its result and deletes the job.
 
-  # A successful response that isn't an error document holds a result in the
-  # format asked for, or can't be read.
-  defp result({:votable, {:ok, table}}, :votable, _media_type, _status) do
-    {:ok, votable_result(table)}
-  end
+  Use it for a query that takes longer than the service lets a sync query
+  run. It returns what `query/3` returns, with the same options, and a
+  `:timeout`:
 
-  defp result({:votable, {:error, message}}, :votable, _media_type, status) do
-    HTTP.error(:decode_error, message, status)
-  end
+      SpaceTAP.async_query(
+        "https://dc.g-vo.org/tap",
+        "SELECT TOP 5 hipno, ra, dec, vmag FROM hipparcos.main",
+        format: :votable,
+        timeout: :timer.minutes(30)
+      )
+      #=> {:ok, %SpaceTAP.Result{columns: ["hipno", "ra", "dec", "vmag"], rows: [...], ...}}
 
-  # The format decides the value types, so a VOTable sent for CSV, as MAST
-  # sends, isn't read (docs/adr/0006-the-format-option-decides-the-value-types.md).
-  defp result({:votable, {:ok, _table}}, :csv, media_type, status) do
-    message =
-      "expected text/csv, got #{media_type}: the response is a VOTable, pass format: :votable to read it"
+  It goes through the steps in `SpaceTAP.Job`: `SpaceTAP.Job.submit/3`,
+  `SpaceTAP.Job.wait/2`, `SpaceTAP.Job.result/2` and
+  `SpaceTAP.Job.delete/2`. A job that stops in a phase other than
+  `:completed`, such as `:error` or `:aborted`, gives a `:service_error`
+  with the service's message.
 
-    HTTP.error(:decode_error, message, status)
-  end
+  The job is deleted whatever happens: once it has stopped, when it can't
+  be started, or when the time runs out, which stops it if it is still
+  running. When the service won't delete it, the result or error is
+  returned all the same, and the job stays on the service until the
+  service destroys it, which IRSA never does. So does the job of a process
+  that dies while it waits. To keep a job, for example to read its result
+  in TOPCAT or to wait longer, use the steps in `SpaceTAP.Job`.
 
-  # TAP 1.1 §3.2 says CSV comes as text/csv, but the NASA Exoplanet Archive
-  # and KOA send it as text/plain, although their /capabilities map csv to
-  # text/csv. Only CSV was requested, so text/plain is read as CSV too
-  # (docs/adr/0003-csv-sent-as-plain-text-is-read-as-csv.md).
-  defp result({type, csv}, :csv, _media_type, status) when type in [:csv, :plain_text] do
-    csv_result(csv, status)
-  end
+  ## Options
 
-  defp result(_body, format, media_type, status) do
-    HTTP.error(
-      :decode_error,
-      "expected #{expected(format)}, got #{media_type || "no Content-Type"}",
-      status
-    )
-  end
+  Those of `query/3`, and:
 
-  # Any XML media type can carry a VOTable: KOA and MAST send text/xml, and
-  # the NASA Exoplanet Archive application/xml.
-  defp expected(:csv), do: "text/csv"
-  defp expected(:votable), do: "a VOTable"
+    * `:timeout` - how long to wait for the job, in milliseconds, or
+      `:infinity` (the default), as for `SpaceTAP.Job.wait/2`. When it runs
+      out, the job is deleted and the error is a `:timeout`.
+  """
+  @spec async_query(String.t(), String.t(), [async_option()]) ::
+          {:ok, Result.t()} | {:error, Error.t()}
+  def async_query(service_url, adql, opts \\ [])
+      when is_binary(service_url) and is_binary(adql) do
+    opts = Keyword.validate!(opts, [:maxrec, format: :csv, req_options: [], timeout: :infinity])
+    {timeout, opts} = Keyword.pop(opts, :timeout)
+    timeout = Job.timeout!(timeout)
+    job_opts = Keyword.take(opts, [:req_options])
 
-  defp votable_result(%{fields: fields, rows: rows, overflow: overflow}) do
-    columns = Enum.map(fields, & &1.name)
-    %Result{columns: columns, rows: rows, fields: fields, overflow: overflow}
-  end
+    with {:ok, job} <- Job.submit(service_url, adql, opts) do
+      result =
+        with {:ok, job} <- Job.wait(job, [timeout: timeout] ++ job_opts) do
+          Job.result(job, job_opts)
+        end
 
-  defp csv_result(csv, status) do
-    case CSV.parse(csv) do
-      {:ok, result} -> {:ok, result}
-      {:error, message} -> HTTP.error(:decode_error, message, status)
+      # Deleting is cleaning up, so its own error doesn't replace the result.
+      _deleted = Job.delete(job, job_opts)
+      result
     end
   end
 end

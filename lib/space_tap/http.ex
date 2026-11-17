@@ -3,10 +3,10 @@ defmodule SpaceTAP.HTTP do
 
   # What every request to a TAP service shares, the sync query of SpaceTAP
   # and the requests about an async job of SpaceTAP.Job: the parameters of a
-  # query, the Req options SpaceTAP sets, and how a response becomes an
-  # error.
+  # query, the Req options SpaceTAP sets, how a response becomes an error,
+  # and how a result is read.
 
-  alias SpaceTAP.Error
+  alias SpaceTAP.{CSV, Error, Result, VOTable}
 
   @user_agent "space_tap/#{Mix.Project.config()[:version]}"
 
@@ -103,9 +103,69 @@ defmodule SpaceTAP.HTTP do
     end
   end
 
+  # Reads the result of a query, sync or async, in the format asked for.
+  # XML is read as a VOTable whatever the status, since an error document
+  # may come with any.
+  @spec read_result(result(), :csv | :votable) :: {:ok, Result.t()} | {:error, Error.t()}
+  def read_result(response, format) do
+    classify(response, &{:votable, VOTable.parse(&1)}, &result(&1, format, &2, &3))
+  end
+
   @spec error(Error.type(), String.t(), integer() | nil) :: {:error, Error.t()}
   def error(type, message, status) do
     {:error, %Error{type: type, message: message, status: status}}
+  end
+
+  # A successful response that isn't an error document holds a result in the
+  # format asked for, or can't be read.
+  defp result({:votable, {:ok, table}}, :votable, _media_type, _status) do
+    {:ok, votable_result(table)}
+  end
+
+  defp result({:votable, {:error, message}}, :votable, _media_type, status) do
+    error(:decode_error, message, status)
+  end
+
+  # The format decides the value types, so a VOTable sent for CSV, as MAST
+  # sends, isn't read (docs/adr/0006-the-format-option-decides-the-value-types.md).
+  defp result({:votable, {:ok, _table}}, :csv, media_type, status) do
+    message =
+      "expected text/csv, got #{media_type}: the response is a VOTable, pass format: :votable to read it"
+
+    error(:decode_error, message, status)
+  end
+
+  # TAP 1.1 §3.2 says CSV comes as text/csv, but the NASA Exoplanet Archive
+  # and KOA send it as text/plain, although their /capabilities map csv to
+  # text/csv. Only CSV was requested, so text/plain is read as CSV too
+  # (docs/adr/0003-csv-sent-as-plain-text-is-read-as-csv.md).
+  defp result({type, csv}, :csv, _media_type, status) when type in [:csv, :plain_text] do
+    csv_result(csv, status)
+  end
+
+  defp result(_body, format, media_type, status) do
+    error(
+      :decode_error,
+      "expected #{expected(format)}, got #{media_type || "no Content-Type"}",
+      status
+    )
+  end
+
+  # Any XML media type can carry a VOTable: KOA and MAST send text/xml, and
+  # the NASA Exoplanet Archive application/xml.
+  defp expected(:csv), do: "text/csv"
+  defp expected(:votable), do: "a VOTable"
+
+  defp votable_result(%{fields: fields, rows: rows, overflow: overflow}) do
+    columns = Enum.map(fields, & &1.name)
+    %Result{columns: columns, rows: rows, fields: fields, overflow: overflow}
+  end
+
+  defp csv_result(csv, status) do
+    case CSV.parse(csv) do
+      {:ok, result} -> {:ok, result}
+      {:error, message} -> error(:decode_error, message, status)
+    end
   end
 
   # The only place that tells media types apart.

@@ -11,7 +11,7 @@ Mix.install([
 
 [TAP](https://www.ivoa.net/documents/TAP/), the IVOA Table Access Protocol, is how astronomical archives expose their tables over HTTP. You write a query in [ADQL](https://www.ivoa.net/documents/ADQL/), a dialect of SQL with functions for positions on the sky, and the service runs it and sends the table back.
 
-`SpaceTAP.query/3` runs a sync query: one HTTP request, with the result in the response (TAP 1.1 §2.1). It POSTs the ADQL to the `/sync` endpoint of the service with `REQUEST=doQuery`, `LANG=ADQL` and `FORMAT=csv`, and reads the CSV that comes back. With `format: :votable` it asks for VOTable instead, and reads typed values.
+`SpaceTAP.query/3` runs a sync query: one HTTP request, with the result in the response (TAP 1.1 §2.1). It POSTs the ADQL to the `/sync` endpoint of the service with `REQUEST=doQuery`, `LANG=ADQL` and `FORMAT=csv`, and reads the CSV that comes back. With `format: :votable` it asks for VOTable instead, and reads typed values. `SpaceTAP.async_query/3` runs a query as a job, for queries that take longer than one HTTP request should.
 
 This notebook installs SpaceTAP from Hex. Every query goes to a live service, so the numbers you get may differ a little from the ones mentioned here.
 
@@ -144,6 +144,44 @@ SpaceTAP.query(gavo, "SELECT TOP 1 source_id FROM gaia.dr3lite",
 )
 ```
 
+## Async queries
+
+A sync query's result comes in the response to a single HTTP request, so the query has to finish while that request is open. `SpaceTAP.async_query/3` runs it as a job instead (TAP 1.1 §2.2), with the options of `query/3` and the same result, and a `:timeout` for how long to wait:
+
+```elixir
+{:ok, result} = SpaceTAP.async_query(gavo, adql, format: :votable, timeout: :timer.minutes(5))
+hd(result.rows)
+```
+
+The service keeps the job, with its query, its phase and its result, at a URL of its own. [UWS](https://www.ivoa.net/documents/UWS/), the IVOA protocol for jobs, says how a client creates a job, follows it and deletes it, and `SpaceTAP.Job` has each step.
+
+`submit/3` POSTs the query to the `/async` endpoint, with the same parameters as a sync query, and the service answers with a 303 to the URL of the new job (UWS 1.1 §2.2.3.1). A new job usually waits as `PENDING` until the client sends `PHASE=RUN` (UWS 1.1 §2.2.3.5), which `submit/3` does too:
+
+```elixir
+{:ok, job} = SpaceTAP.Job.submit(gavo, adql, format: :votable)
+```
+
+By now the job is `:queued` or `:executing`, or already `:completed` if the query is small. `wait/2` asks for the job with `WAIT=30`, so the service answers when the phase changes, or after 30 seconds (UWS 1.1 §2.2.1.2), and asks again until the job stops:
+
+```elixir
+{:ok, job} = SpaceTAP.Job.wait(job, timeout: :timer.minutes(5))
+```
+
+A `:completed` job lists the URL of its result, and `result/2` reads it as `query/3` reads a sync result. GAVO lists an `http://` URL, which SpaceTAP reads with `https://`:
+
+```elixir
+{:ok, result} = SpaceTAP.Job.result(job)
+length(result.rows)
+```
+
+`job.url` is all you need to come back to the job, from another process or later on, with `SpaceTAP.Job.get/2`. The job stays on the service until the client deletes it or the service destroys it, at its destruction time (UWS 1.1 §2.1.5):
+
+```elixir
+SpaceTAP.Job.delete(job)
+```
+
+`async_query/3` deletes its job whatever happens: when the job has stopped, when it fails, and when the `:timeout` runs out, which stops it.
+
 ## When a query fails
 
 A failed query returns `{:error, %SpaceTAP.Error{}}`. A query that names a table GAVO doesn't have gives a service error, with the message GAVO wrote. GAVO's software, DaCHS, sends it with HTTP 500:
@@ -166,6 +204,14 @@ Exception.message(error)
 | `:http_error`      | An HTTP error status without an error document from the service, such as a proxy's page. |
 | `:transport_error` | No response arrived: the connection failed or timed out.                                 |
 | `:decode_error`    | A successful response that can't be read as a result, such as one in another format.     |
+| `:timeout`         | An async query's job hadn't stopped when its `:timeout` ran out.                         |
+
+An async query whose job fails gives a `:service_error` too. The job document reports the error, not the HTTP status, so `:status` is `nil` and the message names the phase:
+
+```elixir
+{:error, error} = SpaceTAP.async_query(gavo, "SELECT TOP 3 source_id FROM gaia.no_such_table")
+Exception.message(error)
+```
 
 So you can decide what to do from the type alone:
 

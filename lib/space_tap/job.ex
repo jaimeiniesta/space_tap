@@ -9,7 +9,8 @@ defmodule SpaceTAP.Job do
   ([UWS 1.1](https://www.ivoa.net/documents/UWS/20161024/REC-UWS-1.1-20161024.html)).
 
   `submit/3` creates a job and starts it, `wait/2` waits for it to stop,
-  `get/2` reads a job from its URL, and `delete/2` deletes it:
+  `result/2` reads its result, `get/2` reads a job from its URL, and
+  `delete/2` deletes it:
 
       {:ok, job} =
         SpaceTAP.Job.submit(
@@ -21,6 +22,9 @@ defmodule SpaceTAP.Job do
 
       {:ok, job} = SpaceTAP.Job.wait(job)
       #=> {:ok, %SpaceTAP.Job{phase: :completed, result_url: "http://dc.g-vo.org/__system__/tap/run/async/bjk2rbdl/results/result", ...}}
+
+      SpaceTAP.Job.result(job)
+      #=> {:ok, %SpaceTAP.Result{columns: ["hipno", "ra", "dec", "vmag"], rows: [...], ...}}
 
       SpaceTAP.Job.get(job.url, format: :votable)
       #=> {:ok, %SpaceTAP.Job{phase: :completed, ...}}

@@ -111,6 +111,7 @@ went wrong:
 | `:http_error` | An HTTP error status without an error document from the service, such as a proxy's 502 page. |
 | `:transport_error` | No response arrived: the connection failed or timed out. |
 | `:decode_error` | A successful response that can't be read as a result, such as malformed CSV. |
+| `:timeout` | An [async query](#async-queries)'s job hadn't stopped when its `:timeout` ran out. |
 
 Later versions may add types, so when you match on `:type`, keep a clause for
 the rest.
@@ -184,8 +185,73 @@ VOTable that comes when CSV was asked for, as MAST sends, is a `:decode_error`
 that says to pass `format: :votable`, so the value types don't depend on the
 service.
 
-Async queries, for long-running and large results, are planned for a later
-version.
+## Async queries
+
+A sync query's result comes in the response to a single HTTP request, so the
+query has to finish while that request is open. `SpaceTAP.async_query/3` runs
+the query as a job instead (TAP 1.1 §2.2): the service keeps the job, with its
+phase and its result, and SpaceTAP asks about it until it stops, reads the
+result and deletes the job. It takes the options of `query/3` and returns the
+same result:
+
+```elixir
+{:ok, result} =
+  SpaceTAP.async_query("https://dc.g-vo.org/tap", adql,
+    format: :votable,
+    timeout: :timer.minutes(10)
+  )
+
+hd(result.rows)
+#=> [66526127137440128, 57.29068893293528, 24.053211829998986,
+#=>  8.118448257446289, 3.6157946586608887]
+```
+
+- **`:timeout` is how long to wait,** in milliseconds, or `:infinity`, the
+  default. Services limit how long a job runs, from 60 seconds at the Gaia
+  archive, ESO and NED to 3 days at IRSA, but not how long it waits in their
+  queue. When the time runs out, SpaceTAP deletes the job, which stops it, and
+  returns a `:timeout` error.
+- **A job that fails is a `:service_error`** with the service's message:
+
+  ```elixir
+  {:error, error} =
+    SpaceTAP.async_query(service_url, "SELECT TOP 3 source_id FROM gaia.no_such_table")
+
+  error.message
+  #=> "the job is ERROR: Field query: Could not locate table 'gaia.no_such_table'"
+  ```
+
+  The Gaia archive stops the job of an anonymous user after 60 seconds, which
+  gives a `:service_error` for a job that is ABORTED.
+- **SpaceTAP waits in your process,** with nothing to start or supervise. Each
+  request asks the service to answer when the phase of the job changes, or
+  after 30 seconds (UWS 1.1 §2.2.1.2), and SpaceTAP pauses between requests to
+  a service that answers straight away instead.
+
+### Following a job
+
+`SpaceTAP.Job` has each step of `async_query/3`. Use them to keep a job, to
+follow it from another process, or to come back for its result later:
+
+```elixir
+{:ok, job} = SpaceTAP.Job.submit("https://dc.g-vo.org/tap", adql, format: :votable)
+
+job.url
+#=> "https://dc.g-vo.org/__system__/tap/run/async/tisdf9q8"
+
+{:ok, job} = SpaceTAP.Job.wait(job, timeout: :timer.minutes(10))
+
+job.phase
+#=> :completed
+
+{:ok, result} = SpaceTAP.Job.result(job)
+```
+
+The job's URL is all SpaceTAP keeps: `SpaceTAP.Job.get(url, format: :votable)`
+reads the job again, from any process. `wait/2` leaves the job on the service
+when its `:timeout` runs out, so you can wait again, and a job stays there until
+you delete it with `SpaceTAP.Job.delete/2` or the service destroys it. The NASA
+Exoplanet Archive, KOA and IRSA answer that a job is deleted and keep it.
 
 ## Compatibility
 

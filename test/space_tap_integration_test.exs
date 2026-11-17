@@ -1,11 +1,11 @@
 defmodule SpaceTAPIntegrationTest do
   # Queries to GAVO, the service `mix test.release` runs against before a
   # release (docs/adr/0009-gavo-is-the-service-releases-are-tested-against.md),
-  # on its copy of Gaia DR3. The other services have theirs in
-  # SpaceTAPServicesLiveTest.
+  # on its copy of Gaia DR3, sync and as async jobs. The other services have
+  # theirs in SpaceTAPServicesLiveTest.
   use ExUnit.Case, async: false
 
-  alias SpaceTAP.{Error, Result}
+  alias SpaceTAP.{Error, Job, Result}
 
   @moduletag :integration
 
@@ -85,5 +85,72 @@ defmodule SpaceTAPIntegrationTest do
              SpaceTAP.query(@service_url, adql)
 
     assert message =~ "Could not parse your query"
+  end
+
+  describe "async queries" do
+    # A job may wait in GAVO's queue for minutes, and a :timeout deletes it
+    # before ExUnit gives up on the test.
+    @describetag timeout: 600_000
+
+    @async_options [timeout: 300_000]
+
+    test "runs the Pleiades cone search as a job, with typed values" do
+      assert {:ok, %Result{columns: columns, rows: rows, fields: fields, overflow: false}} =
+               SpaceTAP.async_query(@service_url, @pleiades, [format: :votable] ++ @async_options)
+
+      assert columns == ["source_id", "ra", "dec", "parallax", "phot_g_mean_mag"]
+      assert Enum.map(fields, & &1.datatype) == [:long, :double, :double, :float, :float]
+      assert length(rows) == 5
+    end
+
+    test "runs it as a job with CSV" do
+      assert {:ok, %Result{columns: ["source_id" | _columns], rows: rows, fields: nil}} =
+               SpaceTAP.async_query(@service_url, @pleiades, @async_options)
+
+      assert length(rows) == 5
+      assert Enum.all?(List.flatten(rows), &is_binary/1)
+    end
+
+    test "sets overflow when MAXREC cuts the result of a job, with the row GAVO adds" do
+      adql = "SELECT TOP 10 source_id FROM gaia.dr3lite ORDER BY source_id"
+      options = [format: :votable, maxrec: 3] ++ @async_options
+
+      assert {:ok, %Result{rows: rows, overflow: true}} =
+               SpaceTAP.async_query(@service_url, adql, options)
+
+      assert length(rows) == 4
+    end
+
+    # The job ends in ERROR, and the message comes from its error summary.
+    test "returns a service error for a job with invalid ADQL" do
+      adql = "SELEC TOP 3 source_id FROM gaia.dr3lite"
+
+      assert {:error, %Error{type: :service_error, status: nil, message: message}} =
+               SpaceTAP.async_query(@service_url, adql, @async_options)
+
+      assert message =~ "the job is ERROR: Field query: Could not parse your query"
+    end
+
+    test "submits, waits for, reads and deletes a job, one step at a time" do
+      assert {:ok, %Job{url: url, format: :votable} = job} =
+               Job.submit(@service_url, @pleiades, format: :votable)
+
+      # GAVO runs its jobs under another path than the service URL.
+      assert url =~ ~r{^https://dc\.g-vo\.org/__system__/tap/run/async/}
+
+      assert {:ok, %Job{phase: :completed, result_url: result_url} = job} =
+               Job.wait(job, @async_options)
+
+      # GAVO lists http:// URLs, which result/2 reads with https://.
+      assert result_url =~ ~r{^http://dc\.g-vo\.org/}
+      assert {:ok, %Result{rows: rows}} = Job.result(job)
+      assert length(rows) == 5
+
+      assert {:ok, %Job{phase: :completed}} = Job.get(url, format: :votable)
+      assert Job.delete(job) == :ok
+
+      # DaCHS answers 404 with an error document for a job it no longer has.
+      assert {:error, %Error{type: :service_error, status: 404}} = Job.get(url)
+    end
   end
 end

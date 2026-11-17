@@ -11,6 +11,10 @@
 #
 #     uv run pyvo_query.py SERVICE_URL ADQL [MAXREC]
 #
+# or of the same query run as an async job:
+#
+#     uv run pyvo_query.py --async SERVICE_URL ADQL [MAXREC]
+#
 # or VOTable files, as an object with what it reads from each path:
 #
 #     uv run pyvo_query.py --files PATH...
@@ -22,6 +26,7 @@
 import json
 import math
 import sys
+import time
 import warnings
 
 import pyvo
@@ -45,18 +50,57 @@ def main():
         print(json.dumps({path: read_job(path) for path in sys.argv[2:]}))
         return 0
 
-    service_url = sys.argv[1]
-    adql = sys.argv[2]
-    maxrec = int(sys.argv[3]) if len(sys.argv) == 4 else None
+    args = sys.argv[1:]
+    run = run_async if args[0] == "--async" else run_sync
+    args = args[1:] if args[0] == "--async" else args
+    service_url = args[0]
+    adql = args[1]
+    maxrec = int(args[2]) if len(args) == 3 else None
 
     try:
-        result = pyvo.dal.TAPService(service_url).search(adql, maxrec=maxrec)
+        result = run(service_url, adql, maxrec)
     except Exception as error:
         print(json.dumps({"error": f"{type(error).__name__}: {error}"}))
         return 1
 
     print(json.dumps(to_json(result), allow_nan=False))
     return 0
+
+
+def run_sync(service_url, adql, maxrec):
+    return pyvo.dal.TAPService(service_url).search(adql, maxrec=maxrec)
+
+
+# PyVO's run_async, step by step. Its own deletes the job with DELETE alone,
+# and raises when the service refuses it, after it has read the result, as
+# NED (403), KOA (500) and the NASA Exoplanet Archive (502) do. SpaceTAP
+# deletes the job as best it can, and so does this.
+def run_async(service_url, adql, maxrec):
+    job = pyvo.dal.TAPService(service_url).submit_job(adql, maxrec=maxrec)
+
+    try:
+        wait(job.run())
+        job.raise_if_error()
+        return job.fetch_result()
+    finally:
+        try:
+            job.delete()
+        except Exception:
+            pass
+
+
+# PyVO's wait asks the service to block with WAIT=-1, which GAVO cuts after
+# about 120 seconds without an answer, and which timed out at IRSA, so a job
+# in a queue would fail the test. The parity tests compare results, not how
+# a client waits, so this reads the phase every 2 seconds, for up to 5
+# minutes, as long as the service may still move the job on.
+def wait(job):
+    deadline = time.monotonic() + 300
+
+    while job.phase in ("PENDING", "QUEUED", "EXECUTING", "SUSPENDED", "UNKNOWN"):
+        if time.monotonic() > deadline:
+            raise TimeoutError(f"the job is still {job.phase} after 300 seconds")
+        time.sleep(2)
 
 
 # A file is read as PyVO reads a service's answer: astropy parses the

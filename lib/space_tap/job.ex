@@ -105,9 +105,12 @@ defmodule SpaceTAP.Job do
   Creates a job that runs `adql` on the TAP service at `service_url`, and
   starts it.
 
-  `service_url` is the base URL of the service, as for `SpaceTAP.query/3`.
-  The query goes to its `/async` endpoint (TAP 1.1 §2.2), with the same
-  parameters as a sync query. The service answers with the URL of the job
+  `service_url` is the base URL of the service, as for `SpaceTAP.query/3`,
+  and the `https://` one when the service has it: the service answers the
+  query with a 303 to the new job, and any other redirect, such as one from
+  `http://` to `https://`, is an `:http_error`. The query goes to its
+  `/async` endpoint (TAP 1.1 §2.2), with the same parameters as a sync
+  query. The service answers with the URL of the job
   (UWS 1.1 §2.2.3.1), and if the job is still `:pending`, which is how most
   services leave a new job, `submit/3` starts it.
 
@@ -143,11 +146,23 @@ defmodule SpaceTAP.Job do
       HTTP.run(req_options, method: :post, url: url, form: form, redirect: false)
 
     case response do
-      {:ok, %Req.Response{status: status} = response} when status in 300..399 ->
+      {:ok, %Req.Response{status: 303} = response} ->
         case Req.Response.get_header(response, "location") do
           [location | _locations] -> run(URI.merge(url, location), opts[:format], req_options)
-          [] -> HTTP.error(:http_error, "no Location for the new job", status)
+          [] -> HTTP.error(:http_error, "no Location for the new job", 303)
         end
+
+      # Only a 303 points to a job. Another redirect is the web server's,
+      # such as one from http:// to https://, whose Location is the list of
+      # jobs: reading it as a job would fail, and deleting it would be a
+      # request to that list, where a POST creates a job.
+      {:ok, %Req.Response{status: status} = response} when status in 300..399 ->
+        location = response |> Req.Response.get_header("location") |> List.first()
+
+        message =
+          "expected a 303 to the new job (UWS 1.1 §2.2.3.1), got a redirect to #{location}"
+
+        HTTP.error(:http_error, message, status)
 
       response ->
         HTTP.classify(response, &read_job/1, fn _body, media_type, status ->

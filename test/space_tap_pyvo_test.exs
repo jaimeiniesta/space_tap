@@ -14,26 +14,37 @@ defmodule SpaceTAPPyvoTest do
 
   @gavo_url "https://dc.g-vo.org/tap"
 
-  test "matches PyVO for a Pleiades cone search on GAVO's copy of Gaia DR3" do
-    adql = """
-    SELECT TOP 5 source_id, ra, dec, parallax, phot_g_mean_mag
-    FROM gaia.dr3lite
-    WHERE CONTAINS(
-      POINT('ICRS', ra, dec),
-      CIRCLE('ICRS', 56.75, 24.12, 1.0)
-    ) = 1
-    AND parallax IS NOT NULL
-    AND phot_g_mean_mag IS NOT NULL
-    ORDER BY phot_g_mean_mag
-    """
-
-    Pyvo.assert_parity(@gavo_url, adql)
-  end
+  @pleiades """
+  SELECT TOP 5 source_id, ra, dec, parallax, phot_g_mean_mag
+  FROM gaia.dr3lite
+  WHERE CONTAINS(
+    POINT('ICRS', ra, dec),
+    CIRCLE('ICRS', 56.75, 24.12, 1.0)
+  ) = 1
+  AND parallax IS NOT NULL
+  AND phot_g_mean_mag IS NOT NULL
+  ORDER BY phot_g_mean_mag
+  """
 
   # ORDER BY makes both clients get the same rows.
-  test "matches PyVO when MAXREC limits rows on GAVO" do
-    adql = "SELECT TOP 10 source_id FROM gaia.dr3lite ORDER BY source_id"
+  @maxrec_query "SELECT TOP 10 source_id FROM gaia.dr3lite ORDER BY source_id"
 
-    Pyvo.assert_parity(@gavo_url, adql, maxrec: 3)
+  test "matches PyVO for a Pleiades cone search on GAVO's copy of Gaia DR3" do
+    Pyvo.assert_parity(@gavo_url, @pleiades)
+  end
+
+  test "matches PyVO when MAXREC limits rows on GAVO" do
+    Pyvo.assert_parity(@gavo_url, @maxrec_query, maxrec: 3)
+  end
+
+  # A job may wait in GAVO's queue for minutes.
+  @tag timeout: 600_000
+  test "matches PyVO for the Pleiades cone search as an async job" do
+    Pyvo.assert_parity(@gavo_url, @pleiades, async: true, timeout: 300_000)
+  end
+
+  @tag timeout: 600_000
+  test "matches PyVO when MAXREC limits the rows of an async job" do
+    Pyvo.assert_parity(@gavo_url, @maxrec_query, async: true, maxrec: 3, timeout: 300_000)
   end
 end

@@ -29,12 +29,33 @@ defmodule SpaceTAPServicesLiveTest do
     assert_answer(url, adql, [], expected)
   end
 
+  # A job may wait in a queue, and a :timeout deletes it before ExUnit gives
+  # up on the test.
+  @tag timeout: 600_000
+  test "answers the query as an async job as its fixture does",
+       %{url: url, result: {adql, _expected}} = service do
+    expected = Services.async_csv_result(service)
+    assert_answer(url, adql, [timeout: 300_000], expected, &SpaceTAP.async_query/3)
+  end
+
+  @tag timeout: 600_000
+  test "answers the query as an async job as its fixture does with VOTable",
+       %{url: url, result: {adql, expected}} do
+    assert_answer(
+      url,
+      adql,
+      [format: :votable, timeout: 300_000],
+      expected,
+      &SpaceTAP.async_query/3
+    )
+  end
+
   #####################
   # Private functions #
   #####################
 
-  defp assert_answer(url, adql, opts, expected) do
-    response = SpaceTAP.query(url, adql, [req_options: Services.req_options()] ++ opts)
+  defp assert_answer(url, adql, opts, expected, query \\ &SpaceTAP.query/3) do
+    response = query.(url, adql, [req_options: Services.req_options()] ++ opts)
 
     case expected do
       {:ok, columns, row_count} ->

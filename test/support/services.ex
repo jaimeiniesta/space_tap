@@ -4,7 +4,8 @@ defmodule SpaceTAP.Test.Services do
   # The services in the README's Compatibility table, with the queries of
   # their fixtures as {adql, expected} pairs. A result expects these columns
   # and this many rows, with VOTable and with CSV, unless
-  # `csv_result` says what CSV gives instead; an error expects its type,
+  # `csv_result` says what CSV gives instead, or `async_csv_result` what it
+  # gives for an async job; an error expects its type,
   # status and a part of its message that the service is unlikely to reword.
   # The services tests and the parity tests both read them, so a service that
   # changes how it answers is updated here and in its fixtures.
@@ -28,6 +29,7 @@ defmodule SpaceTAP.Test.Services do
           required(:url) => String.t(),
           required(:result) => {String.t(), expected()},
           optional(:csv_result) => expected(),
+          optional(:async_csv_result) => expected(),
           required(:syntax_error) => {String.t(), expected()}
         }
 
@@ -77,7 +79,12 @@ defmodule SpaceTAP.Test.Services do
       syntax_error:
         {"SELEC TOP 3 table_name FROM TAP_SCHEMA.tables",
          {:error, :service_error, 200,
-          "UsageFault: BAD_REQUEST: Invalid or unsupported ADQL query string."}}
+          "UsageFault: BAD_REQUEST: Invalid or unsupported ADQL query string."}},
+      # The result of an async job asked for as CSV is CSV labelled
+      # application/x-votable+xml, which isn't read (ADR 0006), where the sync
+      # query labels it text/csv. Checked on 2026-11-17.
+      async_csv_result:
+        {:error, :decode_error, 200, "expected text/csv, got application/x-votable+xml"}
     },
     %{
       service: "NED",
@@ -172,10 +179,12 @@ defmodule SpaceTAP.Test.Services do
       result:
         {"SELECT TOP 3 table_name FROM TAP_SCHEMA.tables ORDER BY table_name",
          {:ok, ["table_name"], 3}},
-      # MAST sends VOTable when CSV is requested (ADR 0006).
+      # MAST sends VOTable when CSV is requested (ADR 0006), but CSV as the
+      # result of an async job. Checked on 2026-11-17.
       csv_result:
         {:error, :decode_error, 200,
          "expected text/csv, got text/xml: the response is a VOTable, pass format: :votable to read it"},
+      async_csv_result: {:ok, ["table_name"], 3},
       syntax_error:
         {"SELEC TOP 3 table_name FROM TAP_SCHEMA.tables",
          {:error, :service_error, 400, ~s(Exception translating ADQL:  Encountered "SELEC".)}}
@@ -189,6 +198,11 @@ defmodule SpaceTAP.Test.Services do
   @spec csv_result(t()) :: expected()
   def csv_result(%{result: {_adql, expected}} = service),
     do: Map.get(service, :csv_result, expected)
+
+  # What it gives when CSV is requested for an async job, the same as for a
+  # sync query unless `async_csv_result` says otherwise.
+  @spec async_csv_result(t()) :: expected()
+  def async_csv_result(service), do: Map.get(service, :async_csv_result, csv_result(service))
 
   # IRSA and NED can take longer than Req's default of 15 seconds.
   @spec req_options() :: keyword()

@@ -40,24 +40,28 @@ defmodule SpaceTAP.Test.Pyvo do
     end
   end
 
-  # Besides `:csv`, `opts` go to SpaceTAP.query/3; PyVO gets `:maxrec` only.
+  # Besides `:csv` and `:async`, `opts` go to SpaceTAP.query/3, or to
+  # SpaceTAP.async_query/3 with `async: true`, which runs the query as a job
+  # in both clients; PyVO gets `:maxrec` only.
   @spec assert_parity(String.t(), String.t(), keyword()) :: true
   def assert_parity(service_url, adql, opts \\ []) do
     {csv?, opts} = Keyword.pop(opts, :csv, true)
+    {async?, opts} = Keyword.pop(opts, :async, false)
+    query = if async?, do: &SpaceTAP.async_query/3, else: &SpaceTAP.query/3
+    mode = if async?, do: ["--async"], else: []
 
     assert %{"columns" => pyvo_columns, "rows" => pyvo_rows, "overflow" => pyvo_overflow} =
-             query(service_url, adql, opts)
+             run(mode ++ [service_url, adql] ++ maxrec_arg(opts))
 
     if csv? do
-      assert {:ok, %Result{columns: columns, rows: rows}} =
-               SpaceTAP.query(service_url, adql, opts)
+      assert {:ok, %Result{columns: columns, rows: rows}} = query.(service_url, adql, opts)
 
       assert columns == pyvo_columns
       assert length(rows) == length(pyvo_rows)
     end
 
     assert {:ok, %Result{columns: columns, rows: rows, overflow: overflow}} =
-             SpaceTAP.query(service_url, adql, Keyword.put(opts, :format, :votable))
+             query.(service_url, adql, Keyword.put(opts, :format, :votable))
 
     assert columns == pyvo_columns
     assert overflow == pyvo_overflow
@@ -119,8 +123,6 @@ defmodule SpaceTAP.Test.Pyvo do
   #####################
   # Private functions #
   #####################
-
-  defp query(service_url, adql, opts), do: run([service_url, adql] ++ maxrec_arg(opts))
 
   defp run(args) do
     uv = System.find_executable("uv") || flunk("`uv` is required to run the PyVO parity tests")

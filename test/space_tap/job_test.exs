@@ -162,6 +162,23 @@ defmodule SpaceTAP.JobTest do
                 %Error{type: :decode_error, message: "the job document has no phase", status: 200}}
     end
 
+    test "takes only a 303 for the new job, not a redirect from http:// to https://" do
+      # Its Location is the list of jobs, where a POST to delete would create one.
+      for status <- [301, 302, 307, 308] do
+        expect_request("POST", "/tap/async", &redirect(&1, status, @service_url <> "/async"))
+
+        assert submit() ==
+                 {:error,
+                  %Error{
+                    type: :http_error,
+                    message:
+                      "expected a 303 to the new job (UWS 1.1 §2.2.3.1), got a redirect to " <>
+                        "https://tap.example.org/tap/async",
+                    status: status
+                  }}
+      end
+    end
+
     test "creates nothing to delete when the service doesn't answer with the job's URL" do
       expect_request("POST", "/tap/async", &respond(&1, 200, "text/xml", "<job/>"))
 

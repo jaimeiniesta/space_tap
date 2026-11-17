@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `SpaceTAP.Job`, the first steps of async queries, which a TAP service runs as jobs (TAP 1.1 §2.2): `submit/3` creates a job and starts it, `get/2` reads a job from its URL, and `delete/2` deletes it. A `SpaceTAP.Job` holds the URL of the job, its phase, the format of its result, the message the service gives when it fails, and the URL of its result.
+- `SpaceTAP.Job`, the first steps of async queries, which a TAP service runs as jobs (TAP 1.1 §2.2): `submit/3` creates a job and starts it, `wait/2` waits for it to stop, `get/2` reads a job from its URL, and `delete/2` deletes it. A `SpaceTAP.Job` holds the URL of the job, its phase, the format of its result, the message the service gives when it fails, and the URL of its result.
+- `wait/2` asks the service to answer when the phase of the job changes, with the `WAIT` parameter of UWS 1.1, and pauses between requests to a service that answers at once instead. Its `:timeout` option, `:infinity` by default, gives a new error type, `:timeout`, when it runs out.
 
 ## [0.2.1] - 2026-11-16
 

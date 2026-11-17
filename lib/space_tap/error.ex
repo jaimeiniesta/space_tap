@@ -22,6 +22,9 @@ defmodule SpaceTAP.Error do
     * `:decode_error` - a successful response that can't be read as a
       result, such as malformed CSV, a VOTable SpaceTAP can't read, or a
       format other than the one requested, or as a job document.
+    * `:timeout` - the job hadn't stopped when the `:timeout` given to
+      `SpaceTAP.Job.wait/2` ran out. The job stays on the service, and
+      `:status` is `nil`.
 
   Later versions may add types, so when you match on `:type`, keep a
   clause for the rest.
@@ -37,7 +40,7 @@ defmodule SpaceTAP.Error do
   defexception [:type, :message, :status]
 
   @typedoc "What went wrong. See the module documentation for each type."
-  @type type :: :service_error | :http_error | :transport_error | :decode_error
+  @type type :: :service_error | :http_error | :transport_error | :decode_error | :timeout
 
   @typedoc "An error from `SpaceTAP.query/3` or `SpaceTAP.Job`, with the HTTP status when a response arrived."
   @type t :: %__MODULE__{

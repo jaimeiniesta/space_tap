@@ -71,7 +71,30 @@ defmodule SpaceTAP.JobTest do
       assert_received {:request, "POST", "/tap/async/42/phase", %{"PHASE" => "RUN"}}
     end
 
-    test "leaves alone a job the service has started, as the Gaia archive does" do
+    test "reads the job at its URL once started, wherever the service redirects" do
+      # The Gaia archive redirects to <job>/phase, which is text/plain.
+      expect_request("POST", "/tap/async", &redirect(&1, 303, @job_url))
+      expect_request("GET", "/tap/async/42", &job_document(&1, "gavo", "pending.xml"))
+      expect_request("POST", "/tap/async/42/phase", &redirect(&1, 303, @job_url <> "/phase"))
+      expect_request("GET", "/tap/async/42", &job_document(&1, "gaia", "executing.xml"))
+
+      assert {:ok, %Job{url: @job_url, phase: :executing}} = submit()
+    end
+
+    test "returns the error a service gives when it won't start the job" do
+      expect_request("POST", "/tap/async", &redirect(&1, 303, @job_url))
+      expect_request("GET", "/tap/async/42", &job_document(&1, "gavo", "pending.xml"))
+
+      expect_request(
+        "POST",
+        "/tap/async/42/phase",
+        &respond(&1, 403, "text/xml", fixture("gaia", "syntax_error.xml"))
+      )
+
+      assert {:error, %Error{type: :service_error, status: 403}} = submit()
+    end
+
+    test "leaves alone a job that is no longer PENDING" do
       expect_request("POST", "/tap/async", &redirect(&1, 303, @job_url))
       expect_request("GET", "/tap/async/42", &job_document(&1, "gaia", "executing.xml"))
 
@@ -220,6 +243,109 @@ defmodule SpaceTAP.JobTest do
     end
   end
 
+  describe "wait/2" do
+    test "asks the service to answer when the phase changes, until the job stops" do
+      expect_request("GET", "/tap/async/42", &phase_document(&1, "EXECUTING"))
+      expect_request("GET", "/tap/async/42", &phase_document(&1, "COMPLETED"))
+
+      assert wait(job(:queued)) ==
+               {:ok,
+                %Job{
+                  url: @job_url,
+                  phase: :completed,
+                  format: :votable,
+                  error_summary: nil,
+                  result_url: @job_url <> "/results/result"
+                }}
+
+      # UWS 1.1 §2.2.1.2: WAIT is the most seconds the service may block.
+      assert_received {:request, "GET", "/tap/async/42", %{"WAIT" => "30"}}
+      assert_received {:request, "GET", "/tap/async/42", %{"WAIT" => "30"}}
+    end
+
+    test "keeps asking while the service may move the job on, as it does a suspended or unknown one" do
+      for phase <- ["SUSPENDED", "UNKNOWN", "EXECUTING", "COMPLETED"] do
+        expect_request("GET", "/tap/async/42", &phase_document(&1, phase))
+      end
+
+      assert {:ok, %Job{phase: :completed}} = wait(job(:queued))
+    end
+
+    test "stops at a phase the job won't leave without the client (UWS 1.1 §2.1.3)" do
+      for {name, phase} <- [
+            {"COMPLETED", :completed},
+            {"ERROR", :error},
+            {"ABORTED", :aborted},
+            {"ARCHIVED", :archived},
+            {"PENDING", :pending},
+            {"HELD", :held}
+          ] do
+        expect_request("GET", "/tap/async/42", &phase_document(&1, name))
+        assert {:ok, %Job{phase: ^phase}} = wait(job(:executing))
+      end
+    end
+
+    test "reads a job that has stopped once, without WAIT, which GAVO would block a PENDING job for" do
+      expect_request("GET", "/tap/async/42", &job_document(&1, "gavo", "pending.xml"))
+
+      assert {:ok, %Job{phase: :pending}} = wait(job(:pending))
+      assert_received {:request, "GET", "/tap/async/42", params}
+      refute Map.has_key?(params, "WAIT")
+    end
+
+    test "reads the error summary of a job that stops in ERROR" do
+      expect_request("GET", "/tap/async/42", &job_document(&1, "gaia", "error.xml"))
+
+      assert {:ok, %Job{phase: :error, error_summary: "Cannot parse query" <> _rest}} =
+               wait(job(:executing))
+    end
+
+    test "pauses before asking again a service that answers before the WAIT, as the Gaia archive does" do
+      stub_requests(&job_document(&1, "gaia", "executing.xml"))
+
+      started = System.monotonic_time(:millisecond)
+      assert {:error, %Error{type: :timeout}} = wait(job(:executing), timeout: 1_200)
+      elapsed = System.monotonic_time(:millisecond) - started
+
+      # Without a pause, it would ask hundreds of times. It asks with the
+      # seconds left, then pauses a second, asks again and pauses no longer
+      # than the time left.
+      assert_received {:request, "GET", "/tap/async/42", %{"WAIT" => "1"}}
+      assert_received {:request, "GET", "/tap/async/42", %{"WAIT" => "0"}}
+      refute_received {:request, _method, _path, _params}
+      assert elapsed in 1_200..1_700
+    end
+
+    test "returns a :timeout error, without asking, once the time has run out" do
+      assert wait(job(:executing), timeout: 0) ==
+               {:error,
+                %Error{
+                  type: :timeout,
+                  message: "the job is still EXECUTING after 0 ms",
+                  status: nil
+                }}
+    end
+
+    test "returns the error a request gives" do
+      # Req tries a GET again after a transport error or a 5xx, so a 403.
+      expect_request("GET", "/tap/async/42", &respond(&1, 403, "text/html", ""))
+
+      assert {:error, %Error{type: :http_error, status: 403}} = wait(job(:executing))
+    end
+
+    test "raises on an option it doesn't know or can't use" do
+      assert_raise ArgumentError, ~r/unknown keys \[:format\]/, fn ->
+        wait(job(:executing), format: :csv)
+      end
+
+      for timeout <- [-1, 1.5, "1000"] do
+        assert_raise ArgumentError, ~r/:timeout to be a non-negative integer or :infinity/, fn ->
+          wait(job(:executing), timeout: timeout)
+        end
+      end
+    end
+  end
+
   describe "delete/2" do
     test "sends DELETE, without following the 303 to the list of jobs" do
       expect_request("DELETE", "/tap/async/42", &redirect(&1, 303, @service_url <> "/async"))
@@ -274,18 +400,44 @@ defmodule SpaceTAP.JobTest do
   end
 
   # Stands in for the next request the TAP service gets: checks its method
-  # and path, sends it to the test process with the form parameters decoded,
-  # and answers with respond.
+  # and path, sends it to the test process with the parameters of its URL
+  # and form decoded, and answers with respond.
   defp expect_request(method, path, respond) do
     test = self()
 
     Req.Test.expect(SpaceTAP.Job, fn conn ->
       assert {conn.method, conn.request_path} == {method, path}
-      {:ok, form, conn} = Plug.Conn.read_body(conn)
-      send(test, {:request, method, path, URI.decode_query(form)})
-      respond.(conn)
+      send_request(test, conn, respond)
     end)
   end
+
+  # The same for every request the service gets, however many.
+  defp stub_requests(respond) do
+    test = self()
+    Req.Test.stub(SpaceTAP.Job, &send_request(test, &1, respond))
+  end
+
+  defp send_request(test, conn, respond) do
+    {:ok, form, conn} = Plug.Conn.read_body(conn)
+    params = Map.merge(URI.decode_query(conn.query_string), URI.decode_query(form))
+    send(test, {:request, conn.method, conn.request_path, params})
+    respond.(conn)
+  end
+
+  defp phase_document(conn, phase) do
+    results =
+      if phase == "COMPLETED",
+        do: ~s(<results><result id="result" href="42/results/result"/></results>),
+        else: ""
+
+    respond(conn, 200, "text/xml", "<job><phase>#{phase}</phase>#{results}</job>")
+  end
+
+  defp wait(job, opts \\ []) do
+    Job.wait(job, Keyword.put_new(opts, :req_options, @req_options))
+  end
+
+  defp job(phase), do: %Job{url: @job_url, phase: phase, format: :votable}
 
   defp respond(conn, status, content_type, body) do
     conn

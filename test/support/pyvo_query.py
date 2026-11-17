@@ -14,6 +14,10 @@
 # or VOTable files, as an object with what it reads from each path:
 #
 #     uv run pyvo_query.py --files PATH...
+#
+# or the job documents of async jobs, the same way:
+#
+#     uv run pyvo_query.py --jobs PATH...
 
 import json
 import math
@@ -23,6 +27,7 @@ import warnings
 import pyvo
 from astropy.io import votable
 from pyvo.dal.exceptions import DALOverflowWarning
+from pyvo.io import uws
 
 
 def main():
@@ -34,6 +39,10 @@ def main():
     if sys.argv[1] == "--files":
         files = {path: read_file(path) for path in sys.argv[2:]}
         print(json.dumps(files, allow_nan=False))
+        return 0
+
+    if sys.argv[1] == "--jobs":
+        print(json.dumps({path: read_job(path) for path in sys.argv[2:]}))
         return 0
 
     service_url = sys.argv[1]
@@ -58,6 +67,32 @@ def read_file(path):
         return to_json(pyvo.dal.TAPResults(votable.parse(path)))
     except Exception as error:
         return {"error": f"{type(error).__name__}: {error}"}
+
+
+# A job document is read with the parser PyVO reads it with when it waits
+# for a job, and gives what SpaceTAP reads from it: the phase, the message of
+# the error summary and the href of the result named result, which is the
+# one PyVO fetches when no href ends in results/result. Messages are trimmed,
+# as SpaceTAP trims them. The parser warns about elements it doesn't know,
+# such as the executionduration KOA spells in lower case, on stderr, which
+# would show up in every test run.
+def read_job(path):
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            job = uws.parse_job(path)
+    except Exception as error:
+        return {"error": f"{type(error).__name__}: {error}"}
+
+    summary = job.errorsummary
+    message = summary.message.content if summary and summary.message else None
+    hrefs = [result.href for result in job.results if result.id_ == "result"]
+
+    return {
+        "phase": job.phase,
+        "error_summary": message.strip() if message else None,
+        "results": hrefs,
+    }
 
 
 def to_json(result):

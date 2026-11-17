@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<uws:job xmlns:xml="http://www.w3.org/XML/1998/namespace" xmlns:uws="http://www.ivoa.net/xml/UWS/v1.0" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/UWS/v1.0 http://vo.ari.uni-heidelberg.de/docs/schemata/uws-1.0.xsd http://www.w3.org/1999/xlink http://vo.ari.uni-heidelberg.de/docs/schemata/xlink.xsd">
+  <uws:jobId>28432329</uws:jobId>
+  <uws:runId xsi:nil="true"/>
+  <uws:ownerId xsi:nil="true"/>
+  <uws:phase>ERROR</uws:phase>
+  <uws:quote xsi:nil="true"/>
+  <uws:startTime>2026-11-16T19:02:16Z</uws:startTime>
+  <uws:endTime>2026-11-16T19:02:16Z</uws:endTime>
+  <uws:executionDuration>259200</uws:executionDuration>
+  <uws:destruction xsi:nil="true"/>
+  <uws:parameters>
+    <uws:parameter id="format">votable</uws:parameter>
+    <uws:parameter id="lang">ADQL</uws:parameter>
+    <uws:parameter id="oracle_session_timeout">259200</uws:parameter>
+    <uws:parameter id="query">SELECT TOP 1 nosuchcolumn FROM TAP_SCHEMA.tables</uws:parameter>
+    <uws:parameter id="query_identifier">a3/e5/4f8b55670f5939007ad01e0486fe</uws:parameter>
+    <uws:parameter id="request">doQuery</uws:parameter>
+    <uws:parameter id="staging_directory">/work/TAP/32/62/c6de820e3b89dcc7e501d57a71c5</uws:parameter>
+    <uws:parameter id="webdav_directory">/work/pubspace/a3/e5/4f8b55670f5939007ad01e0486fe</uws:parameter>
+  </uws:parameters>
+  <uws:errorSummary type="fatal" hasDetail="false">
+    <uws:message>ORA-00904: &quot;NOSUCHCOLUMN&quot;: invalid identifier
+</uws:message>
+  </uws:errorSummary>
+</uws:job>

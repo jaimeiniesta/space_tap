@@ -23,3 +23,29 @@ recommends CSV, so SpaceTAP returns a `:decode_error` until it reads VOTable.
 Its error document is a VOTable too, which SpaceTAP reads as a `:service_error`.
 
 Asked again on 2026-11-10 with `FORMAT=votable`, MAST sent `tables.xml` byte for byte.
+
+## Job documents
+
+The files in `jobs/` are job documents: what MAST returned for the URL
+of an async job (TAP 1.1 §2.2, UWS 1.1 §2.2.1.1). They were captured on
+2026-11-16 with:
+
+```bash
+curl -sS -D - -o /dev/null https://mast.stsci.edu/vo-tap/api/v0.1/caom/async \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "PHASE=RUN" \
+  --data-urlencode "QUERY=<query>"
+curl -sS -o <file> <job URL>
+```
+
+The first request answers HTTP 303, with the URL of the job in `Location`, and
+the second, repeated until the job ended, reads the job with HTTP 200.
+
+| File | Query | Phase | Content-Type |
+|---|---|---|---|
+| `jobs/completed.xml` | `SELECT TOP 3 table_name FROM TAP_SCHEMA.tables ORDER BY table_name` | COMPLETED | `text/xml; charset=utf-8` |
+| `jobs/error.xml` | `SELECT TOP 1 nosuchcolumn FROM TAP_SCHEMA.tables` | ERROR | `text/xml; charset=utf-8` |
+
+The job ran inside the request that created it, so it had ended by the
+first GET. The documents have no XML declaration, and the job in ERROR lists a
+result too.

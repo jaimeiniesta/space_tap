@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<uws:job version="1.0"  xmlns:uws="http://www.ivoa.net/xml/UWS/v1.0" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:esatapplus="http://esa.int/xml/EsaTapPlus" xsi:schemaLocation="http://www.ivoa.net/xml/UWS/v1.0 http://www.ivoa.net/xml/UWS/v1.0 http://esa.int/xml/EsaTapPlus https://gea.esac.esa.int/tap-server/xml/esaTapPlusAttributes.xsd">
+<uws:jobId><![CDATA[feb1b6de-e1ef-11f1-87a2-bc97e148b76b-O]]></uws:jobId>
+<uws:runId/>
+<uws:ownerId><![CDATA[anonymous]]></uws:ownerId>
+<uws:phase>COMPLETED</uws:phase>
+<uws:quote xsi:nil="true"/>
+<uws:creationTime>2026-11-16T19:00:31.168Z</uws:creationTime>
+<uws:startTime>2026-11-16T19:00:36.191Z</uws:startTime>
+<uws:endTime>2026-11-16T19:00:49.327Z</uws:endTime>
+<uws:executionDuration>60</uws:executionDuration>
+<uws:destruction>2026-11-18T07:00:31.168Z</uws:destruction>
+<uws:parameters>
+<uws:parameter id="complete_request_url"><![CDATA[https://gea.esac.esa.int/tap-server/tap/async]]></uws:parameter>
+<uws:parameter id="ip"><![CDATA[192.0.2.1]]></uws:parameter>
+<uws:parameter id="lang"><![CDATA[ADQL]]></uws:parameter>
+<uws:parameter id="lib_sl_version"><![CDATA[11.4.0]]></uws:parameter>
+<uws:parameter id="lib_tap_version"><![CDATA[11.4.0]]></uws:parameter>
+<uws:parameter id="lib_uws_version"><![CDATA[11.4.0]]></uws:parameter>
+<uws:parameter id="number_files"><![CDATA[1]]></uws:parameter>
+<uws:parameter id="param_info:citation"><![CDATA[https://www.cosmos.esa.int/web/gaia-users]]></uws:parameter>
+<uws:parameter id="param_info:release"><![CDATA[Gaia DR3]]></uws:parameter>
+<uws:parameter id="phase"><![CDATA[RUN]]></uws:parameter>
+<uws:parameter id="query"><![CDATA[SELECT TOP 5 source_id, designation, ra, dec, parallax, phot_g_mean_mag FROM gaiadr3.gaia_source WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1 AND parallax IS NOT NULL AND phot_g_mean_mag IS NOT NULL ORDER BY phot_g_mean_mag]]></uws:parameter>
+<uws:parameter id="query_sql_translated"><![CDATA[SELECT gaiadr3.gaia_source."source_id" AS "source_id" , gaiadr3.gaia_source."designation" AS "designation" , gaiadr3.gaia_source."ra" AS "ra" , gaiadr3.gaia_source."dec" AS "dec" , gaiadr3.gaia_source."parallax" AS "parallax" , gaiadr3.gaia_source."phot_g_mean_mag" AS "phot_g_mean_mag"
+FROM gaiadr3.gaia_source
+WHERE (q3c_join(56.75,24.12,gaiadr3.gaia_source."ra",gaiadr3.gaia_source."dec",1.0)) = '1' AND gaiadr3.gaia_source."parallax" IS NOT NULL AND gaiadr3.gaia_source."phot_g_mean_mag" IS NOT NULL
+ORDER BY gaiadr3.gaia_source."phot_g_mean_mag" ASC
+Limit 5]]></uws:parameter>
+<uws:parameter id="request"><![CDATA[doQuery]]></uws:parameter>
+<uws:parameter id="responseformat"><![CDATA[votable]]></uws:parameter>
+<uws:parameter id="retrieval_type"><![CDATA[ASYNC_JOB]]></uws:parameter>
+<uws:parameter id="user_agent"><![CDATA[space_tap-async-probe]]></uws:parameter>
+</uws:parameters>
+<uws:results>
+<uws:result id="result" xlink:type="simple" xlink:href="https://gea.esac.esa.int/tap-server/tap/async/feb1b6de-e1ef-11f1-87a2-bc97e148b76b-O/results/result" size="1795" />
+</uws:results>
+</uws:job>

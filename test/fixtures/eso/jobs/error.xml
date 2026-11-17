@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<job version="1.1" xmlns="http://www.ivoa.net/xml/UWS/v1.0" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/UWS/v1.0 http://www.ivoa.net/xml/UWS/v1.0 http://www.w3.org/1999/xlink http://www.w3.org/1999/xlink.xsd http://www.w3.org/2001/XMLSchema http://www.w3.org/2001/XMLSchema.xsd">
+	<jobId>e7e6a910-b7b7-4024-b27b-16603819c0fb</jobId>
+	<ownerId>anonymous</ownerId>
+	<phase>ERROR</phase>
+	<quote xsi:nil="true" />
+	<creationTime>2026-11-16T19:01:03Z</creationTime>
+	<startTime>2026-11-16T19:01:17Z</startTime>
+	<endTime>2026-11-16T19:01:17Z</endTime>
+	<executionDuration>60</executionDuration>
+	<destruction>2026-11-17T19:01:03Z</destruction>
+	<parameters>
+		<parameter id="QUERY">SELECT TOP 1 nosuchcolumn FROM TAP_SCHEMA.tables</parameter>
+		<parameter id="RESPONSEFORMAT">VOTABLE</parameter>
+		<parameter id="LANG">ADQL</parameter>
+		<parameter id="MAXREC">20000</parameter>
+	</parameters>
+	<results>
+	</results>
+	<errorSummary type="fatal" hasDetail="true">
+		<message>adql.db.exception.UnresolvedIdentifiersException: 1 unresolved identifiers: nosuchcolumn [l.1 c.14 - l.1 c.26]!
+  - Unknown column "nosuchcolumn" !</message>
+	</errorSummary>
+</job>

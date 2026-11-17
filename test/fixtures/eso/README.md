@@ -26,3 +26,35 @@ The VOTable result was captured on 2026-11-10 with the same request and `FORMAT=
 | `obscore.xml` | `SELECT TOP 5 obs_id, target_name, s_ra, s_dec, instrument_name, dataproduct_type, em_min FROM ivoa.ObsCore WHERE CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', 56.75, 24.12, 0.5)) = 1` | 200 | `application/x-votable+xml` |
 
 Its rows are TABLEDATA.
+
+## Job documents
+
+The files in `jobs/` are job documents: what ESO returned for the URL
+of an async job (TAP 1.1 §2.2, UWS 1.1 §2.2.1.1). They were captured on
+2026-11-16 with:
+
+```bash
+curl -sS -D - -o /dev/null https://archive.eso.org/tap_obs/async \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "PHASE=RUN" \
+  --data-urlencode "QUERY=<query>"
+curl -sS -o <file> <job URL>
+```
+
+The first request answers HTTP 303, with the URL of the job in `Location`, and
+the second, repeated until the job ended, reads the job with HTTP 200.
+
+ESO ignores the `PHASE=RUN` of the first request and leaves the job PENDING,
+so a third request started it, between the two:
+
+```bash
+curl -sS -X POST <job URL>/phase --data-urlencode "PHASE=RUN"
+```
+
+| File | Query | Phase | Content-Type |
+|---|---|---|---|
+| `jobs/completed.xml` | `SELECT TOP 5 obs_id, target_name, s_ra, s_dec, instrument_name, dataproduct_type, em_min FROM ivoa.ObsCore WHERE CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', 56.75, 24.12, 0.5)) = 1 ORDER BY obs_publisher_did` | COMPLETED | `text/xml;charset=UTF-8` |
+| `jobs/error.xml` | `SELECT TOP 1 nosuchcolumn FROM TAP_SCHEMA.tables` | ERROR | `text/xml;charset=UTF-8` |
+
+The documents use a default namespace instead of the `uws` prefix, and list
+the format asked for as `RESPONSEFORMAT`, with the value `VOTABLE`.

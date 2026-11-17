@@ -55,3 +55,32 @@ The VOTable result was captured on 2026-11-10 with the same request and `FORMAT=
 | `pleiades.xml` | `SELECT TOP 5 source_id, designation, ra, dec, parallax, phot_g_mean_mag FROM gaiadr3.gaia_source WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1 AND parallax IS NOT NULL AND phot_g_mean_mag IS NOT NULL ORDER BY phot_g_mean_mag` | 200 | `application/x-votable+xml` |
 
 Its rows are BINARY2. Besides the table, its results `RESOURCE` holds `PARAM`s, each with a `DESCRIPTION`, and a nested `RESOURCE`, and a `RESOURCE` of type `meta` with DataLink service descriptors follows it.
+
+## Job documents
+
+The files in `jobs/` are job documents: what the Gaia archive returned for the URL
+of an async job (TAP 1.1 §2.2, UWS 1.1 §2.2.1.1). They were captured on
+2026-11-16 with:
+
+```bash
+curl -sS -D - -o /dev/null https://gea.esac.esa.int/tap-server/tap/async \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "PHASE=RUN" \
+  --data-urlencode "QUERY=<query>"
+curl -sS -o <file> <job URL>
+```
+
+The first request answers HTTP 303, with the URL of the job in `Location`, and
+the second, repeated until the job ended, reads the job with HTTP 200.
+
+| File | Query | Phase | Content-Type |
+|---|---|---|---|
+| `jobs/completed.xml` | `SELECT TOP 5 source_id, designation, ra, dec, parallax, phot_g_mean_mag FROM gaiadr3.gaia_source WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1 AND parallax IS NOT NULL AND phot_g_mean_mag IS NOT NULL ORDER BY phot_g_mean_mag` | COMPLETED | `text/xml;charset=UTF-8` |
+| `jobs/error.xml` | `SELECT TOP 1 nosuchcolumn FROM TAP_SCHEMA.tables` | ERROR | `text/xml;charset=UTF-8` |
+| `jobs/executing.xml` | the same as `completed.xml`, at the first GET | EXECUTING | `text/xml;charset=UTF-8` |
+
+`executing.xml` is the job of `completed.xml` while it ran. The documents
+say `version="1.0"` and write values in CDATA sections. They also repeat the IP
+address and the User-Agent of the client that created the job. The IP address
+is the one change made to a captured file: it was replaced with `192.0.2.1`, an
+address reserved for documentation (RFC 5737).

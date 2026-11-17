@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<job version="1.1" xmlns="http://www.ivoa.net/xml/UWS/v1.0" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/UWS/v1.0 http://www.ivoa.net/xml/UWS/v1.0 http://www.w3.org/1999/xlink http://www.w3.org/1999/xlink.xsd http://www.w3.org/2001/XMLSchema http://www.w3.org/2001/XMLSchema.xsd">
+	<jobId>1af8314d-376b-4efc-96cc-664f9089d8cb</jobId>
+	<ownerId>anonymous</ownerId>
+	<phase>COMPLETED</phase>
+	<quote xsi:nil="true" />
+	<creationTime>2026-11-16T19:00:30Z</creationTime>
+	<startTime>2026-11-16T19:00:44Z</startTime>
+	<endTime>2026-11-16T19:01:01Z</endTime>
+	<executionDuration>60</executionDuration>
+	<destruction>2026-11-17T19:00:30Z</destruction>
+	<parameters>
+		<parameter id="QUERY">SELECT TOP 5 obs_id, target_name, s_ra, s_dec, instrument_name, dataproduct_type, em_min FROM ivoa.ObsCore WHERE CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', 56.75, 24.12, 0.5)) = 1 ORDER BY obs_publisher_did</parameter>
+		<parameter id="RESPONSEFORMAT">VOTABLE</parameter>
+		<parameter id="LANG">ADQL</parameter>
+		<parameter id="MAXREC">20000</parameter>
+	</parameters>
+	<results>
+		<result id="result" xlink:type="simple" xlink:href="https://archive.eso.org/tap_obs/async/1af8314d-376b-4efc-96cc-664f9089d8cb/results/result" mime-type="application/x-votable+xml" size="3963" />
+	</results>
+</job>

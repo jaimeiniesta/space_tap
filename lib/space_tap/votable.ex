@@ -33,6 +33,7 @@ defmodule SpaceTAP.VOTable do
   alias SpaceTAP.Field
   alias SpaceTAP.VOTable.Binary
   alias SpaceTAP.VOTable.Value
+  alias SpaceTAP.XML
 
   @type table :: %{fields: [Field.t()], rows: [[term()]], overflow: boolean()}
 
@@ -67,28 +68,12 @@ defmodule SpaceTAP.VOTable do
       stream: nil
     }
 
-    case Saxy.parse_string(xml, __MODULE__, document, expand_entity: {__MODULE__, :entity, []}) do
-      {:ok, document} -> decode(document)
-      {:error, exception} -> {:error, "invalid XML: " <> Exception.message(exception)}
-    end
-  catch
-    {:entity, name} -> {:error, "invalid XML: &#{name}; is not a predefined entity"}
+    with {:ok, document} <- XML.parse(xml, __MODULE__, document), do: decode(document)
   end
-
-  # Saxy decodes the five predefined entities (&amp;, &lt;...) and character
-  # references itself, skips the DTD, and calls this function for any other
-  # entity reference. A non-validating parser has to expand the entities the
-  # DTD declares (XML 1.0 §5.1), and one the DTD doesn't declare is an error
-  # (§4.1), so keeping the reference as text would turn "&author;" into the
-  # value of a cell. SpaceTAP expands none, so a document can't make a small
-  # response grow into a huge one or read a file the DTD points to.
-  @doc false
-  @spec entity(String.t()) :: no_return()
-  def entity(name), do: throw({:entity, name})
 
   @impl Saxy.Handler
   def handle_event(:start_element, {name, attributes}, %{stack: stack} = document) do
-    role = role(parent(stack), local_name(name), attributes)
+    role = role(parent(stack), XML.local_name(name), attributes)
     document = %{document | stack: [role | stack]}
     {:ok, start(role, attributes, document)}
   end
@@ -147,19 +132,6 @@ defmodule SpaceTAP.VOTable do
     do: :stream
 
   defp role(_parent, _name, _attributes), do: :other
-
-  # What follows the first colon, found without compiling a pattern for each
-  # element, as :binary.split/2 would.
-  defp local_name(name) do
-    case prefix_size(name, 0) do
-      nil -> name
-      size -> binary_part(name, size + 1, byte_size(name) - size - 1)
-    end
-  end
-
-  defp prefix_size(<<?:, _rest::binary>>, size), do: size
-  defp prefix_size(<<_char, rest::binary>>, size), do: prefix_size(rest, size + 1)
-  defp prefix_size(<<>>, _size), do: nil
 
   # Most elements, such as a TD, have no attributes.
   defp attribute([], _name), do: nil

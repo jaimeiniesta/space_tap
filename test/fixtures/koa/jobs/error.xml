@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<uws:job xmlns:uws="http://www.ivoa.net/xml/UWS/v1.0" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema" xsi:schemaLocation="http://www.ivoa.net/xml/UWS/v1.0 http://www.ivoa.net/xml/UWS/v1.0">
+    <uws:jobId>tap_7jlqo7vg</uws:jobId>
+    <uws:runId>25163</uws:runId>
+    <uws:ownerId xsi:nil="true"/>
+    <uws:phase>ERROR</uws:phase>
+    <uws:quote xsi:nil="true"/>
+    <uws:startTime>2026-11-16T11:01:46.71</uws:startTime>
+    <uws:endTime>2026-11-16T11:01:48.81</uws:endTime>
+    <uws:executionduration>3</uws:executionduration>
+    <uws:destruction>2026-11-20T11:01:46.71Z</uws:destruction>
+    <uws:parameters>
+        <uws:parameter id="format">votable</uws:parameter>
+        <uws:parameter id="lang">ADQL</uws:parameter>
+        <uws:parameter id="maxrec">-1</uws:parameter>
+        <uws:parameter id="query">SELECT TOP 1 nosuchcolumn FROM TAP_SCHEMA.tables        </uws:parameter>
+    </uws:parameters>
+    <uws:errorSummary type="transient" hasDetail="true">
+        <uws:message>ORA-00904: &#x27;NOSUCHCOLUMN&#x27;: invalid identifier</uws:message>
+    </uws:errorSummary>
+</uws:job>
+

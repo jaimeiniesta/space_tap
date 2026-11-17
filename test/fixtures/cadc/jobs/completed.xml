@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<uws:job xmlns:uws="http://www.ivoa.net/xml/UWS/v1.0" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1">
+  <uws:jobId>y374m4kk4ey22u8g</uws:jobId>
+  <uws:runId />
+  <uws:ownerId xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="true" />
+  <uws:phase>COMPLETED</uws:phase>
+  <uws:quote>2026-11-17T19:00:31.447Z</uws:quote>
+  <uws:creationTime>2026-11-16T19:00:31.447Z</uws:creationTime>
+  <uws:startTime>2026-11-16T19:00:48.533Z</uws:startTime>
+  <uws:endTime>2026-11-16T19:00:50.744Z</uws:endTime>
+  <uws:executionDuration>14400</uws:executionDuration>
+  <uws:destruction>2026-11-23T19:00:31.446Z</uws:destruction>
+  <uws:parameters>
+    <uws:parameter id="FORMAT">votable</uws:parameter>
+    <uws:parameter id="LANG">ADQL</uws:parameter>
+    <uws:parameter id="QUERY">SELECT TOP 3 table_name FROM TAP_SCHEMA.tables ORDER BY table_name</uws:parameter>
+    <uws:parameter id="REQUEST">doQuery</uws:parameter>
+  </uws:parameters>
+  <uws:results>
+    <uws:result id="diag" xlink:href="uws:executing:1" />
+    <uws:result id="diag" xlink:href="jndi:lookup:0" />
+    <uws:result id="diag" xlink:href="read:tap_schema:5" />
+    <uws:result id="diag" xlink:href="query:parse:1" />
+    <uws:result id="diag" xlink:href="jndi:connect:0" />
+    <uws:result id="diag" xlink:href="query:execute:2" />
+    <uws:result id="diag" xlink:href="query:store:2201" />
+    <uws:result id="rowcount" xlink:href="final:3" />
+    <uws:result id="result" xlink:href="https://ws-cadc.canfar.net/minoc/files/tmp:argus/result_y374m4kk4ey22u8g.xml" />
+  </uws:results>
+</uws:job>

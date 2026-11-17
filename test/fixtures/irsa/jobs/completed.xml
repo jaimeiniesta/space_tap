@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<uws:job xmlns:xml="http://www.w3.org/XML/1998/namespace" xmlns:uws="http://www.ivoa.net/xml/UWS/v1.0" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/UWS/v1.0 http://vo.ari.uni-heidelberg.de/docs/schemata/uws-1.0.xsd http://www.w3.org/1999/xlink http://vo.ari.uni-heidelberg.de/docs/schemata/xlink.xsd">
+  <uws:jobId>28432311</uws:jobId>
+  <uws:runId xsi:nil="true"/>
+  <uws:ownerId xsi:nil="true"/>
+  <uws:phase>COMPLETED</uws:phase>
+  <uws:quote xsi:nil="true"/>
+  <uws:startTime>2026-11-16T19:02:05Z</uws:startTime>
+  <uws:endTime>2026-11-16T19:02:05Z</uws:endTime>
+  <uws:executionDuration>259200</uws:executionDuration>
+  <uws:destruction xsi:nil="true"/>
+  <uws:parameters>
+    <uws:parameter id="format">votable</uws:parameter>
+    <uws:parameter id="lang">ADQL</uws:parameter>
+    <uws:parameter id="oracle_session_timeout">259200</uws:parameter>
+    <uws:parameter id="query">SELECT TOP 3 table_name FROM TAP_SCHEMA.tables ORDER BY table_name</uws:parameter>
+    <uws:parameter id="query_identifier">87/fb/9e629411df6a518babc5dd1d60b8</uws:parameter>
+    <uws:parameter id="request">doQuery</uws:parameter>
+    <uws:parameter id="staging_directory">/work/TAP/7c/88/e2178a1fdcb461d6df824a3e3cce</uws:parameter>
+    <uws:parameter id="webdav_directory">/work/pubspace/87/fb/9e629411df6a518babc5dd1d60b8</uws:parameter>
+  </uws:parameters>
+  <uws:results>
+    <uws:result id="result" xlink:href="https://irsa.ipac.caltech.edu/TAP/async/28432311/results/result"/>
+  </uws:results>
+</uws:job>

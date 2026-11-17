@@ -32,3 +32,33 @@ request and `FORMAT=votable` instead of `csv`:
 It is VOTable 1.3 with TABLEDATA rows, and writes each string cell and the
 description in CDATA. With no `ORDER BY`, `TOP 3` gave other planets than in
 `planets.csv`.
+
+## Job documents
+
+The files in `jobs/` are job documents: what the NASA Exoplanet Archive returned for the URL
+of an async job (TAP 1.1 §2.2, UWS 1.1 §2.2.1.1). They were captured on
+2026-11-16 with:
+
+```bash
+curl -sS -D - -o /dev/null https://exoplanetarchive.ipac.caltech.edu/TAP/async \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "PHASE=RUN" \
+  --data-urlencode "QUERY=<query>"
+curl -sS -o <file> <job URL>
+```
+
+The first request answers HTTP 303, with the URL of the job in `Location`, and
+the second, repeated until the job ended, reads the job with HTTP 200.
+
+| File | Query | Phase | Content-Type |
+|---|---|---|---|
+| `jobs/completed.xml` | `SELECT TOP 3 table_name FROM TAP_SCHEMA.tables ORDER BY table_name` | COMPLETED | `application/xml` |
+| `jobs/error.xml` | `SELECT TOP 1 nosuchcolumn FROM TAP_SCHEMA.tables` | ERROR | `application/xml` |
+
+The job ran inside the request that created it, so it had ended by the
+first GET. The `Location` is `http://exoplanetarchive.ipac.caltech.edu//TAP/async/<id>`,
+with `http` and a double slash, and `http` answers 301 to `https`. The
+documents have no `version`, bind `xsi` to `http://www.w3.org/2001/XMLSchema`
+instead of `…/XMLSchema-instance`, and give local times without a zone. The
+href of the result is under `/workspace/`, with `http`. `DELETE` on the job
+answered 502, and `ACTION=DELETE` answered 200 but left the job in place.

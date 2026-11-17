@@ -29,3 +29,34 @@ The VOTable result was captured on 2026-11-10 with the same request and `FORMAT=
 | `hires.xml` | `SELECT TOP 5 koaid, instrume, targname, ra, dec, date_obs, progtitl FROM koa_hires` | 200 | `text/xml` |
 
 Its rows are TABLEDATA. KOA writes each string cell and each `DESCRIPTION` in a CDATA section, the descriptions with a space at each end.
+
+## Job documents
+
+The files in `jobs/` are job documents: what KOA returned for the URL
+of an async job (TAP 1.1 §2.2, UWS 1.1 §2.2.1.1). They were captured on
+2026-11-16 with:
+
+```bash
+curl -sS -D - -o /dev/null https://koa.ipac.caltech.edu/TAP/async \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "PHASE=RUN" \
+  --data-urlencode "QUERY=<query>"
+curl -sS -o <file> <job URL>
+```
+
+The first request answers HTTP 303, with the URL of the job in `Location`, and
+the second, repeated until the job ended, reads the job with HTTP 200.
+
+| File | Query | Phase | Content-Type |
+|---|---|---|---|
+| `jobs/completed.xml` | `SELECT TOP 3 table_name FROM TAP_SCHEMA.tables ORDER BY table_name` | COMPLETED | `text/xml` |
+| `jobs/error.xml` | `SELECT TOP 1 nosuchcolumn FROM TAP_SCHEMA.tables` | ERROR | `text/xml` |
+
+The job ran inside the request that created it, so it had ended by the
+first GET. The documents have no `version`, bind `xsi` to
+`http://www.w3.org/2001/XMLSchema`, spell `executionduration` in lower case,
+and give local times without a zone, but with a `Z` in `destruction`. The href
+of the result is under `/workspace/` and comes as `text/xml`, where
+`<job>/results/result` comes as `text/plain`. The error message writes its
+quotes as character references. `DELETE` on the job answered 500, and
+`ACTION=DELETE` answered 200 but left the job in place.

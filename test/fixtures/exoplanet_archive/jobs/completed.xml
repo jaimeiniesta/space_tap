@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<uws:job xmlns:uws="http://www.ivoa.net/xml/UWS/v1.0" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema" xsi:schemaLocation="http://www.ivoa.net/xml/UWS/v1.0 http://www.ivoa.net/xml/UWS/v1.0">
+    <uws:jobId>tap_dh2b14rr</uws:jobId>
+    <uws:runId>2281754</uws:runId>
+    <uws:ownerId xsi:nil="true"/>
+    <uws:phase>COMPLETED</uws:phase>
+    <uws:quote xsi:nil="true"/>
+    <uws:startTime>2026-11-16T11:00:51.63</uws:startTime>
+    <uws:endTime>2026-11-16T11:00:53.74</uws:endTime>
+    <uws:executionDuration>3</uws:executionDuration>
+    <uws:destruction>2026-11-20T11:00:51.63</uws:destruction>
+    <uws:parameters>
+        <uws:parameter id="format">votable</uws:parameter>
+        <uws:parameter id="lang">ADQL</uws:parameter>
+        <uws:parameter id="maxrec">-1</uws:parameter>
+        <uws:parameter id="query">SELECT TOP 3 table_name FROM TAP_SCHEMA.tables ORDER BY table_name        </uws:parameter>
+    </uws:parameters>
+    <uws:results>
+        <uws:result id="result" xlink:type="simple" xlink:href="http://exoplanetarchive.ipac.caltech.edu/workspace//TAP/tap_dh2b14rr/result.xml"/>
+    </uws:results>
+</uws:job>
+

@@ -32,3 +32,36 @@ The VOTable result was captured on 2026-11-10 with the same request and `FORMAT=
 | `obscore.xml` | `SELECT TOP 5 obs_id, obs_collection, target_name, s_ra, s_dec, instrument_name, em_min FROM ivoa.ObsCore WHERE CONTAINS(POINT('ICRS', s_ra, s_dec), CIRCLE('ICRS', 56.75, 24.12, 0.5)) = 1` | 303, then 200 | `application/x-votable+xml; serialization=tabledata` |
 
 Its rows are TABLEDATA, and its strings have an `arraysize` with a maximum, such as `128*`.
+
+## Job documents
+
+The files in `jobs/` are job documents: what CADC returned for the URL
+of an async job (TAP 1.1 §2.2, UWS 1.1 §2.2.1.1). They were captured on
+2026-11-16 with:
+
+```bash
+curl -sS -D - -o /dev/null https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus/async \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "PHASE=RUN" \
+  --data-urlencode "QUERY=<query>"
+curl -sS -o <file> <job URL>
+```
+
+The first request answers HTTP 303, with the URL of the job in `Location`, and
+the second, repeated until the job ended, reads the job with HTTP 200.
+
+CADC ignores the `PHASE=RUN` of the first request and leaves the job PENDING,
+so a third request started it, between the two:
+
+```bash
+curl -sS -X POST <job URL>/phase --data-urlencode "PHASE=RUN"
+```
+
+| File | Query | Phase | Content-Type |
+|---|---|---|---|
+| `jobs/completed.xml` | `SELECT TOP 3 table_name FROM TAP_SCHEMA.tables ORDER BY table_name` | COMPLETED | `text/xml` |
+| `jobs/error.xml` | `SELECT TOP 1 nosuchcolumn FROM TAP_SCHEMA.tables` | ERROR | `text/xml` |
+
+Besides the result, the job lists results named `diag` and `rowcount`, whose
+hrefs aren't URLs, such as `uws:executing:1`. The result is on another host,
+`ws-cadc.canfar.net`.

@@ -32,6 +32,24 @@ A query whose result comes back in the response to the same HTTP request.
 **Async query**:
 A query the TAP service runs as a job, whose result the client fetches later.
 
+**UWS**:
+The IVOA Universal Worker Service pattern, which defines jobs, their phases and how a client creates, follows and deletes them. TAP runs async queries as UWS jobs.
+
+**Job**:
+An async query as the TAP service holds it: the query, its phase, and its result or error. It stays on the service until the client deletes it or the service destroys it.
+_Avoid_: task, request
+
+**Job URL**:
+The URL of a job on the TAP service, which the service gives when it creates the job. It is all a client needs to follow the job, read its result or delete it.
+_Avoid_: job ID (the last part of the URL, not enough on its own)
+
+**Job document**:
+What a TAP service returns for a job URL: an XML description of the job, with its phase, its error summary and where its result is.
+
+**Phase**:
+The state of a job, one of the ten UWS defines: PENDING, QUEUED, EXECUTING, COMPLETED, ERROR, ABORTED, UNKNOWN, HELD, SUSPENDED or ARCHIVED.
+_Avoid_: status (which names the query status of a VOTable)
+
 **Result**:
 The table a query returns: its columns, in order, and its rows.
 _Avoid_: response, dataset, records
@@ -73,6 +91,9 @@ What a TAP service sends instead of a result when a query fails: a VOTable whose
 **Query status**:
 The `QUERY_STATUS` value a TAP service puts in the results resource of a VOTable: `OK`, `ERROR` or `OVERFLOW`. A document may carry two, `OK` before the table and `ERROR` or `OVERFLOW` after it.
 
+**Error summary**:
+The message a job document gives about why the job failed.
+
 **Service error**:
-A failure the TAP service reports in an error document, such as invalid ADQL or an unknown table.
+A failure the TAP service reports, such as invalid ADQL or an unknown table: in an error document, or as a job that ends in a phase other than COMPLETED.
 _Avoid_: query error, API error

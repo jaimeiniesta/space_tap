@@ -45,3 +45,40 @@ They hold the same five stars as `gaia/pleiades.csv`, in the same order, but
 `gaia.dr3lite` declares `parallax` a `float`, where Gaia's own archive has a
 `double`, so the CSV writes `8.118448` where Gaia's writes `8.118448445799721`.
 The VOTable rows are BINARY.
+
+## Job documents
+
+The files in `jobs/` are job documents: what GAVO returned for the URL
+of an async job (TAP 1.1 §2.2, UWS 1.1 §2.2.1.1). They were captured on
+2026-11-16 with:
+
+```bash
+curl -sS -D - -o /dev/null https://dc.g-vo.org/tap/async \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "PHASE=RUN" \
+  --data-urlencode "QUERY=<query>"
+curl -sS -o <file> <job URL>
+```
+
+The first request answers HTTP 303, with the URL of the job in `Location`, and
+the second, repeated until the job ended, reads the job with HTTP 200.
+
+GAVO ignores the `PHASE=RUN` of the first request and leaves the job PENDING,
+so a third request started it, between the two:
+
+```bash
+curl -sS -X POST <job URL>/phase --data-urlencode "PHASE=RUN"
+```
+
+| File | Query | Phase | Content-Type |
+|---|---|---|---|
+| `jobs/completed.xml` | `SELECT TOP 5 hipno, ra, dec, vmag, parallax, sptype FROM hipparcos.main WHERE hipno <= 5` | COMPLETED | `text/xml` |
+| `jobs/error.xml` | `SELECT TOP 1 nosuchcolumn FROM TAP_SCHEMA.tables` | ERROR | `text/xml` |
+| `jobs/pending.xml` | the same as `completed.xml`, right after it was created | PENDING | `text/xml` |
+
+`pending.xml` is the job of `completed.xml` before it ran. GAVO's
+`Location` points to another path than the access URL,
+`https://dc.g-vo.org/__system__/tap/run/async/<id>`, and the href of the result
+starts with `http://`, which GAVO serves without redirecting to `https`. Like
+its error documents, the job documents start with an `xml-stylesheet`
+processing instruction and no XML declaration.

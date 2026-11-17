@@ -28,3 +28,30 @@ The VOTable result was captured on 2026-11-10 with the same request and `FORMAT=
 | `columns.xml` | `SELECT TOP 5 table_name, column_name, datatype, unit, description FROM TAP_SCHEMA.columns WHERE table_name = 'fp_psc'` | 200 | `application/x-votable+xml` |
 
 Its rows are TABLEDATA.
+
+## Job documents
+
+The files in `jobs/` are job documents: what IRSA returned for the URL
+of an async job (TAP 1.1 §2.2, UWS 1.1 §2.2.1.1). They were captured on
+2026-11-16 with:
+
+```bash
+curl -sS -D - -o /dev/null https://irsa.ipac.caltech.edu/TAP/async \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "PHASE=RUN" \
+  --data-urlencode "QUERY=<query>"
+curl -sS -o <file> <job URL>
+```
+
+The first request answers HTTP 303, with the URL of the job in `Location`, and
+the second, repeated until the job ended, reads the job with HTTP 200.
+
+| File | Query | Phase | Content-Type |
+|---|---|---|---|
+| `jobs/completed.xml` | `SELECT TOP 3 table_name FROM TAP_SCHEMA.tables ORDER BY table_name` | COMPLETED | `text/xml` |
+| `jobs/error.xml` | `SELECT TOP 1 nosuchcolumn FROM TAP_SCHEMA.tables` | ERROR | `text/xml` |
+| `jobs/queued.xml` | the same as `completed.xml`, at the first GET | QUEUED | `text/xml` |
+
+`queued.xml` is the job of `completed.xml` before it ran, and already lists
+the URL of its result. The documents have no `version`. Deleting the job
+answered 200 but left it in place.

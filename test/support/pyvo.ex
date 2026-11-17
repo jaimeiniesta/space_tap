@@ -22,11 +22,13 @@ defmodule SpaceTAP.Test.Pyvo do
   #
   # The parity tests on the fixtures need no service: PyVO reads each file,
   # SpaceTAP's VOTable reader reads the same bytes, and they compare the same
-  # way, the rows in the order of the file.
+  # way, the rows in the order of the file. Job documents are compared the
+  # same way, by what SpaceTAP reads from them: the phase, the message of the
+  # error summary and the result.
 
   import ExUnit.Assertions
 
-  alias SpaceTAP.{Result, VOTable}
+  alias SpaceTAP.{Result, UWS, VOTable}
 
   @runner Path.expand("pyvo_query.py", __DIR__)
 
@@ -84,6 +86,32 @@ defmodule SpaceTAP.Test.Pyvo do
         true
 
       {{_refused, message}, _pyvo} ->
+        flunk("PyVO reads #{path} and SpaceTAP doesn't: #{message}")
+    end
+  end
+
+  # Reads job documents with PyVO, all in one run of the script.
+  @spec read_jobs([Path.t()]) :: %{Path.t() => map()}
+  def read_jobs(paths), do: run(["--jobs" | paths])
+
+  # Compares what SpaceTAP reads from a job document with what PyVO read
+  # from it. PyVO lists every result named result, where SpaceTAP refuses a
+  # document with more than one.
+  @spec assert_job_parity(Path.t(), map()) :: true
+  def assert_job_parity(path, pyvo) do
+    case {UWS.parse(File.read!(path)), pyvo} do
+      {{:ok, job}, %{"phase" => phase, "error_summary" => message, "results" => results}} ->
+        assert job.phase |> Atom.to_string() |> String.upcase() == phase
+        assert job.error_summary == message
+        assert List.wrap(job.result) == results
+
+      {{:ok, _job}, %{"error" => error}} ->
+        flunk("SpaceTAP reads #{path} and PyVO doesn't: #{error}")
+
+      {{:error, _message}, %{"error" => _pyvo_error}} ->
+        true
+
+      {{:error, message}, _pyvo} ->
         flunk("PyVO reads #{path} and SpaceTAP doesn't: #{message}")
     end
   end

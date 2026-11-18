@@ -28,6 +28,7 @@ defmodule SpaceTAP.Test.Pyvo do
 
   import ExUnit.Assertions
 
+  alias Explorer.{DataFrame, Series}
   alias SpaceTAP.{Result, UWS, VOTable}
 
   @runner Path.expand("pyvo_query.py", __DIR__)
@@ -74,14 +75,31 @@ defmodule SpaceTAP.Test.Pyvo do
   def read_files(paths), do: run(["--files" | paths])
 
   # Compares what SpaceTAP reads from a VOTable file with what PyVO read
-  # from it. A file both refuse, such as an error document, passes.
+  # from it. A file both refuse, such as an error document, passes. The data
+  # frame of the result has the names and the types of the columns of PyVO's
+  # to_table().
   @spec assert_file_parity(Path.t(), map()) :: true
   def assert_file_parity(path, pyvo) do
     case {VOTable.parse(File.read!(path)), pyvo} do
-      {{:ok, table}, %{"columns" => columns, "rows" => rows, "overflow" => overflow}} ->
+      {{:ok, table},
+       %{"columns" => columns, "rows" => rows, "overflow" => overflow} = %{
+         "names" => names,
+         "dtypes" => dtypes
+       }} ->
         assert Enum.map(table.fields, & &1.name) == columns
         assert table.overflow == overflow
         assert Enum.map(table.rows, &as_json/1) === rows
+
+        df =
+          Result.to_dataframe(%Result{
+            columns: columns,
+            rows: table.rows,
+            fields: table.fields,
+            overflow: table.overflow
+          })
+
+        assert DataFrame.names(df) == names
+        assert Enum.map(DataFrame.names(df), &numpy_dtype(df[&1])) == dtypes
 
       {{:ok, _table}, %{"error" => error}} ->
         flunk("SpaceTAP reads #{path} and PyVO doesn't: #{error}")
@@ -134,6 +152,19 @@ defmodule SpaceTAP.Test.Pyvo do
 
       {output, status} ->
         flunk("PyVO runner exited with status #{status}: #{String.trim(output)}")
+    end
+  end
+
+  # The NumPy dtype astropy gives a column of the same values, as
+  # pyvo_query.py writes it: "string" for text and "list" for an array.
+  defp numpy_dtype(series) do
+    case Series.dtype(series) do
+      {:u, bits} -> "uint#{bits}"
+      {:s, bits} -> "int#{bits}"
+      {:f, bits} -> "float#{bits}"
+      :boolean -> "bool"
+      :string -> "string"
+      {:list, _dtype} -> "list"
     end
   end
 

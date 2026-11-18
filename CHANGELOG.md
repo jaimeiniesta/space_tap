@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `SpaceTAP.Result.to_dataframe/1`, which turns a result into an `Explorer.DataFrame`. Explorer is an optional dependency: add `{:explorer, "~> 0.13"}` to use it. Each column of a VOTable result gets the dtype of its field at the same width, such as `{:f, 32}` for a `float`, and an array a list; every column of a CSV result is a string. A column name the service repeats gets a number after it, `ra2`, as in PyVO (`docs/adr/0011-to-dataframe-takes-the-types-of-the-fields.md`).
+
 ## [0.3.0] - 2026-11-18
 
 ### Added

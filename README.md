@@ -366,9 +366,13 @@ SpaceTAP.availability("https://dc.g-vo.org/tap")
 
 The service lists where its availability is in its capabilities: GAVO's is
 outside the service URL, over `http://`, which SpaceTAP reads with `https://`.
-It is what the service says about itself. A host that doesn't answer gives a
-`:transport_error`, and a service that says it is available may still fail a
-query, so to know whether queries work, run a small one.
+It is what the service says about itself, so `available: false` comes only from
+a service that answers with its availability document. A service that is down
+usually gives an error instead. On 18 November 2026, VizieR didn't answer, a
+`:transport_error`; SIMBAD sent a 404 page, an `:http_error`; and the Gaia
+archive, closed for maintenance, sent a web page with HTTP 200 for every URL, a
+`:decode_error`. A service that says it is available may still fail a query, so
+to know whether queries work, run a small one.
 
 ## Compatibility
 

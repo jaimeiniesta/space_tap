@@ -37,6 +37,10 @@ defmodule SpaceTAPPyvoTest do
     Pyvo.assert_parity(@gavo_url, @maxrec_query, maxrec: 3)
   end
 
+  test "matches PyVO for GAVO's tables, the columns of gaia.dr3lite and its availability" do
+    Pyvo.assert_metadata_parity(@gavo_url, "gaia.dr3lite")
+  end
+
   # A job may wait in GAVO's queue for minutes.
   @tag timeout: 600_000
   test "matches PyVO for the Pleiades cone search as an async job" do

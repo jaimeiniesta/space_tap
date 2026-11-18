@@ -30,6 +30,7 @@ defmodule SpaceTAP.Test.Services do
           required(:result) => {String.t(), expected()},
           optional(:csv_result) => expected(),
           optional(:async_csv_result) => expected(),
+          optional(:metadata) => {String.t(), String.t(), String.t()},
           required(:syntax_error) => {String.t(), expected()}
         }
 
@@ -40,6 +41,7 @@ defmodule SpaceTAP.Test.Services do
       result:
         {"SELECT TOP 5 source_id, designation, ra, dec, parallax, phot_g_mean_mag FROM gaiadr3.gaia_source WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1 AND parallax IS NOT NULL AND phot_g_mean_mag IS NOT NULL ORDER BY phot_g_mean_mag",
          {:ok, ["source_id", "designation", "ra", "dec", "parallax", "phot_g_mean_mag"], 5}},
+      metadata: {"gaiadr3", "gaiadr3.gaia_source", "source_id"},
       syntax_error:
         {"SELEC TOP 3 source_id FROM gaiadr3.gaia_source",
          {:error, :service_error, 400, "Cannot parse query 'SELEC TOP 3 source_id"}}
@@ -50,6 +52,7 @@ defmodule SpaceTAP.Test.Services do
       result:
         {"SELECT TOP 5 hipno, ra, dec, vmag, parallax, sptype FROM hipparcos.main WHERE hipno <= 5",
          {:ok, ["hipno", "ra", "dec", "vmag", "parallax", "SpType"], 5}},
+      metadata: {"hipparcos", "hipparcos.main", "hipno"},
       syntax_error:
         {"SELEC TOP 3 table_name FROM tap_schema.tables",
          {:error, :service_error, 500, "Field query: Could not parse your query: Expected SELECT"}}
@@ -64,6 +67,7 @@ defmodule SpaceTAP.Test.Services do
       result:
         {"SELECT pl_name, disc_year FROM ps WHERE default_flag = 1 AND pl_name IN ('WASP-39 b', 'GJ 436 b', 'HAT-P-1 b')",
          {:ok, ["pl_name", "disc_year"], 3}},
+      metadata: {"exo_tap", "ps", "pl_name"},
       syntax_error:
         {"SELEC TOP 3 table_name FROM TAP_SCHEMA.tables",
          {:error, :service_error, 400, "Query is not a SELECT statemement."}}
@@ -76,6 +80,7 @@ defmodule SpaceTAP.Test.Services do
       result:
         {"SELECT TOP 5 table_name, column_name, datatype, unit, description FROM TAP_SCHEMA.columns WHERE table_name = 'fp_psc'",
          {:ok, ["table_name", "column_name", "datatype", "unit", "description"], 5}},
+      metadata: {"2mass", "fp_psc", "ra"},
       syntax_error:
         {"SELEC TOP 3 table_name FROM TAP_SCHEMA.tables",
          {:error, :service_error, 200,
@@ -92,6 +97,7 @@ defmodule SpaceTAP.Test.Services do
       result:
         {"SELECT TOP 5 prefname, prefphytype, ra, dec, z, zflag FROM NEDTAP.objdir WHERE CONTAINS(POINT('J2000', ra, dec), CIRCLE('J2000', 56.75, 24.12, 0.2)) = 1 ORDER BY prefname",
          {:ok, ["prefname", "prefphytype", "ra", "dec", "z", "zflag"], 5}},
+      metadata: {"NEDTAP", "NEDTAP.objdir", "prefname"},
       syntax_error:
         {"SELEC TOP 3 table_name FROM TAP_SCHEMA.tables",
          {:error, :service_error, 400,
@@ -106,6 +112,7 @@ defmodule SpaceTAP.Test.Services do
       result:
         {"SELECT koaid, instrume, targname, ra, dec, date_obs, progtitl FROM koa_hires WHERE koaid IN ('HI.19941118.65412.fits', 'HI.19941201.80171.fits', 'HI.19941201.80420.fits', 'HI.19941201.83588.fits', 'HI.19941210.06503.fits')",
          {:ok, ["koaid", "instrume", "targname", "ra", "dec", "date_obs", "progtitl"], 5}},
+      metadata: {"koa_tap", "koa_hires", "koaid"},
       syntax_error:
         {"SELEC TOP 3 table_name FROM TAP_SCHEMA.tables",
          {:error, :service_error, 400, "Query is not a SELECT statemement."}}
@@ -149,6 +156,7 @@ defmodule SpaceTAP.Test.Services do
             "dataproduct_type",
             "em_min"
           ], 5}},
+      metadata: {"ivoa", "ivoa.ObsCore", "obs_id"},
       syntax_error:
         {"SELEC TOP 3 table_name FROM TAP_SCHEMA.tables",
          {:error, :service_error, 400, ~s(Encountered "SELEC". Was expecting: "SELECT")}}
@@ -168,6 +176,7 @@ defmodule SpaceTAP.Test.Services do
             "instrument_name",
             "em_min"
           ], 5}},
+      metadata: {"ivoa", "ivoa.ObsCore", "obs_id"},
       syntax_error:
         {"SELEC TOP 3 table_name FROM TAP_SCHEMA.tables",
          {:error, :service_error, 400,
@@ -185,6 +194,7 @@ defmodule SpaceTAP.Test.Services do
         {:error, :decode_error, 200,
          "expected text/csv, got text/xml: the response is a VOTable, pass format: :votable to read it"},
       async_csv_result: {:ok, ["table_name"], 3},
+      metadata: {"ivoa", "ivoa.obscore", "obs_id"},
       syntax_error:
         {"SELEC TOP 3 table_name FROM TAP_SCHEMA.tables",
          {:error, :service_error, 400, ~s(Exception translating ADQL:  Encountered "SELEC".)}}
@@ -193,6 +203,13 @@ defmodule SpaceTAP.Test.Services do
 
   @spec all() :: [t()]
   def all, do: @services
+
+  # The services whose TAP_SCHEMA was checked, with `metadata` naming the
+  # schema and the table of their TAP_SCHEMA fixtures and a column of that
+  # table. VizieR and SIMBAD get theirs when CDS answers again: it was down
+  # when the others were captured, on 2026-11-18.
+  @spec with_metadata() :: [t()]
+  def with_metadata, do: Enum.filter(@services, &Map.has_key?(&1, :metadata))
 
   # What the query of `result` gives when CSV is requested.
   @spec csv_result(t()) :: expected()

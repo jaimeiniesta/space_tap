@@ -6,7 +6,7 @@ defmodule SpaceTAPServicesLiveTest do
   # to hold a release, so `mix test.release` leaves them out: run them with
   # `mix test.services`. Parameters run concurrently, so the services are
   # queried in parallel and each one gets one request at a time.
-  alias SpaceTAP.{Error, Result}
+  alias SpaceTAP.{Availability, Error, Result}
   alias SpaceTAP.Test.Services
 
   # The alias comes first because parameterize reads it.
@@ -27,6 +27,11 @@ defmodule SpaceTAPServicesLiveTest do
 
   test "answers invalid ADQL as its fixture does", %{url: url, syntax_error: {adql, expected}} do
     assert_answer(url, adql, [], expected)
+  end
+
+  test "says it is available", %{url: url} do
+    assert {:ok, %Availability{available: true}} =
+             SpaceTAP.availability(url, req_options: Services.req_options())
   end
 
   # A job may wait in a queue, and a :timeout deletes it before ExUnit gives

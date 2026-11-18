@@ -33,6 +33,9 @@ In Livebook or a script:
 Mix.install([{:space_tap, "~> 0.3.0"}])
 ```
 
+To turn results into data frames, add [Explorer][explorer] too, which SpaceTAP
+doesn't install: `{:explorer, "~> 0.13"}`.
+
 ## Usage
 
 `SpaceTAP.query/3` takes the service URL of a TAP service and an ADQL query.
@@ -254,6 +257,119 @@ when its `:timeout` runs out, so you can wait again, and a job stays there until
 you delete it with `SpaceTAP.Job.delete/2` or the service destroys it. The NASA
 Exoplanet Archive, KOA and IRSA answer that a job is deleted and keep it.
 
+## Data frames
+
+`SpaceTAP.Result.to_dataframe/1` turns a result into an
+[Explorer][explorer] data frame, which stores each column as an array of one
+type, as NumPy does, and filters, sorts and aggregates them in Rust. In
+Livebook, [Kino Explorer][kino_explorer] shows it as a table you can sort and
+filter:
+
+```elixir
+{:ok, result} = SpaceTAP.query("https://dc.g-vo.org/tap", adql, format: :votable)
+df = SpaceTAP.Result.to_dataframe(result)
+#=> #Explorer.DataFrame<
+#=>   Polars[5 x 5]
+#=>   source_id s64 [66526127137440128, 65271996684817280, ...]
+#=>   ra f64 [57.29068893293528, 56.2190045645284, ...]
+#=>   dec f64 [24.053211829998986, 24.11313304360812, ...]
+#=>   parallax f32 [8.118448257446289, 8.345685005187988, ...]
+#=>   phot_g_mean_mag f32 [3.6157946586608887, 3.6982085704803467, ...]
+#=> >
+
+Explorer.Series.mean(df["parallax"])
+#=> 8.149383354187012
+```
+
+- **Each column has the type of its field,** at the same width: a `float` is
+  `{:f, 32}`, a `short` `{:s, 16}`, and an array a list. A null is a null of the
+  series, which Explorer's functions skip.
+- **A CSV result gives strings,** since CSV has no types: ask for VOTable to get
+  numbers.
+- **A repeated column name gets a number,** as PyVO names it: `SELECT a.ra,
+  b.ra` gives `ra` and `ra2`. Seven of the nine services that answered on
+  18 November 2026 send two columns with the same name, which a data frame
+  can't hold.
+- **Units and descriptions stay in `result.fields`,** since Explorer has no
+  place for them.
+
+A data frame keeps each column as one array outside the BEAM heap, where each
+float of a row is a value of its own. The conversion starts from the rows,
+though, so a large result still needs their memory while it is read.
+
+## Tables and columns
+
+Every TAP service describes its tables and their columns in `TAP_SCHEMA`.
+`SpaceTAP.tables/2` lists the tables, and `SpaceTAP.columns/3` the columns of
+one:
+
+```elixir
+{:ok, tables} = SpaceTAP.tables("https://dc.g-vo.org/tap", schema: "gaia")
+
+Enum.map(tables, & &1.name)
+#=> ["gaia.dr2light", "gaia.dr2epochflux", "gaia.dr2_ts_ssa", "gaia.dr3lite",
+#=>  "gaia.edr3lite"]
+
+{:ok, columns} = SpaceTAP.columns("https://dc.g-vo.org/tap", "gaia.dr3lite")
+
+Enum.find(columns, &(&1.name == "ra"))
+#=> %SpaceTAP.Column{name: "ra", datatype: "double", unit: "deg",
+#=>   ucd: "pos.eq.ra;meta.main", indexed: true, principal: true, ...}
+```
+
+- **They come in the order the service recommends,** with `table_index` and
+  `column_index` (TAP 1.1 §4).
+- **What a service doesn't give is `nil`.** NED's `TAP_SCHEMA` follows TAP 1.0,
+  with no `arraysize` or `xtype`, and an ADQL type such as `BIGINT` as
+  `datatype`.
+- **Without `:schema`, `tables/2` lists every table.** A service with thousands
+  may cut the list short at its own limit; when it marks the list as overflow,
+  the list comes with a warning in the log. MAST marks every result so.
+
+## Writing ADQL
+
+ADQL has no bound parameters: a value goes into a query as text. `SpaceTAP.ADQL`
+writes values and cone searches as ADQL, and nothing more:
+
+```elixir
+alias SpaceTAP.ADQL
+
+ADQL.literal("Barnard's Star")
+#=> "'Barnard''s Star'"
+
+ADQL.literal(["WASP-39 b", "GJ 436 b"])
+#=> "('WASP-39 b', 'GJ 436 b')"
+
+ADQL.cone("ra", "dec", 56.75, 24.12, 1.0)
+#=> "CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1"
+```
+
+- **`literal/1` takes strings, numbers, `nil` and lists for `IN`,** doubles the
+  single quotes of a string and writes a float's exponent with an uppercase
+  `E`. ADQL has no literal for an infinity or a boolean, so those raise.
+- **`cone/5` writes `CONTAINS`, `POINT` and `CIRCLE`, with `'ICRS'`,** which
+  services with ADQL 2.0 and with ADQL 2.1 both take. ADQL 2.1 prefers
+  `DISTANCE`, but the NASA Exoplanet Archive, KOA, CADC and MAST don't declare
+  it.
+- **The column names of `cone/5` go in as given,** so they must never come from
+  user input.
+
+## Availability
+
+`SpaceTAP.availability/2` asks a service whether it is accepting requests:
+
+```elixir
+SpaceTAP.availability("https://dc.g-vo.org/tap")
+#=> {:ok, %SpaceTAP.Availability{available: true,
+#=>   up_since: "2026-10-30T12:22:56Z", down_at: nil, back_at: nil, notes: []}}
+```
+
+The service lists where its availability is in its capabilities: GAVO's is
+outside the service URL, over `http://`, which SpaceTAP reads with `https://`.
+It is what the service says about itself. A host that doesn't answer gives a
+`:transport_error`, and a service that says it is available may still fail a
+query, so to know whether queries work, run a small one.
+
 ## Compatibility
 
 SpaceTAP follows [TAP 1.1][tap] and works with TAP 1.0 services. It has been
@@ -354,7 +470,9 @@ MIT. See [LICENSE](https://github.com/jaimeiniesta/space_tap/blob/main/LICENSE).
 
 [adql]: https://www.ivoa.net/documents/ADQL/
 [astroquery]: https://astroquery.readthedocs.io/
+[explorer]: https://hexdocs.pm/explorer/
 [gaia]: https://gea.esac.esa.int/archive/
+[kino_explorer]: https://hexdocs.pm/kino_explorer/
 [pyvo]: https://pyvo.readthedocs.io/
 [req]: https://hexdocs.pm/req/
 [tap]: https://www.ivoa.net/documents/TAP/

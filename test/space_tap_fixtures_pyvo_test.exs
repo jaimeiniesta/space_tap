@@ -8,7 +8,9 @@ defmodule SpaceTAPFixturesPyvoTest do
   # the list of jobs Gaia sent, are files both refuse.
   #
   # The job documents of async jobs, in the jobs folder of each service, are
-  # compared the same way, by their phase, error summary and result.
+  # compared the same way, by their phase, error summary and result, and the
+  # VOSI documents, capabilities.xml and availability.xml, by the
+  # availability URL of the first and the fields of the second.
   use ExUnit.Case, async: true
 
   alias SpaceTAP.Test.Pyvo
@@ -17,7 +19,10 @@ defmodule SpaceTAPFixturesPyvoTest do
   @moduletag :pyvo_fixtures
 
   @fixtures Path.expand("fixtures", __DIR__)
-  @paths @fixtures |> Path.join("*/*.xml") |> Path.wildcard()
+  @vosi_names ["capabilities.xml", "availability.xml"]
+  @all_xml @fixtures |> Path.join("*/*.xml") |> Path.wildcard()
+  @paths Enum.reject(@all_xml, &(Path.basename(&1) in @vosi_names))
+  @vosi Enum.filter(@all_xml, &(Path.basename(&1) in @vosi_names))
   @jobs @fixtures |> Path.join("*/jobs/*.xml") |> Path.wildcard()
 
   # PyVO reads the times of a job document with astropy, which doesn't take
@@ -29,7 +34,11 @@ defmodule SpaceTAPFixturesPyvoTest do
     @moduletag skip: reason
   else
     setup_all do
-      %{pyvo: Pyvo.read_files(@paths), jobs: Pyvo.read_jobs(@jobs)}
+      %{
+        pyvo: Pyvo.read_files(@paths),
+        jobs: Pyvo.read_jobs(@jobs),
+        vosi: Pyvo.read_vosi_files(@vosi)
+      }
     end
   end
 
@@ -38,6 +47,14 @@ defmodule SpaceTAPFixturesPyvoTest do
 
     test "matches PyVO on #{Path.relative_to(path, @fixtures)}", %{pyvo: pyvo} do
       Pyvo.assert_file_parity(@path, Map.fetch!(pyvo, @path))
+    end
+  end
+
+  for path <- @vosi do
+    @path path
+
+    test "matches PyVO on #{Path.relative_to(path, @fixtures)}", %{vosi: vosi} do
+      Pyvo.assert_vosi_parity(@path, Map.fetch!(vosi, @path))
     end
   end
 

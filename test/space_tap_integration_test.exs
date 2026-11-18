@@ -5,7 +5,7 @@ defmodule SpaceTAPIntegrationTest do
   # theirs in SpaceTAPServicesLiveTest.
   use ExUnit.Case, async: false
 
-  alias SpaceTAP.{Error, Job, Result}
+  alias SpaceTAP.{ADQL, Availability, Column, Error, Job, Result, Table}
 
   @moduletag :integration
 
@@ -85,6 +85,53 @@ defmodule SpaceTAPIntegrationTest do
              SpaceTAP.query(@service_url, adql)
 
     assert message =~ "Could not parse your query"
+  end
+
+  describe "ADQL helpers" do
+    test "writes a cone search that gives the rows of the one written by hand" do
+      adql =
+        "SELECT TOP 5 source_id, ra, dec, parallax, phot_g_mean_mag FROM gaia.dr3lite WHERE " <>
+          ADQL.cone("ra", "dec", 56.75, 24.12, 1.0) <>
+          " AND parallax IS NOT NULL AND phot_g_mean_mag IS NOT NULL ORDER BY phot_g_mean_mag"
+
+      assert {:ok, %Result{rows: rows}} = SpaceTAP.query(@service_url, adql, format: :votable)
+
+      assert {:ok, %Result{rows: ^rows}} =
+               SpaceTAP.query(@service_url, @pleiades, format: :votable)
+
+      assert length(rows) == 5
+    end
+
+    test "writes literals the service reads, a single quote and IN included" do
+      adql =
+        "SELECT table_name FROM TAP_SCHEMA.tables WHERE table_name IN " <>
+          ADQL.literal(["gaia.dr3lite", "hipparcos.main"]) <>
+          " OR description = " <> ADQL.literal("Barnard's Star")
+
+      assert {:ok, %Result{rows: rows}} = SpaceTAP.query(@service_url, adql)
+      assert Enum.sort(rows) == [["gaia.dr3lite"], ["hipparcos.main"]]
+    end
+  end
+
+  describe "metadata" do
+    test "lists the tables of a schema" do
+      assert {:ok, tables} = SpaceTAP.tables(@service_url, schema: "gaia")
+
+      assert %Table{schema: "gaia", type: "table"} =
+               Enum.find(tables, &(&1.name == "gaia.dr3lite"))
+    end
+
+    test "lists the columns of a table, with their types, units and UCDs" do
+      assert {:ok, columns} = SpaceTAP.columns(@service_url, "gaia.dr3lite")
+
+      assert %Column{datatype: "float", unit: "mas", ucd: "pos.parallax", indexed: true} =
+               Enum.find(columns, &(&1.name == "parallax"))
+    end
+
+    # GAVO lists its availability over http:// and outside the service URL.
+    test "says it is available" do
+      assert {:ok, %Availability{available: true}} = SpaceTAP.availability(@service_url)
+    end
   end
 
   describe "async queries" do

@@ -24,12 +24,18 @@ defmodule SpaceTAP.Test.Pyvo do
   # SpaceTAP's VOTable reader reads the same bytes, and they compare the same
   # way, the rows in the order of the file. Job documents are compared the
   # same way, by what SpaceTAP reads from them: the phase, the message of the
-  # error summary and the result.
+  # error summary and the result, and so are VOSI documents: the
+  # availability URL of capabilities and the fields of an availability.
+  #
+  # The metadata of a service is compared too: its tables by name, the
+  # columns of one table by name, unit and UCD, and its availability. PyVO
+  # reads tables and columns from the VOSI /tables resource, and SpaceTAP
+  # from TAP_SCHEMA, so the test also checks that the two agree.
 
   import ExUnit.Assertions
 
   alias Explorer.{DataFrame, Series}
-  alias SpaceTAP.{Result, UWS, VOTable}
+  alias SpaceTAP.{Result, UWS, VOSI, VOTable}
 
   @runner Path.expand("pyvo_query.py", __DIR__)
 
@@ -112,6 +118,49 @@ defmodule SpaceTAP.Test.Pyvo do
     end
   end
 
+  # Compares the tables, the columns of `table` and the availability of a
+  # service with what PyVO gives. PyVO reads tables and columns from the
+  # VOSI /tables resource, and SpaceTAP from TAP_SCHEMA, so the test checks
+  # that both describe the same tables, by name, and the same columns, by
+  # name, unit and UCD, in any order.
+  @spec assert_metadata_parity(String.t(), String.t(), keyword()) :: true
+  def assert_metadata_parity(service_url, table, opts \\ []) do
+    assert %{
+             "tables" => pyvo_tables,
+             "columns" => pyvo_columns,
+             "availability" => pyvo_availability
+           } =
+             run(["--metadata", service_url, table])
+
+    assert {:ok, tables} = SpaceTAP.tables(service_url, opts)
+    assert tables |> Enum.map(& &1.name) |> Enum.sort() == Enum.sort(pyvo_tables)
+
+    assert {:ok, columns} = SpaceTAP.columns(service_url, table, opts)
+
+    assert columns |> Enum.map(&[&1.name, &1.unit, &1.ucd]) |> Enum.sort() ==
+             Enum.sort(pyvo_columns)
+
+    assert {:ok, availability} = SpaceTAP.availability(service_url, opts)
+    assert availability_as_json(availability) == pyvo_availability
+  end
+
+  # Reads VOSI capabilities and availability documents with PyVO, all in
+  # one run of the script.
+  @spec read_vosi_files([Path.t()]) :: %{Path.t() => map()}
+  def read_vosi_files(paths), do: run(["--vosi" | paths])
+
+  # Compares what SpaceTAP reads from a VOSI document with what PyVO read:
+  # the availability URL of capabilities, and the fields of an availability.
+  @spec assert_vosi_parity(Path.t(), map()) :: true
+  def assert_vosi_parity(path, %{"availability_url" => url}) do
+    assert VOSI.availability_url(File.read!(path)) == {:ok, url}
+  end
+
+  def assert_vosi_parity(path, %{"availability" => pyvo}) do
+    assert {:ok, availability} = VOSI.availability(File.read!(path))
+    assert availability_as_json(availability) == pyvo
+  end
+
   # Reads job documents with PyVO, all in one run of the script.
   @spec read_jobs([Path.t()]) :: %{Path.t() => map()}
   def read_jobs(paths), do: run(["--jobs" | paths])
@@ -166,6 +215,16 @@ defmodule SpaceTAP.Test.Pyvo do
       :string -> "string"
       {:list, _dtype} -> "list"
     end
+  end
+
+  defp availability_as_json(availability) do
+    %{
+      "available" => availability.available,
+      "up_since" => availability.up_since,
+      "down_at" => availability.down_at,
+      "back_at" => availability.back_at,
+      "notes" => availability.notes
+    }
   end
 
   defp as_json(:infinity), do: "Infinity"

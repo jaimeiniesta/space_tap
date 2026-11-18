@@ -22,6 +22,14 @@
 # or the job documents of async jobs, the same way:
 #
 #     uv run pyvo_query.py --jobs PATH...
+#
+# or the tables of a service, the columns of one table and its availability:
+#
+#     uv run pyvo_query.py --metadata SERVICE_URL TABLE
+#
+# or VOSI capabilities and availability documents, as the files:
+#
+#     uv run pyvo_query.py --vosi PATH...
 
 import json
 import math
@@ -32,7 +40,7 @@ import warnings
 import pyvo
 from astropy.io import votable
 from pyvo.dal.exceptions import DALOverflowWarning
-from pyvo.io import uws
+from pyvo.io import uws, vosi
 
 
 def main():
@@ -48,6 +56,14 @@ def main():
 
     if sys.argv[1] == "--jobs":
         print(json.dumps({path: read_job(path) for path in sys.argv[2:]}))
+        return 0
+
+    if sys.argv[1] == "--metadata":
+        print(json.dumps(read_metadata(sys.argv[2], sys.argv[3])))
+        return 0
+
+    if sys.argv[1] == "--vosi":
+        print(json.dumps({path: read_vosi(path) for path in sys.argv[2:]}))
         return 0
 
     args = sys.argv[1:]
@@ -142,6 +158,59 @@ def read_job(path):
 # The table also gives the names of its columns, which astropy makes unique
 # where the service repeats one, and their NumPy dtypes, for SpaceTAP's
 # Result.to_dataframe/1.
+# The tables of a service, the columns of one, by name, unit and UCD, and
+# its availability, as PyVO reads them: tables and columns from the VOSI
+# /tables resource, and the availability from the URL its capabilities give.
+# An empty unit or UCD is null, as SpaceTAP reads an empty cell.
+def read_metadata(service_url, table):
+    service = pyvo.dal.TAPService(service_url)
+    tables = service.tables
+    columns = [
+        [column.name, column.unit or None, column.ucd or None]
+        for column in tables[table].columns
+    ]
+
+    return {
+        "tables": list(tables.keys()),
+        "columns": columns,
+        "availability": availability_json(service.availability),
+    }
+
+
+# A VOSI document, read with the parsers PyVO uses for a service's: the
+# availability URL of a capabilities document, or the fields of an
+# availability document, which go by their file names.
+def read_vosi(path):
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+
+            if path.endswith("capabilities.xml"):
+                return {"availability_url": availability_url(vosi.parse_capabilities(path))}
+
+            return {"availability": availability_json(vosi.parse_availability(path))}
+    except Exception as error:
+        return {"error": f"{type(error).__name__}: {error}"}
+
+
+def availability_url(capabilities):
+    for capability in capabilities:
+        if (capability.standardid or "").lower() == "ivo://ivoa.net/std/vosi#availability":
+            for interface in capability.interfaces:
+                for access_url in interface.accessurls:
+                    return access_url.content.strip()
+
+
+def availability_json(availability):
+    return {
+        "available": availability.available,
+        "up_since": availability.upsince,
+        "down_at": availability.downat,
+        "back_at": availability.backat,
+        "notes": list(availability.notes),
+    }
+
+
 def to_json(result):
     table = result.to_table()
     columns = [column.tolist() for column in table.columns.values()]

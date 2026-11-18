@@ -92,3 +92,19 @@ say `version="1.0"` and write values in CDATA sections. They also repeat the IP
 address and the User-Agent of the client that created the job. The IP address
 is the one change made to a captured file: it was replaced with `192.0.2.1`, an
 address reserved for documentation (RFC 5737).
+
+## VOSI
+
+`capabilities.xml` and `availability.xml` are the documents the Gaia archive served on 2026-11-18 for `SpaceTAP.availability/2`, captured with:
+
+```bash
+curl -sS -o capabilities.xml https://gea.esac.esa.int/tap-server/tap/capabilities
+curl -sS -o availability.xml https://gea.esac.esa.int/tap-server/tap/availability
+```
+
+| File | URL | HTTP | Content-Type |
+|---|---|---|---|
+| `capabilities.xml` | `https://gea.esac.esa.int/tap-server/tap/capabilities` | 200 | `text/xml;charset=UTF-8` |
+| `availability.xml` | `https://gea.esac.esa.int/tap-server/tap/availability`, the access URL of the `ivo://ivoa.net/std/VOSI#availability` capability | 200 | `text/xml;charset=UTF-8` |
+
+The access URL has white space around it.

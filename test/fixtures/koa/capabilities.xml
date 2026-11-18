@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vosi:capabilities
+  xmlns:vosi="http://www.ivoa.net/xml/VOSICapabilities/v1.0"
+  xmlns:vr="http://www.ivoa.net/xml/VOResource/v1.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:vod="http://www.ivoa.net/xml/VODataService/v1.1"
+  xmlns:tr="http://www.ivoa.net/xml/TAPRegExt/v1.0"
+  xsi:schemaLocation="http://www.ivoa.net/xml/VOSI/v1.0 http://www.ivoa.net/xml/VOSI/v1.0
+                      http://www.ivoa.net/xml/VOResource/v1.0 http://www.ivoa.net/xml/VOResource/v1.0
+                      http://www.ivoa.net/xml/VODataService/v1.1 http://www.ivoa.net/xml/VODataService/v1.1
+                      http://www.ivoa.net/xml/VOSICapabilities/v1.0 http://www.ivoa.net/xml/VOSICapabilities/v1.0
+                      http://www.ivoa.net/xml/TAP/v1.0 http://www.ivoa.net/xml/TAP/v1.1
+                      http://www.ivoa.net/xml/TAPRegExt/v1.0 http://www.ivoa.net/xml/TAPRegExt/v1.0">
+
+  <!-- TAP capability for this TAP service -->
+  <capability standardID="ivo://ivoa.net/std/TAP" xsi:type="tr:TableAccess">
+    <interface xsi:type="vod:ParamHTTP" role="std" version="1.1">
+      <accessURL use="full">https://koa.ipac.caltech.edu/TAP</accessURL>
+    </interface>
+
+    <!-- the ADQL geometry functions in TAP -->
+    <language>
+      <name>ADQL</name>
+      <version ivo-id="ivo://ivoa.net/std/ADQL#v2.0">2.0</version>
+      <description>ADQL-2.0</description>
+      <languageFeatures type="ivo://ivoa.net/std/TAPRegExt#features-adqlgeo">
+        <feature>
+          <form>POINT</form>
+        </feature>
+        <feature>
+          <form>CIRCLE</form>
+        </feature>
+        <feature>
+          <form>BOX</form>
+        </feature>
+        <feature>
+          <form>POLYGON</form>
+        </feature>
+        <feature>
+          <form>CONTAINS</form>
+        </feature>
+      </languageFeatures>
+    </language>
+
+    <!-- the output formats supported in TAP -->
+    <outputFormat ivo-id="ivo://ivoa.net/std/TAPRegExt#output-votable-td">
+      <mime>application/x-votable+xml</mime>
+      <alias>votable</alias>
+    </outputFormat>
+    <outputFormat ivo-id="ivo://ivoa.net/std/TAPRegExt#output-votable-td">
+      <mime>text/xml</mime>
+    </outputFormat>
+    <outputFormat>
+      <mime>text/csv</mime>
+      <alias>csv</alias>
+    </outputFormat>
+    <outputFormat>
+      <mime>text/tab-separated-values</mime>
+      <alias>tsv</alias>
+    </outputFormat>
+    <outputFormat>
+      <mime>text/plain</mime>
+      <alias>ipac</alias>
+    </outputFormat>
+  </capability>
+
+  <!-- VOSI table metadata for this TAP service -->
+  <capability standardID="ivo://ivoa.net/std/VOSI#tables">
+    <interface xsi:type="vod:ParamHTTP" role="std">
+      <accessURL use="full">https://koa.ipac.caltech.edu/TAP/tables</accessURL>
+      <queryType>GET</queryType>
+      <resultType>application/xml</resultType>
+    </interface>
+  </capability>
+
+  <!-- VOSI capabilities metadata for this TAP service -->
+  <capability standardID="ivo://ivoa.net/std/VOSI#capabilities">
+    <interface xsi:type="vod:ParamHTTP" role="std">
+      <accessURL use="full">https://koa.ipac.caltech.edu/TAP/capabilities</accessURL>
+    </interface>
+  </capability>
+
+  <!-- VOSI availability metadata for this TAP service -->
+  <capability standardID="ivo://ivoa.net/std/VOSI#availability">
+    <interface xsi:type="vod:ParamHTTP" role="std">
+      <accessURL use="full">https://koa.ipac.caltech.edu/TAP/availability</accessURL>
+    </interface>
+  </capability>
+
+</vosi:capabilities>

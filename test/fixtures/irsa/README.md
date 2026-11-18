@@ -72,3 +72,17 @@ curl -sS -o <file> https://irsa.ipac.caltech.edu/TAP/sync \
 | `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'fp_psc'` | 200 | `application/x-votable+xml` |
 
 IRSA puts `table_index` and `column_index` first, adds columns of its own named `irsa_*`, and declares `arraysize` as an `int`, 1 for a single value.
+
+## VOSI
+
+`capabilities.xml` and `availability.xml` are the documents IRSA served on 2026-11-18 for `SpaceTAP.availability/2`, captured with:
+
+```bash
+curl -sS -o capabilities.xml https://irsa.ipac.caltech.edu/TAP/capabilities
+curl -sS -o availability.xml https://irsa.ipac.caltech.edu/TAP/availability
+```
+
+| File | URL | HTTP | Content-Type |
+|---|---|---|---|
+| `capabilities.xml` | `https://irsa.ipac.caltech.edu/TAP/capabilities` | 200 | `text/xml` |
+| `availability.xml` | `https://irsa.ipac.caltech.edu/TAP/availability`, the access URL of the `ivo://ivoa.net/std/VOSI#availability` capability | 200 | `text/xml` |

@@ -66,3 +66,17 @@ curl -sS -o <file> https://mast.stsci.edu/vo-tap/api/v0.1/caom/sync \
 | `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'ivoa.obscore'` | 200 | `text/xml; charset=utf-8` |
 
 Both end with a second `QUERY_STATUS`, `OVERFLOW`, after the table, although the first holds one row and the second 31. MAST marked every result as overflow that day, with `MAXREC=100000` and with no rows.
+
+## VOSI
+
+`capabilities.xml` and `availability.xml` are the documents MAST served on 2026-11-18 for `SpaceTAP.availability/2`, captured with:
+
+```bash
+curl -sS -o capabilities.xml https://mast.stsci.edu/vo-tap/api/v0.1/caom/capabilities
+curl -sS -o availability.xml https://mast.stsci.edu/vo-tap/api/v0.1/caom/availability
+```
+
+| File | URL | HTTP | Content-Type |
+|---|---|---|---|
+| `capabilities.xml` | `https://mast.stsci.edu/vo-tap/api/v0.1/caom/capabilities` | 200 | `text/xml; charset=utf-8` |
+| `availability.xml` | `https://mast.stsci.edu/vo-tap/api/v0.1/caom/availability`, the access URL of the `ivo://ivoa.net/std/VOSI#availability` capability | 200 | `text/xml; charset=utf-8` |

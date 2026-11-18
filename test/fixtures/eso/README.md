@@ -75,3 +75,19 @@ curl -sS -o <file> https://archive.eso.org/tap_obs/sync \
 | `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'ivoa.ObsCore'` | 200 | `application/x-votable+xml` |
 
 `ivoa.ObsCore` has no `table_index`, and some of its columns no `column_index`.
+
+## VOSI
+
+`capabilities.xml` and `availability.xml` are the documents ESO served on 2026-11-18 for `SpaceTAP.availability/2`, captured with:
+
+```bash
+curl -sS -o capabilities.xml https://archive.eso.org/tap_obs/capabilities
+curl -sS -o availability.xml https://archive.eso.org/tap_obs/availability
+```
+
+| File | URL | HTTP | Content-Type |
+|---|---|---|---|
+| `capabilities.xml` | `https://archive.eso.org/tap_obs/capabilities` | 200 | `application/xml` |
+| `availability.xml` | `https://archive.eso.org/tap_obs/availability`, the access URL of the `ivo://ivoa.net/std/VOSI#availability` capability | 200 | `application/xml;charset=UTF-8` |
+
+ESO marks its VOSI access URLs `use="base"`, although VOSI 1.1 §4 requires `full`.

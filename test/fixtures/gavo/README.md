@@ -99,3 +99,19 @@ curl -sS -o <file> https://dc.g-vo.org/tap/sync \
 | `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'hipparcos.main'` | 200 | `application/x-votable+xml` |
 
 Its tables have no `table_index`, and its columns add `sourceRD`.
+
+## VOSI
+
+`capabilities.xml` and `availability.xml` are the documents GAVO served on 2026-11-18 for `SpaceTAP.availability/2`, captured with:
+
+```bash
+curl -sS -o capabilities.xml https://dc.g-vo.org/tap/capabilities
+curl -sS -o availability.xml http://dc.g-vo.org/__system__/tap/run/availability
+```
+
+| File | URL | HTTP | Content-Type |
+|---|---|---|---|
+| `capabilities.xml` | `https://dc.g-vo.org/tap/capabilities` | 200 | `text/xml` |
+| `availability.xml` | `http://dc.g-vo.org/__system__/tap/run/availability`, the access URL of the `ivo://ivoa.net/std/VOSI#availability` capability | 200 | `text/xml` |
+
+GAVO lists its availability over `http://` and outside the service URL; it serves the same document with `https://`. The document starts with an `xml-stylesheet` processing instruction.

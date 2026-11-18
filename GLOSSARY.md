@@ -26,6 +26,14 @@ _Avoid_: endpoint, sync URL
 **ADQL**:
 The SQL-like query language of TAP. The TAP service parses and runs it; the client sends it as text.
 
+**Literal**:
+A value written in ADQL, such as `'Barnard''s Star'` or `1.0E-5`. ADQL has no bound parameters, so every value in a query is a literal.
+_Avoid_: parameter, placeholder
+
+**Cone search**:
+A search for the rows whose position on the sky falls within a circle around a point.
+_Avoid_: radius search
+
 **Sync query**:
 A query whose result comes back in the response to the same HTTP request.
 

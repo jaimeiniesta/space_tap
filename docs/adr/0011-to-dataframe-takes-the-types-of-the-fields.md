@@ -2,7 +2,7 @@
 
 `SpaceTAP.Result.to_dataframe/1` turns a result into an Explorer data frame. Explorer is an optional dependency, which the function checks for when it is called. Each column of a VOTable result gets the dtype of its field's datatype, at the same width: a `float` is `{:f, 32}` and a `short` `{:s, 16}`. An array is a list, nested once for each dimension of its arraysize but the one a string takes. The column keeps its dtype even when every cell is null or there are no rows. astropy, which PyVO reads with, keeps the same widths. A `float` holds the exact value of its 32 bits (ADR 0007), so it fits `{:f, 32}` without loss, and it reaches Nx, whose floats are 32-bit by default, without a conversion. A CSV result has no fields, so its columns are strings (ADR 0006).
 
-Explorer refuses two columns with the same name. A TAP service may send them for `SELECT a.ra, b.ra`: on 2026-11-18, 7 of the 8 services in the Compatibility table that answered did, and GAVO and MAST renamed the second one themselves. A repeated name gets a number after it, as PyVO names it: `ra2`, then `ra3`, or `ra22` when a column is already called `ra2`. `columns` keeps the names the service sent.
+Explorer refuses two columns with the same name. A TAP service may send them for `SELECT a.ra, b.ra`: on 2026-11-18, 7 of the 9 services in the Compatibility table that answered did, and GAVO and MAST renamed the second one themselves. VizieR and SIMBAD didn't answer, as CDS was down. A repeated name gets a number after it, as PyVO names it: `ra2`, then `ra3`, or `ra22` when a column is already called `ra2`. `columns` keeps the names the service sent.
 
 ## Considered Options
 

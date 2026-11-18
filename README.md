@@ -22,7 +22,7 @@ Add `space_tap` to the dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:space_tap, "~> 0.2.0"}
+    {:space_tap, "~> 0.3.0"}
   ]
 end
 ```
@@ -30,7 +30,7 @@ end
 In Livebook or a script:
 
 ```elixir
-Mix.install([{:space_tap, "~> 0.2.0"}])
+Mix.install([{:space_tap, "~> 0.3.0"}])
 ```
 
 ## Usage

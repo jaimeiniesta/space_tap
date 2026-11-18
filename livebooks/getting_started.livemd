@@ -2,7 +2,7 @@
 
 ```elixir
 Mix.install([
-  {:space_tap, "~> 0.2.0"},
+  {:space_tap, "~> 0.3.0"},
   {:kino, "~> 0.19.1"}
 ])
 ```

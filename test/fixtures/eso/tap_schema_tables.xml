@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?><VOTABLE version="1.3" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/v1.3">
+<RESOURCE type="results">
+<INFO name="QUERY_STATUS" value="OK"/>
+<INFO name="QUERY" value="SELECT * FROM TAP_SCHEMA.tables WHERE schema_name = &apos;ivoa&apos;"/>
+<TABLE>
+<FIELD arraysize="*" datatype="char" name="description">
+<DESCRIPTION>describes tables in the tableset</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="schema_name">
+<DESCRIPTION>the schema this table belongs to</DESCRIPTION>
+</FIELD>
+<FIELD datatype="int" name="table_index">
+<DESCRIPTION>The table_index is used to recommend table ordering for clients. Clients may order by table_index (ascending) so lower index tables would appear earlier in a listing.</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="table_name">
+<DESCRIPTION>the fully qualified table name</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="table_type">
+<DESCRIPTION>one of: table view</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="utype">
+<DESCRIPTION>lists the utype of tables in the tableset</DESCRIPTION>
+</FIELD>
+<DATA>
+<TABLEDATA>
+  <TR>
+    <TD>Table of all ESO reduced data products. It provides browsing capability and access point to all reduced data (spectra, images, spectral data cubes, visibilities) and derived products (source tables, catalog tiles, catalogs). The table structure (column names, formats, units, UCDs, utypes) and its access is regulated by the ObsCore standard of the Virtual Observatory (v1.1, 2017-05-09); hence, it is guaranteed that the same data discovery query can be sent unchanged to all data centres supporting ObsCore.</TD>
+    <TD>ivoa</TD>
+    <TD></TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>view</TD>
+    <TD>obscore:</TD>
+  </TR>
+</TABLEDATA>
+</DATA>
+</TABLE>
+</RESOURCE>
+</VOTABLE>

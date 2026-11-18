@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VOTABLE version="1.3" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.ivoa.net/xml/VOTable/v1.3">
+  <RESOURCE type="results">
+  <INFO name="QUERY_STATUS" value="OK"/>
+  <TABLE>
+    <FIELD ID="schema_name" arraysize="*" datatype="char" name="schema_name">
+  <DESCRIPTION><![CDATA[ Schema name ]]></DESCRIPTION>
+</FIELD>
+    <FIELD ID="table_name" arraysize="*" datatype="char" name="table_name">
+  <DESCRIPTION><![CDATA[ Table name ]]></DESCRIPTION>
+</FIELD>
+    <FIELD ID="table_type" arraysize="*" datatype="char" name="table_type">
+  <DESCRIPTION><![CDATA[ Table type ]]></DESCRIPTION>
+</FIELD>
+    <FIELD ID="utype" arraysize="*" datatype="char" name="utype">
+  <DESCRIPTION><![CDATA[ VO utype ]]></DESCRIPTION>
+</FIELD>
+    <FIELD ID="description" arraysize="*" datatype="char" name="description">
+  <DESCRIPTION><![CDATA[ Description ]]></DESCRIPTION>
+</FIELD>
+    <FIELD ID="table_index" datatype="int" name="table_index"/>
+    <DATA>
+      <TABLEDATA>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[spectra]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Atmospheric Spectroscopy]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[TD]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Transit Detection Table]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[superwasptimeseries]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[SuperWASP]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[kelttimeseries]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KELT]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[DI_STARS_EXEP]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[HWO ExEp Precursor Science Stars]]></TD>
+        <TD>0</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[stellarhosts]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Stellar Hosts]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[nexolist]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[NExoList (NASA Exoplanet Archive Atmospheric Observation List)]]></TD>
+        <TD>99</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[pscomppars]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[PSCOMPPARS]]></TD>
+        <TD>99</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[transitspec]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Transit Spectroscopy]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[emissionspec]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Emission Spectroscopy]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[ps]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Planetary Systems]]></TD>
+        <TD>1</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[keplernames]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Kepler Names]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[k2names]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[K2 Names]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[toi]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[TESS Project Candidates]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[CUMULATIVE]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Cumulative KOI Delivery]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q6_KOI]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q6 KOI Delivery]]></TD>
+        <TD>4</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q8_KOI]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q8 KOI Delivery]]></TD>
+        <TD>5</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q12_KOI]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q12 KOI Delivery]]></TD>
+        <TD>6</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q16_KOI]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q16 KOI Delivery]]></TD>
+        <TD>7</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q17_DR24_KOI]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q17 DR24 KOI Delivery]]></TD>
+        <TD>8</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q17_DR25_KOI]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q17 DR25 KOI Delivery]]></TD>
+        <TD>9</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q17_DR25_SUP_KOI]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q17 DR25 Supplemental KOI Delivery]]></TD>
+        <TD>10</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q12_TCE]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q12 TCE Delivery]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q16_TCE]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q16 TCE Delivery]]></TD>
+        <TD>4</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q17_DR24_TCE]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q17 DR24 TCE Delivery]]></TD>
+        <TD>5</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q17_DR25_TCE]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q17 DR25 TCE Delivery]]></TD>
+        <TD>6</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[stellarhosts]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Stellar Hosts]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[pandora]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Pandora Mission]]></TD>
+        <TD>99</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[ukirttimeseries]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[UKIRT]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[ml]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Microlensing Planets]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[object_aliases]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Object Aliases]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[k2pandc]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[K2 Planets and Candidates]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[K2TARGETS]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[K2 Stellar Targets]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[KEPLERTIMESERIES]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Kepler Time Series]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[KEPLERSTELLAR]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Kepler Stellar Delivery]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q12_KS]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q12 Kepler Stellar Delivery]]></TD>
+        <TD>4</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q16_KS]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q16 Kepler Stellar Delivery]]></TD>
+        <TD>5</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q17_DR24_KS]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q17 DR24 Kepler Stellar Delivery]]></TD>
+        <TD>6</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q17_DR25_KS]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q17 DR25 Kepler Stellar Delivery]]></TD>
+        <TD>7</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[Q1_Q17_DR25_SUP_KS]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[Q1-Q17 DR25 Supplemental Kepler Stellar Delivery]]></TD>
+        <TD>8</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[exo_tap]]></TD>
+        <TD><![CDATA[observations]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[OBSERVATIONS table]]></TD>
+        <TD>99</TD>
+        </TR>
+      </TABLEDATA>
+    </DATA>
+  </TABLE>
+  </RESOURCE>
+</VOTABLE>

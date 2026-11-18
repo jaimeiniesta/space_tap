@@ -55,3 +55,20 @@ the second, repeated until the job ended, reads the job with HTTP 200.
 `queued.xml` is the job of `completed.xml` before it ran, and already lists
 the URL of its result. The documents have no `version`. Deleting the job
 answered 200 but left it in place.
+
+## TAP_SCHEMA
+
+`tap_schema_tables.xml` and `tap_schema_columns.xml` are what IRSA answered on 2026-11-18 to the queries `SpaceTAP.tables/2` and `SpaceTAP.columns/3` send, captured with:
+
+```bash
+curl -sS -o <file> https://irsa.ipac.caltech.edu/TAP/sync \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "QUERY=<query>"
+```
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `tap_schema_tables.xml` | `SELECT * FROM TAP_SCHEMA.tables WHERE schema_name = '2mass'` | 200 | `application/x-votable+xml` |
+| `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'fp_psc'` | 200 | `application/x-votable+xml` |
+
+IRSA puts `table_index` and `column_index` first, adds columns of its own named `irsa_*`, and declares `arraysize` as an `int`, 1 for a single value.

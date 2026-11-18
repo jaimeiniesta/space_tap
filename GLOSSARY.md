@@ -17,6 +17,18 @@ The IVOA Data Access Layer Interface, the standard with the parts shared by all 
 An archive's implementation of TAP, such as the Gaia archive.
 _Avoid_: server, API, endpoint
 
+**TAP_SCHEMA**:
+The schema in which every TAP service describes its own tables and columns, queried with ADQL like any other.
+_Avoid_: metadata tables, catalogue
+
+**Table**:
+A table a TAP service publishes, which a query can name in its FROM clause.
+_Avoid_: result (what a query returns), catalogue
+
+**Column**:
+A column of a table a TAP service publishes, with its datatype, unit and UCD.
+_Avoid_: field (which describes a column of a result)
+
 **Service URL**:
 The base URL of a TAP service, to which endpoint names such as `/sync` are appended. TAP 1.1 calls it the *access URL*.
 _Avoid_: endpoint, sync URL

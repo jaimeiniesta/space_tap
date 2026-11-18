@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Produced with MAST VOTable encoder version 1.0 -->
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/v1.3">
+<RESOURCE type="results">
+<INFO name="QUERY_STATUS" value="OK"/>
+<INFO name="QUERY" value="SELECT * FROM TAP_SCHEMA.tables WHERE schema_name = 'ivoa'"/>
+<TABLE>
+<FIELD name="utype" datatype="char" arraysize="*">
+<DESCRIPTION>Utype if this table corresponds to a data model</DESCRIPTION></FIELD>
+<FIELD name="description" datatype="char" arraysize="*">
+<DESCRIPTION>Brief description of the table</DESCRIPTION></FIELD>
+<FIELD name="table_type" datatype="char" arraysize="*">
+<DESCRIPTION>One of: table, view</DESCRIPTION></FIELD>
+<FIELD name="table_name" datatype="char" arraysize="*">
+<DESCRIPTION>Fully qualified table name</DESCRIPTION></FIELD>
+<FIELD name="schema_name" datatype="char" arraysize="*">
+<DESCRIPTION>Fully qualified schema name</DESCRIPTION></FIELD>
+<FIELD name="table_index" datatype="int">
+<DESCRIPTION>index value</DESCRIPTION></FIELD>
+<DATA>
+<TABLEDATA>
+<TR><TD></TD><TD>ObsCore-1.1 observation table</TD><TD>view</TD><TD>ivoa.obscore</TD><TD>ivoa</TD><TD>14</TD></TR>
+</TABLEDATA>
+</DATA>
+</TABLE>
+<INFO name="QUERY_STATUS" value="OVERFLOW"/>
+</RESOURCE>
+</VOTABLE>

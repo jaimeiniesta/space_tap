@@ -65,3 +65,20 @@ curl -sS -X POST <job URL>/phase --data-urlencode "PHASE=RUN"
 Besides the result, the job lists results named `diag` and `rowcount`, whose
 hrefs aren't URLs, such as `uws:executing:1`. The result is on another host,
 `ws-cadc.canfar.net`.
+
+## TAP_SCHEMA
+
+`tap_schema_tables.xml` and `tap_schema_columns.xml` are what CADC answered on 2026-11-18 to the queries `SpaceTAP.tables/2` and `SpaceTAP.columns/3` send, captured with:
+
+```bash
+curl -sS -L -o <file> https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus/sync \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "QUERY=<query>"
+```
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `tap_schema_tables.xml` | `SELECT * FROM TAP_SCHEMA.tables WHERE schema_name = 'ivoa'` | 200 | `application/x-votable+xml; serialization=tabledata` |
+| `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'ivoa.ObsCore'` | 200 | `application/x-votable+xml; serialization=tabledata` |
+
+CADC answers each query with a 303 to its result, which `-L` follows. Its columns name the deprecated `size` column `"size"`, with the quotes.

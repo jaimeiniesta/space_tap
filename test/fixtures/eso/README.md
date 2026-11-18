@@ -58,3 +58,20 @@ curl -sS -X POST <job URL>/phase --data-urlencode "PHASE=RUN"
 
 The documents use a default namespace instead of the `uws` prefix, and list
 the format asked for as `RESPONSEFORMAT`, with the value `VOTABLE`.
+
+## TAP_SCHEMA
+
+`tap_schema_tables.xml` and `tap_schema_columns.xml` are what ESO answered on 2026-11-18 to the queries `SpaceTAP.tables/2` and `SpaceTAP.columns/3` send, captured with:
+
+```bash
+curl -sS -o <file> https://archive.eso.org/tap_obs/sync \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "QUERY=<query>"
+```
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `tap_schema_tables.xml` | `SELECT * FROM TAP_SCHEMA.tables WHERE schema_name = 'ivoa'` | 200 | `application/x-votable+xml` |
+| `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'ivoa.ObsCore'` | 200 | `application/x-votable+xml` |
+
+`ivoa.ObsCore` has no `table_index`, and some of its columns no `column_index`.

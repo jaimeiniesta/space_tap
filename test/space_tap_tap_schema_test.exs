@@ -146,10 +146,12 @@ defmodule SpaceTAPTAPSchemaTest do
       assert log =~ "marked TAP_SCHEMA.tables as overflow, so the list of tables may be cut short"
     end
 
+    # capture_log/1 gets the messages of every process, and other tests
+    # running at the same time log too, so this looks for the warning alone.
     test "doesn't warn when the result isn't marked as overflow" do
       stub_service(fixture("gavo", "tap_schema_tables.xml"))
 
-      assert capture_log(fn -> assert {:ok, [_table]} = tables() end) == ""
+      refute capture_log(fn -> assert {:ok, [_table]} = tables() end) =~ "as overflow"
     end
 
     test "returns the error of the query" do

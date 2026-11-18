@@ -111,6 +111,74 @@ defmodule SpaceTAP.HTTP do
     classify(response, &{:votable, VOTable.parse(&1)}, &result(&1, format, &2, &3))
   end
 
+  # Reads a VOSI document, /capabilities or /availability, with `read`,
+  # which gives what it reads or the reason it can't. The body is read as
+  # XML when its media type is XML or when it has none, since KOA sends
+  # both with no Content-Type (ADR 0014). A document `read` takes is the
+  # answer whatever the status, since the body decides before the status
+  # (ADR 0001): a service may send its availability with a 503.
+  @spec read_vosi(result(), (binary() -> {:ok, value} | {:error, String.t()})) ::
+          {:ok, value} | {:error, Error.t()}
+        when value: term()
+  def read_vosi({:error, exception}, _read) do
+    error(:transport_error, Exception.message(exception), nil)
+  end
+
+  def read_vosi({:ok, %Req.Response{status: status, body: body} = response}, read) do
+    media_type = media_type(response)
+    xml = is_nil(media_type) or xml?(media_type)
+
+    case if(xml, do: read.(body), else: :other) do
+      {:ok, value} ->
+        {:ok, value}
+
+      {:error, message} when status in 200..299 ->
+        error(:decode_error, message, status)
+
+      :other when status in 200..299 ->
+        error(:decode_error, "expected an XML document, got #{media_type}", status)
+
+      _other ->
+        body = read_body(media_type, body, fn _xml -> :other end)
+        error(:http_error, http_error_message(body, media_type), status)
+    end
+  end
+
+  # Where to fetch a document a service lists at `url`, from a request to
+  # `from_url`: never over http:// after https://. An http:// URL on the
+  # same host is fetched with https://, which GAVO serves too; one on
+  # another host is :insecure.
+  @spec secure(String.t(), String.t()) :: {:ok, String.t()} | :insecure
+  def secure(from_url, url) do
+    from = URI.parse(from_url)
+    to = URI.parse(url)
+
+    cond do
+      from.scheme != "https" or to.scheme != "http" ->
+        {:ok, url}
+
+      to.host == from.host and to.port == 80 ->
+        {:ok, URI.to_string(%{to | scheme: "https", port: 443})}
+
+      true ->
+        :insecure
+    end
+  end
+
+  # Credentials stay with the host, scheme and port of `from_url`, as Req
+  # keeps them from a redirect that leaves them (its :redirect_trusted
+  # option).
+  @spec credentials(keyword(), String.t(), String.t()) :: keyword()
+  def credentials(req_options, from_url, url) do
+    if origin(from_url) == origin(url) do
+      req_options
+    else
+      req_options
+      |> Keyword.delete(:auth)
+      |> Keyword.replace_lazy(:headers, &without_authorization/1)
+    end
+  end
+
   @spec error(Error.type(), String.t(), integer() | nil) :: {:error, Error.t()}
   def error(type, message, status) do
     {:error, %Error{type: type, message: message, status: status}}
@@ -206,6 +274,17 @@ defmodule SpaceTAP.HTTP do
       |> String.downcase()
 
     if media_type == "", do: nil, else: media_type
+  end
+
+  defp origin(url) do
+    uri = URI.parse(url)
+    {uri.scheme, uri.host, uri.port}
+  end
+
+  defp without_authorization(headers) do
+    Enum.reject(headers, fn {name, _value} ->
+      name |> to_string() |> String.downcase() == "authorization"
+    end)
   end
 
   # application/xml, text/xml and +xml types such as application/x-votable+xml

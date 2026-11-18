@@ -29,6 +29,14 @@ _Avoid_: result (what a query returns), catalogue
 A column of a table a TAP service publishes, with its datatype, unit and UCD.
 _Avoid_: field (which describes a column of a result)
 
+**Capabilities**:
+The document in which a TAP service lists what it offers and where: its endpoints, the ADQL features it supports and its limits.
+_Avoid_: features, service description
+
+**Availability**:
+What a TAP service says about whether it is accepting requests, and since or until when.
+_Avoid_: status (which names the query status of a VOTable), health, uptime
+
 **Service URL**:
 The base URL of a TAP service, to which endpoint names such as `/sync` are appended. TAP 1.1 calls it the *access URL*.
 _Avoid_: endpoint, sync URL

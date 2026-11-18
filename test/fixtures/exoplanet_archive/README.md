@@ -79,3 +79,19 @@ curl -sS -o <file> https://exoplanetarchive.ipac.caltech.edu/TAP/sync \
 | `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'ps'` | 200 | `application/xml` |
 
 The schema has 41 rows, `stellarhosts` twice, and the table `ps` 355 columns, which add `format`.
+
+## VOSI
+
+`capabilities.xml` and `availability.xml` are the documents the NASA Exoplanet Archive served on 2026-11-18 for `SpaceTAP.availability/2`, captured with:
+
+```bash
+curl -sS -o capabilities.xml https://exoplanetarchive.ipac.caltech.edu/TAP/capabilities
+curl -sS -L -o availability.xml http://exoplanetarchive.ipac.caltech.edu/TAP/availability
+```
+
+| File | URL | HTTP | Content-Type |
+|---|---|---|---|
+| `capabilities.xml` | `https://exoplanetarchive.ipac.caltech.edu/TAP/capabilities` | 200 | `application/xml` |
+| `availability.xml` | `http://exoplanetarchive.ipac.caltech.edu/TAP/availability`, the access URL of the `ivo://ivoa.net/std/VOSI#availability` capability | 200 | `application/xml` |
+
+The archive lists its availability over `http://` and redirects it to `https://` with a 301, which `-L` follows.

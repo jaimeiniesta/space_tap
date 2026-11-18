@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vosi:capabilities xmlns:vosi="http://www.ivoa.net/xml/VOSICapabilities/v1.0" xmlns:tr="http://www.ivoa.net/xml/TAPRegExt/v1.0" xmlns:vr="http://www.ivoa.net/xml/VOResource/v1.0" xmlns:vs="http://www.ivoa.net/xml/VODataService/v1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/VOSICapabilities/v1.0 http://www.ivoa.net/xml/VOSICapabilities/v1.0 http://www.ivoa.net/xml/TAPRegExt/v1.0 http://www.ivoa.net/xml/TAPRegExt/v1.0 http://www.ivoa.net/xml/VOResource/v1.0 http://www.ivoa.net/xml/VOResource/v1.0 http://www.ivoa.net/xml/VODataService/v1.0 http://www.ivoa.net/xml/VODataService/v1.0">
+<capability  standardID="ivo://ivoa.net/std/TAP" xsi:type="tr:TableAccess">
+	<interface role="std" xsi:type="vs:ParamHTTP">
+		<accessURL use="base">https://ned.ipac.caltech.edu:443/tap</accessURL>
+	</interface>
+	<language>
+		<name>ADQL</name>
+		<version ivo-id="ivo://ivoa.net/std/ADQL#v2.0">2.0</version>
+		<description>ADQL 2.0</description>
+		<languageFeatures type="ivo://ivoa.net/std/TAPRegExt#features-adqlgeo">			<feature>				<form>POINT</form>			</feature>			<feature>				<form>BOX</form>			</feature>			<feature>				<form>CIRCLE</form>			</feature>			<feature>				<form>POLYGON</form>			</feature>			<feature>				<form>COORD1</form>			</feature>			<feature>				<form>COORD2</form>			</feature>			<feature>				<form>CONTAINS</form>			</feature>			<feature>				<form>DISTANCE</form>			</feature>		</languageFeatures>		<languageFeatures type="ivo://ivoa.net/std/TAPRegExt#features-udf">			<feature>				<form>ivo_lower(txt VARCHAR) -&gt; VARCHAR</form>				<description>Lower the given string.</description>			</feature>		</languageFeatures>	</language>
+	<outputFormat>
+		<mime>application/x-votable+xml</mime>
+		<alias>votable</alias>
+	</outputFormat>
+	<outputFormat>
+		<mime>application/x-votable+xml;serialization=BINARY2</mime>
+		<alias>votable/b2</alias>
+	</outputFormat>
+	<outputFormat>
+		<mime>application/x-votable+xml;serialization=TABLEDATA</mime>
+		<alias>votable/td</alias>
+	</outputFormat>
+	<outputFormat>
+		<mime>application/x-votable+xml;serialization=FITS</mime>
+		<alias>votable/fits</alias>
+	</outputFormat>
+	<outputFormat>
+		<mime>application/fits</mime>
+		<alias>fits</alias>
+	</outputFormat>
+	<outputFormat>
+		<mime>application/json</mime>
+		<alias>json</alias>
+	</outputFormat>
+	<outputFormat>
+		<mime>text/csv</mime>
+		<alias>csv</alias>
+	</outputFormat>
+	<outputFormat>
+		<mime>text/tab-separated-values</mime>
+		<alias>tsv</alias>
+	</outputFormat>
+	<outputFormat>
+		<mime>text/plain</mime>
+		<alias>text</alias>
+	</outputFormat>
+	<outputFormat>
+		<mime>text/html</mime>
+		<alias>html</alias>
+	</outputFormat>
+	<retentionPeriod>
+		<default>0</default>
+		<hard>0</hard>
+	</retentionPeriod>
+	<executionDuration>
+		<default>60</default>
+		<hard>5400</hard>
+	</executionDuration>
+	<outputLimit>
+		<default  unit="row">1000000</default>
+	</outputLimit>
+	</capability>
+	<capability  standardID="ivo://ivoa.net/std/VOSI#tables">
+		<interface xsi:type="vs:ParamHTTP" role="std">
+			<accessURL use="full"> https://ned.ipac.caltech.edu:443/tap/tables </accessURL>
+		</interface>
+	</capability>
+	<capability  standardID="ivo://ivoa.net/std/VOSI#capabilities">
+		<interface xsi:type="vs:ParamHTTP" role="std">
+			<accessURL use="full"> https://ned.ipac.caltech.edu:443/tap/capabilities </accessURL>
+		</interface>
+	</capability>
+	<capability  standardID="ivo://ivoa.net/std/VOSI#availability">
+		<interface xsi:type="vs:ParamHTTP" role="std">
+			<accessURL use="full"> https://ned.ipac.caltech.edu:443/tap/availability </accessURL>
+		</interface>
+	</capability>
+</vosi:capabilities>

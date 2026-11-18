@@ -73,3 +73,19 @@ curl -sS -o <file> https://ned.ipac.caltech.edu/tap/sync \
 | `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'NEDTAP.objdir'` | 200 | `application/x-votable+xml;charset=UTF-8` |
 
 NED's `TAP_SCHEMA.columns` follows TAP 1.0: it has no `arraysize` or `xtype`, `datatype` holds ADQL types such as `BIGINT`, and `std` is empty. It adds `coosys_id`.
+
+## VOSI
+
+`capabilities.xml` and `availability.xml` are the documents NED served on 2026-11-18 for `SpaceTAP.availability/2`, captured with:
+
+```bash
+curl -sS -o capabilities.xml https://ned.ipac.caltech.edu/tap/capabilities
+curl -sS -o availability.xml https://ned.ipac.caltech.edu:443/tap/availability
+```
+
+| File | URL | HTTP | Content-Type |
+|---|---|---|---|
+| `capabilities.xml` | `https://ned.ipac.caltech.edu/tap/capabilities` | 200 | `application/xml;charset=UTF-8` |
+| `availability.xml` | `https://ned.ipac.caltech.edu:443/tap/availability`, the access URL of the `ivo://ivoa.net/std/VOSI#availability` capability | 200 | `text/xml;charset=UTF-8` |
+
+The access URL has white space around it and names port 443.

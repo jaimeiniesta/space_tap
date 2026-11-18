@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<vosi:capabilities
+  xmlns:vosi="http://www.ivoa.net/xml/VOSICapabilities/v1.0"
+  xmlns:vr="http://www.ivoa.net/xml/VOResource/v1.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:vod="http://www.ivoa.net/xml/VODataService/v1.1"
+  xmlns:tr="http://www.ivoa.net/xml/TAPRegExt/v1.0"
+  xsi:schemaLocation="http://www.ivoa.net/xml/VOResource/v1.0 http://www.ivoa.net/xml/VOResource/v1.0
+                      http://www.ivoa.net/xml/VODataService/v1.1 http://www.ivoa.net/xml/VODataService/v1.1
+                      http://www.ivoa.net/xml/VOSICapabilities/v1.0 http://www.ivoa.net/xml/VOSICapabilities/v1.0
+                      http://www.ivoa.net/xml/TAPRegExt/v1.0 http://www.ivoa.net/xml/TAPRegExt/v1.0">
+
+  <!-- VOSI capability metadata for this TAP service -->
+  <capability standardID="ivo://ivoa.net/std/VOSI#capabilities">
+    <interface xsi:type="vod:ParamHTTP" role="std">
+      <accessURL use="full">https://irsa.ipac.caltech.edu/TAP/capabilities</accessURL>
+    </interface>
+  </capability>
+
+  <!-- VOSI availability metadata for this TAP service -->
+  <capability standardID="ivo://ivoa.net/std/VOSI#availability">
+    <interface xsi:type="vod:ParamHTTP" role="std">
+      <accessURL use="full">https://irsa.ipac.caltech.edu/TAP/availability</accessURL>
+      <queryType>GET</queryType>
+      <resultType>application/xml</resultType>
+    </interface>
+  </capability>
+
+  <!-- VOSI table metadata for this TAP service -->
+  <capability standardID="ivo://ivoa.net/std/VOSI#tables">
+    <interface xsi:type="vod:ParamHTTP" role="std">
+      <accessURL use="full">https://irsa.ipac.caltech.edu/TAP/tables</accessURL>
+      <queryType>GET</queryType>
+      <resultType>application/xml</resultType>
+    </interface>
+  </capability>
+
+  <!-- DALI Examples Capability -->
+  <capability standardID="ivo://ivoa.net/std/DALI#examples">
+    <interface xsi:type="vod:ParamHTTP" role="std">
+      <accessURL use="full">https://irsa.ipac.caltech.edu/TAP/examples</accessURL>
+    </interface>
+  </capability>
+
+  <!-- TAP capability for this TAP service -->
+  <capability standardID="ivo://ivoa.net/std/TAP" xsi:type="tr:TableAccess">
+    <interface xsi:type="vod:ParamHTTP" role="std" version="1.0">
+      <accessURL use="base">https://irsa.ipac.caltech.edu/TAP</accessURL>
+      <securityMethod/>
+      <securityMethod standardID="ivo://ivoa.net/sso#cookie"/>
+    </interface>
+
+    <!-- the ADQL geometry functions in TAP -->
+    <language>
+      <name>ADQL</name>
+      <version ivo-id="ivo://ivoa.net/std/ADQL#v2.0">2.0</version>
+      <description>ADQL-2.0</description>
+      <languageFeatures type="ivo://ivoa.net/std/TAPRegExt#features-adqlgeo">
+        <feature>
+          <form>POINT</form>
+        </feature>
+        <feature>
+          <form>CIRCLE</form>
+        </feature>
+        <feature>
+          <form>BOX</form>
+        </feature>
+        <feature>
+          <form>POLYGON</form>
+        </feature>
+        <feature>
+          <form>CONTAINS</form>
+        </feature>
+        <feature>
+          <form>INTERSECTS</form>
+        </feature>
+        <feature>
+          <form>COORDSYS</form>
+        </feature>
+        <feature>
+          <form>DISTANCE</form>
+        </feature>
+      </languageFeatures>
+    </language>
+
+    <!-- the output formats supported in TAP -->
+    <outputFormat ivo-id="ivo://ivoa.net/std/TAPRegExt#output-votable-td">
+      <mime>application/x-votable+xml;serialization=tabledata</mime>
+      <alias>votable/td</alias>
+      <alias>votable</alias>
+      <alias>text/xml</alias>
+    </outputFormat>
+    <!-- <outputFormat ivo-id="ivo://ivoa.net/std/TAPRegExt#output-votable-binary2">
+      <mime>application/x-votable+xml;serialization=binary2</mime>
+      <alias>votable/binary2</alias>
+      <alias>votable/b2</alias>
+    </outputFormat> -->
+    <outputFormat>
+      <mime>text/csv</mime>
+      <alias>csv</alias>
+    </outputFormat>
+    <outputFormat>
+      <mime>text/tab-separated-values</mime>
+      <alias>tsv</alias>
+    </outputFormat>
+    <outputFormat>
+      <mime>text/plain</mime>
+      <alias>ipac_table</alias>
+      <alias>text</alias>
+    </outputFormat>
+    <outputFormat>
+      <mime>application/fits</mime>
+      <alias>fits</alias>
+    </outputFormat>
+    <outputFormat>
+      <mime>application/x-hdf</mime>
+      <alias>hdf5</alias>
+    </outputFormat>
+    <outputFormat>
+      <mime>application/json</mime>
+      <alias>json</alias>
+    </outputFormat>
+    <outputFormat>
+      <mime>application/json5</mime>
+      <alias>json5</alias>
+    </outputFormat>
+
+    <!-- the upload table in TAP -->
+    <uploadMethod ivo-id="ivo://ivoa.net/std/TAPRegExt#upload-inline" />
+    <uploadMethod ivo-id="ivo://ivoa.net/std/TAPRegExt#upload-http" />
+
+    <!-- applies to TAP/async; TAP/sync has its own 5-minute timeout, not expressible here -->
+    <executionDuration>
+      <default>259200</default>
+      <hard>259200</hard>
+    </executionDuration>
+
+  </capability>
+</vosi:capabilities>

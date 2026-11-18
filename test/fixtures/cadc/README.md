@@ -82,3 +82,19 @@ curl -sS -L -o <file> https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus/sync \
 | `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'ivoa.ObsCore'` | 200 | `application/x-votable+xml; serialization=tabledata` |
 
 CADC answers each query with a 303 to its result, which `-L` follows. Its columns name the deprecated `size` column `"size"`, with the quotes.
+
+## VOSI
+
+`capabilities.xml` and `availability.xml` are the documents CADC served on 2026-11-18 for `SpaceTAP.availability/2`, captured with:
+
+```bash
+curl -sS -o capabilities.xml https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus/capabilities
+curl -sS -o availability.xml https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus/availability
+```
+
+| File | URL | HTTP | Content-Type |
+|---|---|---|---|
+| `capabilities.xml` | `https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus/capabilities` | 200 | `text/xml` |
+| `availability.xml` | `https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus/availability`, the access URL of the `ivo://ivoa.net/std/VOSI#availability` capability | 200 | `text/xml` |
+
+The availability document repeats the IP address of the client in a comment, which was replaced with `192.0.2.1`, an address reserved for documentation (RFC 5737).

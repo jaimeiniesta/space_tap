@@ -8,13 +8,14 @@ defmodule SpaceTAP do
   `async_query/3` does the same with a query the service runs as a job, for
   queries that take longer than a sync query may; `SpaceTAP.Job` has each
   step of it. `tables/2` and `columns/3` list the tables a service
-  publishes and their columns, and `SpaceTAP.ADQL` helps write the query.
+  publishes and their columns, `availability/2` whether it is accepting
+  requests, and `SpaceTAP.ADQL` helps write the query.
 
   SpaceTAP follows [TAP 1.1](https://www.ivoa.net/documents/TAP/20190927/REC-TAP-1.1.html)
   and works with TAP 1.0 services.
   """
 
-  alias SpaceTAP.{Column, Error, HTTP, Job, Result, Table, TAPSchema}
+  alias SpaceTAP.{Availability, Column, Error, HTTP, Job, Result, Table, TAPSchema, VOSI}
 
   @typedoc "An option for `query/3` or `async_query/3`."
   @type option ::
@@ -29,6 +30,9 @@ defmodule SpaceTAP do
 
   @typedoc "An option for `columns/3`."
   @type columns_option :: {:req_options, keyword()}
+
+  @typedoc "An option for `availability/2`."
+  @type availability_option :: {:req_options, keyword()}
 
   @doc """
   Runs a sync query: sends `adql` to the TAP service at `service_url` and
@@ -236,6 +240,64 @@ defmodule SpaceTAP do
     case sync(service_url, adql, format: :votable, req_options: opts[:req_options]) do
       {{:ok, result}, status} -> TAPSchema.columns(result, status)
       {error, _status} -> error
+    end
+  end
+
+  @doc """
+  Asks the TAP service at `service_url` whether it is available, with its
+  VOSI availability document (VOSI 1.1 §3.2).
+
+      SpaceTAP.availability("https://dc.g-vo.org/tap")
+      #=> {:ok, %SpaceTAP.Availability{available: true, up_since: "2026-10-30T12:22:56Z", ...}}
+
+  The availability may be anywhere (DALI 1.1 §2), so its URL comes from
+  the service's capabilities, at `/capabilities` under `service_url` (DALI
+  1.1 §2.5): the access URL of the capability
+  `ivo://ivoa.net/std/VOSI#availability`. A service must list it (DALI 1.1
+  §2.4), so capabilities without it are a `:decode_error`.
+
+  An availability that says `available: false` is `{:ok, ...}`, whatever
+  the HTTP status it comes with. It is what the service says about itself:
+  a host that doesn't answer gives a `:transport_error`, and a service that
+  says it is available may still fail a query.
+
+  After an `https://` service URL, an `http://` availability URL on the same
+  host is read with `https://`, as GAVO lists one, and one on another host
+  is a `:decode_error` and isn't read. On another host, scheme or port, the
+  `authorization` header and the `:auth` option of `:req_options` aren't
+  sent.
+
+  ## Options
+
+    * `:req_options` - options for Req, as in `query/3`.
+
+  An unknown option raises `ArgumentError`.
+  """
+  @spec availability(String.t(), [availability_option()]) ::
+          {:ok, Availability.t()} | {:error, Error.t()}
+  def availability(service_url, opts \\ []) when is_binary(service_url) do
+    opts = Keyword.validate!(opts, req_options: [])
+    req_options = HTTP.req_options(opts[:req_options])
+    capabilities_url = String.trim_trailing(service_url, "/") <> "/capabilities"
+
+    {_url, response} = HTTP.run(req_options, method: :get, url: capabilities_url)
+
+    with {:ok, listed_url} <- HTTP.read_vosi(response, &VOSI.availability_url/1) do
+      listed_url = capabilities_url |> URI.merge(listed_url) |> URI.to_string()
+
+      case HTTP.secure(capabilities_url, listed_url) do
+        {:ok, url} ->
+          req_options = HTTP.credentials(req_options, capabilities_url, url)
+          {_url, response} = HTTP.run(req_options, method: :get, url: url)
+          HTTP.read_vosi(response, &VOSI.availability/1)
+
+        :insecure ->
+          message =
+            "the service is at an https:// URL and lists its availability at an http:// one: " <>
+              listed_url
+
+          HTTP.error(:decode_error, message, nil)
+      end
     end
   end
 

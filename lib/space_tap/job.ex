@@ -438,10 +438,21 @@ defmodule SpaceTAP.Job do
     HTTP.error(:decode_error, "the job is COMPLETED and lists no result", nil)
   end
 
+  # GAVO lists http:// URLs on its own host, which it serves with https://
+  # too, and the NASA Exoplanet Archive redirects them to https://.
   defp read_result(%__MODULE__{phase: :completed} = job, req_options) do
-    with {:ok, url} <- secure(job.url, job.result_url) do
-      {_url, response} = HTTP.run(credentials(req_options, job.url, url), method: :get, url: url)
-      HTTP.read_result(response, job.format)
+    case HTTP.secure(job.url, job.result_url) do
+      {:ok, url} ->
+        {_url, response} =
+          HTTP.run(HTTP.credentials(req_options, job.url, url), method: :get, url: url)
+
+        HTTP.read_result(response, job.format)
+
+      :insecure ->
+        message =
+          "the job is at an https:// URL and lists its result at an http:// one: #{job.result_url}"
+
+        HTTP.error(:decode_error, message, nil)
     end
   end
 
@@ -452,51 +463,6 @@ defmodule SpaceTAP.Job do
   end
 
   defp name(phase), do: phase |> Atom.to_string() |> String.upcase()
-
-  # A result is never read over http:// for a job at an https:// URL. GAVO
-  # lists http:// URLs on its own host, which it serves with https:// too,
-  # and the NASA Exoplanet Archive redirects them to https://.
-  defp secure(job_url, result_url) do
-    job = URI.parse(job_url)
-    result = URI.parse(result_url)
-
-    cond do
-      job.scheme != "https" or result.scheme != "http" ->
-        {:ok, result_url}
-
-      result.host == job.host and result.port == 80 ->
-        {:ok, URI.to_string(%{result | scheme: "https", port: 443})}
-
-      true ->
-        message =
-          "the job is at an https:// URL and lists its result at an http:// one: #{result_url}"
-
-        HTTP.error(:decode_error, message, nil)
-    end
-  end
-
-  # Credentials stay with the job's host, scheme and port, as Req keeps them
-  # from a redirect that leaves them (its :redirect_trusted option).
-  defp credentials(req_options, job_url, result_url) do
-    if origin(job_url) == origin(result_url) do
-      req_options
-    else
-      req_options
-      |> Keyword.delete(:auth)
-      |> Keyword.replace_lazy(:headers, &without_authorization/1)
-    end
-  end
-
-  defp origin(url) do
-    uri = URI.parse(url)
-    {uri.scheme, uri.host, uri.port}
-  end
-
-  defp without_authorization(headers) do
-    Enum.reject(headers, fn {name, _value} ->
-      name |> to_string() |> String.downcase() == "authorization"
-    end)
-  end
 
   # The job keeps its URL: the request went to one with WAIT in it. Asked to
   # block, GAVO answers 5 to 7 seconds after the WAIT is over.

@@ -77,3 +77,19 @@ curl -sS -o <file> https://koa.ipac.caltech.edu/TAP/sync \
 | `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'koa_hires'` | 200 | `text/xml` |
 
 The table `koa_hires` has 381 columns, which add `format`.
+
+## VOSI
+
+`capabilities.xml` and `availability.xml` are the documents KOA served on 2026-11-18 for `SpaceTAP.availability/2`, captured with:
+
+```bash
+curl -sS -o capabilities.xml https://koa.ipac.caltech.edu/TAP/capabilities
+curl -sS -o availability.xml https://koa.ipac.caltech.edu/TAP/availability
+```
+
+| File | URL | HTTP | Content-Type |
+|---|---|---|---|
+| `capabilities.xml` | `https://koa.ipac.caltech.edu/TAP/capabilities` | 200 | none |
+| `availability.xml` | `https://koa.ipac.caltech.edu/TAP/availability`, the access URL of the `ivo://ivoa.net/std/VOSI#availability` capability | 200 | none |
+
+Both came with no `Content-Type` header.

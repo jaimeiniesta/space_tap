@@ -2,7 +2,7 @@
 
 ```elixir
 Mix.install([
-   {:space_tap, path: "/Users/jaime/code/space_tap"},
+  {:space_tap, "~> 0.3.0"},
   {:kino, "~> 0.19.1"}
 ])
 ```

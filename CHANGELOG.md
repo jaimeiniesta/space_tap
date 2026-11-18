@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-18
+
 ### Added
 
 - `SpaceTAP.async_query/3`, which runs a query as a job: it submits the job, waits for it, reads its result as `query/3` reads a sync one, and deletes the job whatever happens. It takes the options of `query/3` and a `:timeout`. A job that stops in another phase than COMPLETED, such as ERROR or ABORTED, is a `:service_error` with the service's message (`docs/adr/0010-async-query-starts-waits-for-and-deletes-a-job.md`).
@@ -52,7 +54,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A README with usage, errors, the limits of CSV results and the TAP services SpaceTAP has been checked against, and HexDocs with the SpaceTAP icon.
 - Livebooks that run SpaceTAP against Gaia, GAVO, the NASA Exoplanet Archive and other TAP services, with tables and charts, each with a "Run in Livebook" button on HexDocs.
 
-[Unreleased]: https://github.com/jaimeiniesta/space_tap/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/jaimeiniesta/space_tap/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jaimeiniesta/space_tap/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/jaimeiniesta/space_tap/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jaimeiniesta/space_tap/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jaimeiniesta/space_tap/releases/tag/v0.1.0

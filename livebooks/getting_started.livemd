@@ -3,7 +3,9 @@
 ```elixir
 Mix.install([
   {:space_tap, "~> 0.3.0"},
-  {:kino, "~> 0.19.1"}
+  {:explorer, "~> 0.13"},
+  {:kino, "~> 0.19.1"},
+  {:kino_explorer, "~> 0.1.25"}
 ])
 ```
 
@@ -102,6 +104,33 @@ end
 ```
 
 CSV stays the default, so code written for strings keeps working.
+
+## Data frames
+
+`SpaceTAP.Result.to_dataframe/1` turns a result into an [Explorer](https://hexdocs.pm/explorer/) data frame: a table that keeps each column as one array of one type, as NumPy does in Python, and computes on whole columns at once. It needs Explorer, which SpaceTAP doesn't install, so this notebook installs it, with `kino_explorer` to show data frames as tables:
+
+```elixir
+require Explorer.DataFrame, as: DF
+
+df = SpaceTAP.Result.to_dataframe(result)
+```
+
+Each column has the type of its field, at the same width: `source_id` is `s64`, `ra` and `dec` are `f64`, and `parallax` and `phot_g_mean_mag` are `f32`, like the `float`s their fields declare. `DF.mutate/2` adds a column computed from the others:
+
+```elixir
+df
+|> DF.mutate(distance_pc: round(1000 / parallax, 1))
+|> DF.select(["source_id", "distance_pc"])
+```
+
+A CSV result has no types to give, so every column is a string:
+
+```elixir
+{:ok, csv_result} = SpaceTAP.query(gavo, adql)
+csv_result |> SpaceTAP.Result.to_dataframe() |> DF.dtypes()
+```
+
+The units and descriptions stay in `result.fields`, since a data frame has no place for them.
 
 ## Options
 
@@ -234,6 +263,6 @@ end
 ## Next
 
 * [The Pleiades with Gaia](gaia_pleiades.livemd): find the members of a star cluster by how they move, and draw their colour–magnitude diagram.
-* [GAVO Data Center](gavo.livemd): what a service holds, the Hipparcos catalogue, and the IVOA Registry.
+* [GAVO Data Center](gavo.livemd): what a service holds, with `SpaceTAP.tables/2` and `SpaceTAP.columns/3`, the Hipparcos catalogue, and the IVOA Registry, searched with a value written by `SpaceTAP.ADQL.literal/1`.
 * [NASA Exoplanet Archive](nasa_exoplanet_archive.livemd): exoplanet discoveries over the years, and planets by size and orbit.
 * [A tour of TAP services](tap_services_tour.livemd): the same query against eleven services at once, and every kind of error.

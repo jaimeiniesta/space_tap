@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SpaceTAP.availability/2`, which asks a TAP service whether it is available and returns a `SpaceTAP.Availability`, with the times and notes the service gives. It finds the availability through the service's capabilities, as GAVO lists it outside its service URL, and reads it with `https://` when the service lists it with `http://` on its own host. A service that says it isn't available gives `{:ok, _}` with `available: false`, whatever the HTTP status (`docs/adr/0014-availability-is-found-through-capabilities.md`).
 - The README's Compatibility table has Tables and Availability columns, with what each service does differently: GAVO lists its availability outside its service URL, NED's `TAP_SCHEMA` follows TAP 1.0, KOA sends its VOSI documents with no `Content-Type`, and MAST marks every result as overflow, even one with no rows.
 - The README has sections on data frames, tables and columns, writing ADQL and availability, and the Installation section names Explorer for data frames.
+- The livebooks turn results into data frames: the Pleiades, GAVO and NASA Exoplanet Archive livebooks compute with Explorer instead of lists of maps, the GAVO one lists tables and columns with `tables/2` and `columns/3` and writes a value with `ADQL.literal/1`, and the getting-started livebook has a section on data frames.
 
 ## [0.3.0] - 2026-11-18
 

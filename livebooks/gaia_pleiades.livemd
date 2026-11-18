@@ -3,7 +3,9 @@
 ```elixir
 Mix.install([
   {:space_tap, "~> 0.3.0"},
+  {:explorer, "~> 0.13"},
   {:kino, "~> 0.19.1"},
+  {:kino_explorer, "~> 0.1.25"},
   {:kino_vega_lite, "~> 0.1.13"}
 ])
 ```
@@ -21,6 +23,8 @@ A cone of 2° around the centre of the cluster. The parallax filter keeps stars 
 `format: :votable` asks GAVO for VOTable instead of CSV, so each value comes with the type its column declares: numbers to compute with, not strings to parse.
 
 ```elixir
+require Explorer.DataFrame, as: DF
+alias Explorer.Series
 alias VegaLite, as: Vl
 
 gavo = "https://dc.g-vo.org/tap"
@@ -51,14 +55,13 @@ result.fields
 |> Kino.DataTable.new(keys: [:name, :datatype, :unit, :ucd, :description], name: "Columns")
 ```
 
-The rows become maps, one per star:
+The result becomes a data frame, an [Explorer](https://hexdocs.pm/explorer/) table that keeps each column as one array, and which Livebook shows as a table you can sort and filter:
 
 ```elixir
-stars = Enum.map(result.rows, fn row -> result.columns |> Enum.zip(row) |> Map.new() end)
-hd(stars)
+stars = SpaceTAP.Result.to_dataframe(result)
 ```
 
-`source_id` is a `long`, a 64-bit integer, and comes as an Elixir integer. The charts below run in JavaScript, whose numbers can't hold every integer that large, so the colour–magnitude diagram gets it as a string.
+Each column has the type of its field: `source_id` is a `long`, so it becomes `s64`, a 64-bit integer, `ra` and `dec` are `double`s, `f64`, and the rest are `float`s, `f32`, 32-bit numbers. The charts below run in JavaScript, whose numbers can't hold every integer as large as a `source_id`, so the colour–magnitude diagram gets it as a string.
 
 ## Who belongs to the cluster
 
@@ -72,19 +75,19 @@ Vl.new(width: 500, height: 400, title: "Proper motions")
 |> Vl.encode_field(:y, "pmdec", type: :quantitative, title: "pmDec (mas/yr)")
 ```
 
-The clump sits near +20 mas/yr in right ascension and −45 mas/yr in declination. Take as members the stars within 5 mas/yr of that point:
+The clump sits near +20 mas/yr in right ascension and −45 mas/yr in declination. Take as members the stars within 5 mas/yr of that point. `DF.mutate/2` adds a column computed from the others, a whole column at a time, and `^` brings in a value from outside the data frame:
 
 ```elixir
 {pmra_cluster, pmdec_cluster} = {20.0, -45.5}
 
-member? = fn star ->
-  :math.sqrt((star["pmra"] - pmra_cluster) ** 2 + (star["pmdec"] - pmdec_cluster) ** 2) < 5
-end
+stars =
+  DF.mutate(stars,
+    member: ((pmra - ^pmra_cluster) ** 2 + (pmdec - ^pmdec_cluster) ** 2) ** 0.5 < 5
+  )
 
-stars = Enum.map(stars, &Map.put(&1, "member", member?.(&1)))
-members = Enum.filter(stars, & &1["member"])
+members = DF.filter(stars, member)
 
-%{stars: length(stars), members: length(members)}
+%{stars: DF.n_rows(stars), members: DF.n_rows(members)}
 ```
 
 ```elixir
@@ -106,11 +109,10 @@ $$
 
 ```elixir
 members =
-  Enum.map(members, fn star ->
-    star
-    |> Map.put("abs_g", star["phot_g_mean_mag"] + 5 * :math.log10(star["parallax"]) - 10)
-    |> Map.put("id", Integer.to_string(star["source_id"]))
-  end)
+  DF.mutate(members,
+    abs_g: phot_g_mean_mag + 5 * log(parallax, 10) - 10,
+    id: cast(source_id, :string)
+  )
 
 Vl.new(width: 500, height: 500, title: "The Pleiades: colour–magnitude diagram")
 |> Vl.data_from_values(members, only: ["bp_rp", "abs_g", "id"])
@@ -127,7 +129,7 @@ Bright stars are at the top, since magnitudes grow as stars get fainter, and blu
 Right ascension grows to the east, which is to the left on a map of the sky, so the x axis is reversed. Brighter stars are drawn bigger:
 
 ```elixir
-members_on_sky = Enum.map(members, &Map.put(&1, "brightness", 20 - &1["phot_g_mean_mag"]))
+members_on_sky = DF.mutate(members, brightness: 20 - phot_g_mean_mag)
 
 Vl.new(width: 500, height: 500, title: "Members on the sky")
 |> Vl.data_from_values(members_on_sky, only: ["ra", "dec", "brightness"])
@@ -152,7 +154,7 @@ The big dots near the centre are the stars you can see with the naked eye, such 
 The distance in parsecs is 1000 divided by the parallax in milliarcseconds. The mean parallax of the members gives the distance to the cluster:
 
 ```elixir
-mean_parallax = (members |> Enum.map(& &1["parallax"]) |> Enum.sum()) / length(members)
+mean_parallax = Series.mean(members["parallax"])
 
 %{mean_parallax_mas: Float.round(mean_parallax, 3), distance_pc: round(1000 / mean_parallax)}
 ```

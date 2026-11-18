@@ -82,3 +82,20 @@ curl -sS -X POST <job URL>/phase --data-urlencode "PHASE=RUN"
 starts with `http://`, which GAVO serves without redirecting to `https`. Like
 its error documents, the job documents start with an `xml-stylesheet`
 processing instruction and no XML declaration.
+
+## TAP_SCHEMA
+
+`tap_schema_tables.xml` and `tap_schema_columns.xml` are what GAVO answered on 2026-11-18 to the queries `SpaceTAP.tables/2` and `SpaceTAP.columns/3` send, captured with:
+
+```bash
+curl -sS -o <file> https://dc.g-vo.org/tap/sync \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "QUERY=<query>"
+```
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `tap_schema_tables.xml` | `SELECT * FROM TAP_SCHEMA.tables WHERE schema_name = 'hipparcos'` | 200 | `application/x-votable+xml` |
+| `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'hipparcos.main'` | 200 | `application/x-votable+xml` |
+
+Its tables have no `table_index`, and its columns add `sourceRD`.

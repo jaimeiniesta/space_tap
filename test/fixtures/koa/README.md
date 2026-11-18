@@ -60,3 +60,20 @@ of the result is under `/workspace/` and comes as `text/xml`, where
 `<job>/results/result` comes as `text/plain`. The error message writes its
 quotes as character references. `DELETE` on the job answered 500, and
 `ACTION=DELETE` answered 200 but left the job in place.
+
+## TAP_SCHEMA
+
+`tap_schema_tables.xml` and `tap_schema_columns.xml` are what KOA answered on 2026-11-18 to the queries `SpaceTAP.tables/2` and `SpaceTAP.columns/3` send, captured with:
+
+```bash
+curl -sS -o <file> https://koa.ipac.caltech.edu/TAP/sync \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "QUERY=<query>"
+```
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `tap_schema_tables.xml` | `SELECT * FROM TAP_SCHEMA.tables WHERE schema_name = 'koa_tap'` | 200 | `text/xml` |
+| `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'koa_hires'` | 200 | `text/xml` |
+
+The table `koa_hires` has 381 columns, which add `format`.

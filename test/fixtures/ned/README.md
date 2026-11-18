@@ -56,3 +56,20 @@ and give times with a UTC offset, such as `2026-11-16T11:01:17-08:00`, which
 PyVO 1.9.1 can't read. The `Location` and the href of the result have the port,
 `https://ned.ipac.caltech.edu:443/tap/async/<id>`. `DELETE` on the job answered
 403, and `ACTION=DELETE` deleted it.
+
+## TAP_SCHEMA
+
+`tap_schema_tables.xml` and `tap_schema_columns.xml` are what NED answered on 2026-11-18 to the queries `SpaceTAP.tables/2` and `SpaceTAP.columns/3` send, captured with:
+
+```bash
+curl -sS -o <file> https://ned.ipac.caltech.edu/tap/sync \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "QUERY=<query>"
+```
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `tap_schema_tables.xml` | `SELECT * FROM TAP_SCHEMA.tables WHERE schema_name = 'NEDTAP'` | 200 | `application/x-votable+xml;charset=UTF-8` |
+| `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'NEDTAP.objdir'` | 200 | `application/x-votable+xml;charset=UTF-8` |
+
+NED's `TAP_SCHEMA.columns` follows TAP 1.0: it has no `arraysize` or `xtype`, `datatype` holds ADQL types such as `BIGINT`, and `std` is empty. It adds `coosys_id`.

@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VOTABLE version="1.3" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.ivoa.net/xml/VOTable/v1.3">
+  <RESOURCE type="results">
+  <INFO name="QUERY_STATUS" value="OK"/>
+  <TABLE>
+    <FIELD ID="schema_name" arraysize="*" datatype="char" name="schema_name">
+  <DESCRIPTION><![CDATA[ Schema name ]]></DESCRIPTION>
+</FIELD>
+    <FIELD ID="table_name" arraysize="*" datatype="char" name="table_name">
+  <DESCRIPTION><![CDATA[ Table name ]]></DESCRIPTION>
+</FIELD>
+    <FIELD ID="table_type" arraysize="*" datatype="char" name="table_type">
+  <DESCRIPTION><![CDATA[ Table type ]]></DESCRIPTION>
+</FIELD>
+    <FIELD ID="utype" arraysize="*" datatype="char" name="utype">
+  <DESCRIPTION><![CDATA[ VO utype ]]></DESCRIPTION>
+</FIELD>
+    <FIELD ID="description" arraysize="*" datatype="char" name="description">
+  <DESCRIPTION><![CDATA[ Description ]]></DESCRIPTION>
+</FIELD>
+    <FIELD ID="table_index" datatype="int" name="table_index">
+  <DESCRIPTION><![CDATA[ For ordering ]]></DESCRIPTION>
+    </FIELD>
+    <DATA>
+      <TABLEDATA>
+        <TR>
+        <TD><![CDATA[koa_tap]]></TD>
+        <TD><![CDATA[koa_reduced_data]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KOA REDUCED data table]]></TD>
+        <TD>15</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[koa_tap]]></TD>
+        <TD><![CDATA[koa_guider]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KOA GUIDER data table]]></TD>
+        <TD>3</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[koa_tap]]></TD>
+        <TD><![CDATA[koa_kcwi]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KOA KCWI data table]]></TD>
+        <TD>5</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[koa_tap]]></TD>
+        <TD><![CDATA[koa_deimos]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KOA DEIMOS data table]]></TD>
+        <TD>1</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[koa_tap]]></TD>
+        <TD><![CDATA[koa_esi]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KOA ESI data table]]></TD>
+        <TD>2</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[koa_tap]]></TD>
+        <TD><![CDATA[koa_hires]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KOA HIRES data table]]></TD>
+        <TD>4</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[koa_tap]]></TD>
+        <TD><![CDATA[koa_lws]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KOA LWS data table]]></TD>
+        <TD>8</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[koa_tap]]></TD>
+        <TD><![CDATA[koa_mosfire]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KOA MOSFIRE data table]]></TD>
+        <TD>9</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[koa_tap]]></TD>
+        <TD><![CDATA[koa_nirc2]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KOA NIRC2 data table]]></TD>
+        <TD>11</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[koa_tap]]></TD>
+        <TD><![CDATA[koa_nirc]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KOA NIRC data table]]></TD>
+        <TD>10</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[koa_tap]]></TD>
+        <TD><![CDATA[koa_nires]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KOA NIRES data table]]></TD>
+        <TD>12</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[koa_tap]]></TD>
+        <TD><![CDATA[koa_nirspec]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KOA NIRSPEC data table]]></TD>
+        <TD>13</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[koa_tap]]></TD>
+        <TD><![CDATA[koa_osiris]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KOA OSIRIS data table]]></TD>
+        <TD>14</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[koa_tap]]></TD>
+        <TD><![CDATA[koa_lris]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KOA LRIS data table]]></TD>
+        <TD>7</TD>
+        </TR>
+        <TR>
+        <TD><![CDATA[koa_tap]]></TD>
+        <TD><![CDATA[koa_kpf]]></TD>
+        <TD><![CDATA[table]]></TD>
+        <TD></TD>
+        <TD><![CDATA[KOA KPF data table]]></TD>
+        <TD>6</TD>
+        </TR>
+      </TABLEDATA>
+    </DATA>
+  </TABLE>
+  </RESOURCE>
+</VOTABLE>

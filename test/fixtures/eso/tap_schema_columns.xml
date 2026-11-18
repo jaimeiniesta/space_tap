@@ -1,0 +1,934 @@
+<?xml version="1.0" encoding="UTF-8"?><VOTABLE version="1.3" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/v1.3">
+<RESOURCE type="results">
+<INFO name="QUERY_STATUS" value="OK"/>
+<INFO name="QUERY" value="SELECT * FROM TAP_SCHEMA.columns WHERE table_name = &apos;ivoa.ObsCore&apos;"/>
+<TABLE>
+<FIELD datatype="int" name="size">
+<DESCRIPTION>lists the size of variable-length columns in the tableset</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="arraysize">
+<DESCRIPTION>the length of fixed and variable length datatypes using the VOTable array shape syntax. For example, a database column of type varchar(256) would be described with datatype "char" and arraysize "256*".</DESCRIPTION>
+</FIELD>
+<FIELD datatype="int" name="column_index">
+<DESCRIPTION>The column_index is used to recommend column ordering for clients. Clients may order by column_index (ascending) so lower index columns would appear earlier in a listing.</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="column_name">
+<DESCRIPTION>the column name</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="datatype">
+<DESCRIPTION>lists the ADQL datatype of columns in the tableset</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="description">
+<DESCRIPTION>describes the columns in the tableset</DESCRIPTION>
+</FIELD>
+<FIELD datatype="int" name="indexed">
+<DESCRIPTION>an indexed column</DESCRIPTION>
+</FIELD>
+<FIELD datatype="int" name="principal">
+<DESCRIPTION>a principal column</DESCRIPTION>
+</FIELD>
+<FIELD datatype="int" name="std">
+<DESCRIPTION>is it a standard column (1 or 0)</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="table_name">
+<DESCRIPTION>the table this column belongs to</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="ucd">
+<DESCRIPTION>lists the UCDs of columns in the tableset</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="unit">
+<DESCRIPTION>lists the unit used for column values in the tableset</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="utype">
+<DESCRIPTION>lists the utypes of columns in the tableset</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="xtype">
+<DESCRIPTION>The xtype attribute expands the basic datatype primitives. Please refer to the IVOA standard VOTable v1.4 to know more.</DESCRIPTION>
+</FIELD>
+<DATA>
+<TABLEDATA>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>abmaglim</TD>
+    <TD>double</TD>
+    <TD>ESO-specific field not present in the standard ObsCore. 5-sigma limiting AB (Oke) magnitude. The quoted magnitude should refer to the total flux of a point source. Applicable to the following data product type: cube, image, and measurements.</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>phot.mag;stat.max</TD>
+    <TD>mag</TD>
+    <TD></TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>access_estsize</TD>
+    <TD>long</TD>
+    <TD>Estimated size of the downloaded file in KBytes.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>phys.size;meta.file</TD>
+    <TD>kbyte</TD>
+    <TD>obscore:Access.size</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>56</TD>
+    <TD>56*</TD>
+    <TD></TD>
+    <TD>access_format</TD>
+    <TD>char</TD>
+    <TD>The format of the downloaded file.</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.code.mime</TD>
+    <TD></TD>
+    <TD>obscore:Access.format</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>1024</TD>
+    <TD>1024*</TD>
+    <TD></TD>
+    <TD>access_url</TD>
+    <TD>char</TD>
+    <TD>A URL that points to the DataLink (VO Standard) service that is used to download the dataset, associated files, their provenance or derived products, etc.</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.ref.url</TD>
+    <TD></TD>
+    <TD>obscore:Access.reference</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>128</TD>
+    <TD>128*</TD>
+    <TD></TD>
+    <TD>bib_reference</TD>
+    <TD>char</TD>
+    <TD>URL or bibcode to the main publication that refers to the data set.</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.bib</TD>
+    <TD></TD>
+    <TD>obscore:Curation.reference</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>calib_level</TD>
+    <TD>int</TD>
+    <TD>Calibration level: 0-instrument (raw) data in non-standard format, 1-instrumental (raw) data in standard format, 2-science ready data with instrument signature removed, 3-more highly processed data. Ref. PRODLVL keyword in ESO SDP standard if present, otherwise: set to 3 when dataproduct_type contains token deep or tile, set to 4 for catalogs.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.code;obs.calib</TD>
+    <TD></TD>
+    <TD>obscore:ObsDataset.calibLevel</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>128</TD>
+    <TD>128*</TD>
+    <TD></TD>
+    <TD>dataproduct_subtype</TD>
+    <TD>char</TD>
+    <TD>A data-provider/collection specific secondary type, e.g. srctbl or catalog for measurements, tile or pawprint for VISTA images, etc.</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.code.class</TD>
+    <TD></TD>
+    <TD>obscore:ObsDataset.dataProductSubtype</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>12</TD>
+    <TD>12*</TD>
+    <TD></TD>
+    <TD>dataproduct_type</TD>
+    <TD>char</TD>
+    <TD>Logical data set type (image, spectrum, visibility, cube, measurements, etc.)</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.code.class</TD>
+    <TD></TD>
+    <TD>obscore:ObsDataset.dataProductType</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>45</TD>
+    <TD>45*</TD>
+    <TD></TD>
+    <TD>dp_id</TD>
+    <TD>char</TD>
+    <TD>ESO-specific field not present in the standard ObsCore. The original ESO identifier of the main science file. ObsCore uses obs_publisher_did, which returns the full IVO Identifier. This field can be used to join with other ESO (non-VO) tables, like provenance.</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.id</TD>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>em_max</TD>
+    <TD>double</TD>
+    <TD>Maximum spectral value observed, expressed in vacuum wavelength in meters; ref. WAVELMAX keyword in ESO SDP standard.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>em.wl;stat.max</TD>
+    <TD>m</TD>
+    <TD>obscore:Char.SpectralAxis.Coverage.Bounds.Limits.HiLimit</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>em_min</TD>
+    <TD>double</TD>
+    <TD>Minimum specrtal value observed, expressed in vacuum wavelength in meters; ref. WAVELMIN keyword in ESO SDP standard.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>em.wl;stat.min</TD>
+    <TD>m</TD>
+    <TD>obscore:Char.SpectralAxis.Coverage.Bounds.Limits.LoLimit</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>em_res_power</TD>
+    <TD>double</TD>
+    <TD>The characteristic spectral resolving power (lambda/delta(lambda)) of the data set. Ref. SPECRES keyword in ESO SDP standard, computed from em_min and em_max when SPECRES not provided := central lambda / delta(lambda) = 0.5*(wavelmin+wavelmax) / (wavelmax-wavelmin)</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>spect.resolution</TD>
+    <TD></TD>
+    <TD>obscore:Char.SpectralAxis.Resolution.ResolPower.refVal</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>em_xel</TD>
+    <TD>long</TD>
+    <TD>Number of elements on the spectral axis.</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.number</TD>
+    <TD></TD>
+    <TD>obscore:Char.SpectralAxis.numBins</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>68</TD>
+    <TD>68*</TD>
+    <TD></TD>
+    <TD>facility_name</TD>
+    <TD>char</TD>
+    <TD>Name of the ESO telescope utilised to gather the photons. Possible values are: APEX-12m ESO-3.6 ESO-NTT ESO-VISTA ESO-VLT-U1 ESO-VLT-U2 ESO-VLT-U3 ESO-VLT-U4 ESO-VST MPG/ESO-2.2, and more to come, plus any combination of those (comma-separated), or the word MULTI.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.id;instr.tel</TD>
+    <TD></TD>
+    <TD>obscore:Provenance.ObsConfig.Facility.name</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>255</TD>
+    <TD>255*</TD>
+    <TD></TD>
+    <TD>filter</TD>
+    <TD>char</TD>
+    <TD>ESO-specific field not present in the standard ObsCore. The ESO instrument filter name. ObsCore uses em_min, em_max, and em_res_power to characterise the transmission curve of the bandpass; this field can be used to improve readibility.</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.id;instr.filter</TD>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>gal_lat</TD>
+    <TD>double</TD>
+    <TD>ESO-specific field not present in the standard ObsCore. Galactic coordinate: latitude; Image/tile/cube centre, barycentre of image arrays in MEF format ; spectroscopic target position; centre of the survey field in case of catalogues.</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>pos.galactic.lat</TD>
+    <TD>deg</TD>
+    <TD>galactic:Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C2</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>gal_lon</TD>
+    <TD>double</TD>
+    <TD>ESO-specific field not present in the standard ObsCore. Galactic coordinate: longitude; Image/tile/cube centre, barycentre of image arrays in MEF format ; spectroscopic target position; centre of the survey field in case of catalogues.</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>pos.galactic.lon</TD>
+    <TD>deg</TD>
+    <TD>galactic:Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C1</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>68</TD>
+    <TD>68*</TD>
+    <TD></TD>
+    <TD>instrument_name</TD>
+    <TD>char</TD>
+    <TD>Name of the instrument(s) utilised to gather the data; if the data set combines multiple instruments, usually the value MULTI is assigned.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.id;instr</TD>
+    <TD></TD>
+    <TD>obscore:Provenance.ObsConfig.Instrument.name</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>is_solar</TD>
+    <TD>short</TD>
+    <TD>A flag indicating whether the target is the Sun (1) or not (0). It is currently known to be properly set for ALMA products, and for the ESO HELIOS (feeding HARPS and NIRPS) and POET (feeding ESPRESSO) solar telescopes.</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD>*</TD>
+    <TD></TD>
+    <TD>last_mod_date</TD>
+    <TD>char</TD>
+    <TD>Time stamp of last modification of the metadata</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>time</TD>
+    <TD></TD>
+    <TD>ssa:Curation.Date</TD>
+    <TD>timestamp</TD>
+  </TR>
+  <TR>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD></TD>
+    <TD>multi_ob</TD>
+    <TD>char</TD>
+    <TD>ESO-specific field not present in the standard ObsCore. A flag, either M or S. M-Multi OB means that the exposures from different telescope visits have been combined together; S-Single OB means that the product is the result of either a single exposure, or of the combination of exposures taken during the same visit, hence with similar atmospheric conditions, airmasses, etc.</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.code.multip;obs</TD>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>n_obs</TD>
+    <TD>int</TD>
+    <TD>ESO-specific field not present in the standard ObsCore. Number of observations participating into this data product.</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.number;obs</TD>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>15</TD>
+    <TD>15*</TD>
+    <TD></TD>
+    <TD>o_calib_status</TD>
+    <TD>char</TD>
+    <TD>Level of the calibration of the observable (e.g. flux).</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.code.qual</TD>
+    <TD></TD>
+    <TD>obscore:Char.ObservableAxis.calibrationStatus</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>68</TD>
+    <TD>68*</TD>
+    <TD></TD>
+    <TD>o_ucd</TD>
+    <TD>char</TD>
+    <TD>Nature of the observable within the data set, expressed as an Uniform Content Descriptor (IVOA standard).</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.ucd</TD>
+    <TD></TD>
+    <TD>obscore:Char.ObservableAxis.ucd</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>128</TD>
+    <TD>128*</TD>
+    <TD></TD>
+    <TD>obs_collection</TD>
+    <TD>char</TD>
+    <TD>The name of the data collection the data set belongs to.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.id</TD>
+    <TD></TD>
+    <TD>obscore:DataID.collection</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>92</TD>
+    <TD>92*</TD>
+    <TD></TD>
+    <TD>obs_creator_did</TD>
+    <TD>char</TD>
+    <TD>The original file name as assigned by the data producer, in form of a IVOA identifier.</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.id</TD>
+    <TD></TD>
+    <TD>obscore:DataID.creatorDID</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>256</TD>
+    <TD>256*</TD>
+    <TD></TD>
+    <TD>obs_creator_name</TD>
+    <TD>char</TD>
+    <TD>The Principal Investigator either of the team that provided the data set to ESO through the Phase 3 process, or of the observing team in case the data have been certified by ESO.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.id</TD>
+    <TD></TD>
+    <TD>obscore:DataID.creator</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>255</TD>
+    <TD>255*</TD>
+    <TD></TD>
+    <TD>obs_id</TD>
+    <TD>char</TD>
+    <TD>In case multiple data sets are available for an observation, e.g. with different calibration levels, the obs_id value will be the same for each data set the observation comprises. The obs_id should remain identical through time for future reference.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.id</TD>
+    <TD></TD>
+    <TD>obscore:DataID.observationID</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>128</TD>
+    <TD>128*</TD>
+    <TD></TD>
+    <TD>obs_publisher_did</TD>
+    <TD>char</TD>
+    <TD>IVOA dataset identifier for the published data set. It must be unique within the namespace controlled by the publisher.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.ref.ivoid</TD>
+    <TD></TD>
+    <TD>obscore:Curation.publisherDID</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD>*</TD>
+    <TD></TD>
+    <TD>obs_release_date</TD>
+    <TD>char</TD>
+    <TD>The date when the data set becomes public.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>time.release</TD>
+    <TD></TD>
+    <TD>obscore:Curation.releaseDate</TD>
+    <TD>timestamp</TD>
+  </TR>
+  <TR>
+    <TD>256</TD>
+    <TD>256*</TD>
+    <TD></TD>
+    <TD>obs_title</TD>
+    <TD>char</TD>
+    <TD>It should contain a brief description (displayable in less than one line of text) specifying in scientific terms the content of the dataset.</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.title;obs</TD>
+    <TD></TD>
+    <TD>obscore:DataID.title</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>30</TD>
+    <TD>30*</TD>
+    <TD></TD>
+    <TD>obstech</TD>
+    <TD>char</TD>
+    <TD>ESO-specific field not present in the standard ObsCore. Technique used during the observation. Normally, OBSTECH should be adopted from the keyword HIERARCH ESO DPR TECH of the original data.</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>instr.setup</TD>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>3</TD>
+    <TD>3*</TD>
+    <TD></TD>
+    <TD>p3orig</TD>
+    <TD>char</TD>
+    <TD>ESO-specific field not present in the standard ObsCore. Possible values: EDP or IDP. EDP is for products prepared and certified by the astronomical community, IDP is for products generated and certified by ESO.</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.ref</TD>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>32</TD>
+    <TD>32*</TD>
+    <TD></TD>
+    <TD>pol_states</TD>
+    <TD>char</TD>
+    <TD>A list of the polarisation states present in the data set. It is serialised as a concatenated list of the possible values: {I Q U V RR LL RL LR XX YY XY YX POLI POLA} where the list separator is a slash /. Leading and trailing slashes must always be present; example: /YY/.</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.code;phys.polarization</TD>
+    <TD></TD>
+    <TD>obscore:Char.PolarizationAxis.stateList</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>pol_xel</TD>
+    <TD>long</TD>
+    <TD>Number of polarisation states available in the data set.</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.number</TD>
+    <TD></TD>
+    <TD>obscore:Char.PolarizationAxis.numBins</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>259</TD>
+    <TD>259*</TD>
+    <TD></TD>
+    <TD>preview_html</TD>
+    <TD>char</TD>
+    <TD>The web (html) rendering of the preview, both for ALMA and LPO data. (The datalink offered by the access_url does not support ALMA data)</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.ref.url;meta.preview</TD>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>255</TD>
+    <TD>255*</TD>
+    <TD></TD>
+    <TD>proposal_id</TD>
+    <TD>char</TD>
+    <TD>The identifier(s) of the observing programme(s) this data set originates from.</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.id;obs.proposal</TD>
+    <TD></TD>
+    <TD>obscore:Provenance.Proposal.identifier</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD>*</TD>
+    <TD></TD>
+    <TD>publication_date</TD>
+    <TD>char</TD>
+    <TD>ESO-specific field not present in the standard ObsCore. The publication date is the time when the product has been made available to the user community (whether under proprietary period or not).</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>time.publiYear</TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>timestamp</TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD>*</TD>
+    <TD></TD>
+    <TD>release_description</TD>
+    <TD>char</TD>
+    <TD>ESO-specific field. It provides the link to the PDF document describing the release content, the originating observations, the calibration and data reduction procedures, the data quality, the data format, and the scientific context of the programme</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.ref.url</TD>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>s_dec</TD>
+    <TD>double</TD>
+    <TD>Equatorial coordinate: Declination (FK5/J2000); Image/tile/cube centre, barycentre of image arrays in MEF format ; spectroscopic target position; centre of the survey field in case of catalogues. Ref. DEC keyword in ESO SDP standard.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>pos.eq.dec</TD>
+    <TD>deg</TD>
+    <TD>obscore:Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C2</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>s_fov</TD>
+    <TD>double</TD>
+    <TD>Angular size of the spatial field of view the photons were collected from.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>phys.angSize;instr.fov</TD>
+    <TD>deg</TD>
+    <TD>obscore:Char.SpatialAxis.Coverage.Bounds.Extent.diameter</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>s_pixel_scale</TD>
+    <TD>double</TD>
+    <TD>Spatial pixel scale</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>phys.angSize;instr.pixel</TD>
+    <TD>arcsec</TD>
+    <TD>obscore:Char.SpatialAxis.Sampling.RefVal.SamplingPeriod</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>s_ra</TD>
+    <TD>double</TD>
+    <TD>Equatorial coordinate: Right Ascension (FK5/J2000); Image/tile/cube centre, barycentre of image arrays in MEF format ; spectroscopic target position; centre of the survey field in case of catalogues. Ref. RA keyword in ESO SDP standard.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>pos.eq.ra</TD>
+    <TD>deg</TD>
+    <TD>obscore:Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C1</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD>*</TD>
+    <TD></TD>
+    <TD>s_region</TD>
+    <TD>char</TD>
+    <TD>The spatial footprint of the data set. For an ESO spectrum, the returned footprint is the position (s_ra,s_dec).</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>pos.outline;obs.field</TD>
+    <TD></TD>
+    <TD>obscore:Char.SpatialAxis.Coverage.Support.Area</TD>
+    <TD>adql:REGION</TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>s_resolution</TD>
+    <TD>double</TD>
+    <TD>The characteristic spatial resolution of the data set; ref. ESO SDP standard: PSF_FWHM for images, SKY_RES for 3d cubes, assumed to be the APERTURE for spectral data.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>pos.angResolution</TD>
+    <TD>arcsec</TD>
+    <TD>obscore:Char.SpatialAxis.Resolution.Refval.value</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>s_xel1</TD>
+    <TD>long</TD>
+    <TD>Number of elements (e.g. pixels) along the first spatial axis.</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.number</TD>
+    <TD></TD>
+    <TD>obscore:Char.SpatialAxis.numBins1</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>s_xel2</TD>
+    <TD>long</TD>
+    <TD>Number of elements (e.g. pixels) along the second spatial axis.</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.number</TD>
+    <TD></TD>
+    <TD>obscore:Char.SpatialAxis.numBins2</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>snr</TD>
+    <TD>double</TD>
+    <TD>ESO-specific field not present in the standard ObsCore. The average signal-to-noise ratio of a spectrum. Not applicable to other data product types.</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>0</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>stat.snr</TD>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>strehl</TD>
+    <TD>double</TD>
+    <TD>Strehl ratio: Ratio of the intensity at the peak of the light distribution of an on-axis point source to the intensity assuming an ideal optical system limited only by diffraction over the aperture. It should be a value between 0 and 1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>0</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>instr.param</TD>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>t_exptime</TD>
+    <TD>double</TD>
+    <TD>Total integration time per pixel (in seconds); ref. EXPTIME keyword in ESO SDP standard.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>time.duration;obs.exposure</TD>
+    <TD>s</TD>
+    <TD>obscore:Char.TimeAxis.Coverage.Support.Extent</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>t_max</TD>
+    <TD>double</TD>
+    <TD>Stop time in MJD; ref. MJD-END keyword in ESO SDP standard.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>time.end;obs.exposure</TD>
+    <TD>d</TD>
+    <TD>obscore:Char.TimeAxis.Coverage.Bounds.Limits.StopTime</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>t_min</TD>
+    <TD>double</TD>
+    <TD>Start time in MJD; ref MJD-OBS keyword in ESO SDP standard.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>time.start;obs.exposure</TD>
+    <TD>d</TD>
+    <TD>obscore:Char.TimeAxis.Coverage.Bounds.Limits.StartTime</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>t_resolution</TD>
+    <TD>double</TD>
+    <TD>Temporal resolution (FWHM) in seconds; currently defined as := (t_max-t_min)*86400.</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>time.resolution</TD>
+    <TD>s</TD>
+    <TD>obscore:Char.TimeAxis.Resolution.Refval.value</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD></TD>
+    <TD></TD>
+    <TD></TD>
+    <TD>t_xel</TD>
+    <TD>long</TD>
+    <TD>Number of elements along the time axis (currently set to 1 for all observations).</TD>
+    <TD>0</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.number</TD>
+    <TD></TD>
+    <TD>obscore:Char.TimeAxis.numBins</TD>
+    <TD></TD>
+  </TR>
+  <TR>
+    <TD>256</TD>
+    <TD>256*</TD>
+    <TD></TD>
+    <TD>target_name</TD>
+    <TD>char</TD>
+    <TD>The target name as assigned by the Principal Investigator; ref. Ref. OBJECT keyword in ESO SDP standard. For spectroscopic public surveys, the value shall be set to the survey source identifier, which shall be unique within the survey</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>1</TD>
+    <TD>ivoa.ObsCore</TD>
+    <TD>meta.id;src</TD>
+    <TD></TD>
+    <TD>obscore:Target.name</TD>
+    <TD></TD>
+  </TR>
+</TABLEDATA>
+</DATA>
+</TABLE>
+</RESOURCE>
+</VOTABLE>

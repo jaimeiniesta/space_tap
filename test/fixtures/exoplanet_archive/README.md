@@ -62,3 +62,20 @@ documents have no `version`, bind `xsi` to `http://www.w3.org/2001/XMLSchema`
 instead of `…/XMLSchema-instance`, and give local times without a zone. The
 href of the result is under `/workspace/`, with `http`. `DELETE` on the job
 answered 502, and `ACTION=DELETE` answered 200 but left the job in place.
+
+## TAP_SCHEMA
+
+`tap_schema_tables.xml` and `tap_schema_columns.xml` are what the NASA Exoplanet Archive answered on 2026-11-18 to the queries `SpaceTAP.tables/2` and `SpaceTAP.columns/3` send, captured with:
+
+```bash
+curl -sS -o <file> https://exoplanetarchive.ipac.caltech.edu/TAP/sync \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "QUERY=<query>"
+```
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `tap_schema_tables.xml` | `SELECT * FROM TAP_SCHEMA.tables WHERE schema_name = 'exo_tap'` | 200 | `application/xml` |
+| `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'ps'` | 200 | `application/xml` |
+
+The schema has 41 rows, `stellarhosts` twice, and the table `ps` 355 columns, which add `format`.

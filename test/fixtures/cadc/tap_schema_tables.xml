@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOTABLE xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.4">
+  <RESOURCE type="results">
+    <INFO name="QUERY_STATUS" value="OK" />
+    <INFO name="QUERY_TIMESTAMP" value="2026-11-18T12:32:44.545" />
+    <INFO name="QUERY" value="SELECT * FROM TAP_SCHEMA.tables WHERE schema_name = 'ivoa'" />
+    <TABLE>
+      <FIELD name="schema_name" datatype="char" arraysize="512*">
+        <DESCRIPTION>the schema this table belongs to</DESCRIPTION>
+      </FIELD>
+      <FIELD name="table_name" datatype="char" arraysize="64*">
+        <DESCRIPTION>the fully qualified table name</DESCRIPTION>
+      </FIELD>
+      <FIELD name="table_type" datatype="char" arraysize="8*">
+        <DESCRIPTION>one of: table view</DESCRIPTION>
+      </FIELD>
+      <FIELD name="utype" datatype="char" arraysize="512*">
+        <DESCRIPTION>lists the utype of tables in the tableset</DESCRIPTION>
+      </FIELD>
+      <FIELD name="description" datatype="char" arraysize="512*">
+        <DESCRIPTION>describes tables in the tableset</DESCRIPTION>
+      </FIELD>
+      <FIELD name="table_index" datatype="int">
+        <DESCRIPTION>recommended sort order when listing tables</DESCRIPTION>
+      </FIELD>
+      <DATA>
+        <TABLEDATA>
+<TR><TD>ivoa</TD><TD>ivoa.ObsCore</TD><TD>view</TD><TD/><TD>ObsCore-1.1 observation table</TD><TD>10</TD></TR></TABLEDATA>
+      </DATA>
+    </TABLE>
+    <INFO name="placeholder" value="ignore" />
+  </RESOURCE>
+</VOTABLE>

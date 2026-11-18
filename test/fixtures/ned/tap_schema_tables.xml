@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VOTABLE version="1.3" xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ivoa.net/xml/VOTable/v1.3 http://www.ivoa.net/xml/VOTable/v1.3">
+<RESOURCE type="results">
+<INFO name="QUERY_STATUS" value="OK"/>
+<INFO name="PROVIDER" value="NASA/IPAC Extragalatic Database (NED)">NED VO Table Access Protocol (TAP) Service</INFO>
+<INFO name="QUERY" value="SELECT * FROM TAP_SCHEMA.tables WHERE schema_name = 'NEDTAP'"/>
+<TABLE name="result_S1795005155960">
+<FIELD datatype="int" name="table_index">
+<DESCRIPTION>table index</DESCRIPTION>
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="schema_name">
+<DESCRIPTION>the schema name from TAP_SCHEMA.schemas</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="table_name">
+<DESCRIPTION>table name as it should be used in queries</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="table_type">
+<DESCRIPTION>one of: table, view</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="description">
+<DESCRIPTION>brief description of table</DESCRIPTION>
+</FIELD>
+<FIELD arraysize="*" datatype="char" name="utype">
+<DESCRIPTION>UTYPE if table corresponds to a data model</DESCRIPTION>
+</FIELD>
+<DATA>
+<BINARY>
+<STREAM encoding='base64'>
+AAAABwAAAAZORURUQVAAAAANTkVEVEFQLm9iamRpcgAAAAR2aWV3AAAAHk5FRCBv
+YmplY3QgZGlyZWN0b3J5IGZvciBOMzYuMQAAAAA=
+</STREAM>
+</BINARY>
+</DATA>
+</TABLE>
+</RESOURCE>
+</VOTABLE>

@@ -7,13 +7,14 @@ defmodule SpaceTAP do
   result as a `SpaceTAP.Result`, or a `SpaceTAP.Error` when it fails.
   `async_query/3` does the same with a query the service runs as a job, for
   queries that take longer than a sync query may; `SpaceTAP.Job` has each
-  step of it.
+  step of it. `tables/2` and `columns/3` list the tables a service
+  publishes and their columns, and `SpaceTAP.ADQL` helps write the query.
 
   SpaceTAP follows [TAP 1.1](https://www.ivoa.net/documents/TAP/20190927/REC-TAP-1.1.html)
   and works with TAP 1.0 services.
   """
 
-  alias SpaceTAP.{Error, HTTP, Job, Result}
+  alias SpaceTAP.{Column, Error, HTTP, Job, Result, Table, TAPSchema}
 
   @typedoc "An option for `query/3` or `async_query/3`."
   @type option ::
@@ -21,6 +22,13 @@ defmodule SpaceTAP do
 
   @typedoc "An option for `async_query/3`."
   @type async_option :: option() | {:timeout, timeout()}
+
+  @typedoc "An option for `tables/2`."
+  @type tables_option ::
+          {:schema, String.t()} | {:maxrec, non_neg_integer()} | {:req_options, keyword()}
+
+  @typedoc "An option for `columns/3`."
+  @type columns_option :: {:req_options, keyword()}
 
   @doc """
   Runs a sync query: sends `adql` to the TAP service at `service_url` and
@@ -80,15 +88,8 @@ defmodule SpaceTAP do
   @spec query(String.t(), String.t(), [option()]) :: {:ok, Result.t()} | {:error, Error.t()}
   def query(service_url, adql, opts \\ []) when is_binary(service_url) and is_binary(adql) do
     opts = Keyword.validate!(opts, [:maxrec, format: :csv, req_options: []])
-    form = HTTP.query_form(adql, opts[:format], opts[:maxrec])
-    url = String.trim_trailing(service_url, "/") <> "/sync"
-
-    {_url, response} =
-      opts[:req_options]
-      |> HTTP.req_options()
-      |> HTTP.run(method: :post, url: url, form: form)
-
-    HTTP.read_result(response, opts[:format])
+    {result, _status} = sync(service_url, adql, opts)
+    result
   end
 
   @doc """
@@ -149,4 +150,121 @@ defmodule SpaceTAP do
       result
     end
   end
+
+  @doc """
+  Lists the tables the TAP service at `service_url` publishes, from its
+  `TAP_SCHEMA.tables` (TAP 1.1 §4.2).
+
+      SpaceTAP.tables("https://dc.g-vo.org/tap", schema: "hipparcos")
+      #=> {:ok, [%SpaceTAP.Table{schema: "hipparcos", name: "hipparcos.main", type: "table", ...}]}
+
+  Every TAP service must describe its tables in `TAP_SCHEMA`, a schema you
+  can also query with ADQL. `tables/2` sends `SELECT * FROM
+  TAP_SCHEMA.tables` as a sync query in VOTable, and reads each row as a
+  `SpaceTAP.Table`, by the names TAP 1.1 gives its columns: a value the
+  service doesn't give is `nil`, and the columns a service adds are left
+  out. The tables come in the order the service recommends with
+  `table_index`, and those without one last, in the order they came.
+
+  Pass the `:name` of a table to `columns/3` to list its columns.
+
+  A service with thousands of tables may cut the list short at its own
+  limit of rows. When it marks the result as overflow (DALI 1.1 §4.4.1),
+  the list comes back all the same, with a warning in the log. MAST marks
+  every result so, even one with no rows.
+
+  ## Options
+
+    * `:schema` - lists the tables of this schema only, such as
+      `"gaiadr3"`, with `WHERE schema_name = 'gaiadr3'`.
+    * `:maxrec` - the maximum number of tables to return, sent as `MAXREC`,
+      as in `query/3`.
+    * `:req_options` - options for Req, as in `query/3`.
+
+  An unknown option, or a `:schema` that isn't a string, raises
+  `ArgumentError`. The errors are those of `query/3`, and a result without
+  a `table_name` column is a `:decode_error`.
+  """
+  @spec tables(String.t(), [tables_option()]) :: {:ok, [Table.t()]} | {:error, Error.t()}
+  def tables(service_url, opts \\ []) when is_binary(service_url) do
+    opts = Keyword.validate!(opts, [:schema, :maxrec, req_options: []])
+    adql = opts[:schema] |> schema!() |> TAPSchema.tables_query()
+    query_opts = [format: :votable, maxrec: opts[:maxrec], req_options: opts[:req_options]]
+
+    case sync(service_url, adql, query_opts) do
+      {{:ok, result}, status} -> TAPSchema.tables(result, status)
+      {error, _status} -> error
+    end
+  end
+
+  @doc """
+  Lists the columns of the table `table_name` of the TAP service at
+  `service_url`, from its `TAP_SCHEMA.columns` (TAP 1.1 §4.3).
+
+      SpaceTAP.columns("https://dc.g-vo.org/tap", "hipparcos.main")
+      #=> {:ok, [%SpaceTAP.Column{name: "hipno", datatype: "int", ucd: "meta.id;meta.main", indexed: true, ...}, ...]}
+
+  `table_name` is the name as `TAP_SCHEMA` gives it, the `:name` of a
+  `SpaceTAP.Table`, which may include the schema or double quotes, as in
+  `~s("I/239/hip_main")`. It is written in the query with
+  `SpaceTAP.ADQL.literal/1`.
+
+  `columns/3` sends `SELECT * FROM TAP_SCHEMA.columns WHERE table_name =
+  ...` as a sync query in VOTable, and reads each row as a
+  `SpaceTAP.Column`, as `tables/2` reads tables. The columns come in the
+  order the service recommends with `column_index`, and those without one
+  last. `TAP_SCHEMA` can't tell a table the service doesn't have from one
+  without columns, and a table always has some, so an unknown table gives
+  `{:ok, []}`. A result marked as overflow gives its list with a warning in
+  the log, as in `tables/2`.
+
+  ## Options
+
+    * `:req_options` - options for Req, as in `query/3`.
+
+  An unknown option raises `ArgumentError`. The errors are those of
+  `query/3`, and a result without a `column_name` column, or with a flag
+  other than 0 or 1, is a `:decode_error`.
+  """
+  @spec columns(String.t(), String.t(), [columns_option()]) ::
+          {:ok, [Column.t()]} | {:error, Error.t()}
+  def columns(service_url, table_name, opts \\ [])
+      when is_binary(service_url) and is_binary(table_name) do
+    opts = Keyword.validate!(opts, req_options: [])
+    adql = TAPSchema.columns_query(table_name)
+
+    case sync(service_url, adql, format: :votable, req_options: opts[:req_options]) do
+      {{:ok, result}, status} -> TAPSchema.columns(result, status)
+      {error, _status} -> error
+    end
+  end
+
+  #####################
+  # Private functions #
+  #####################
+
+  # Sends a sync query, and returns its result with the HTTP status of the
+  # response, nil when none arrived.
+  defp sync(service_url, adql, opts) do
+    form = HTTP.query_form(adql, opts[:format], opts[:maxrec])
+    url = String.trim_trailing(service_url, "/") <> "/sync"
+
+    {_url, response} =
+      opts[:req_options]
+      |> HTTP.req_options()
+      |> HTTP.run(method: :post, url: url, form: form)
+
+    status =
+      case response do
+        {:ok, %Req.Response{status: status}} -> status
+        {:error, _exception} -> nil
+      end
+
+    {HTTP.read_result(response, opts[:format]), status}
+  end
+
+  defp schema!(schema) when is_binary(schema) or is_nil(schema), do: schema
+
+  defp schema!(schema),
+    do: raise(ArgumentError, "expected :schema to be a string, got: #{inspect(schema)}")
 end

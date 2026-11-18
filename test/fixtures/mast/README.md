@@ -49,3 +49,20 @@ the second, repeated until the job ended, reads the job with HTTP 200.
 The job ran inside the request that created it, so it had ended by the
 first GET. The documents have no XML declaration, and the job in ERROR lists a
 result too.
+
+## TAP_SCHEMA
+
+`tap_schema_tables.xml` and `tap_schema_columns.xml` are what MAST answered on 2026-11-18 to the queries `SpaceTAP.tables/2` and `SpaceTAP.columns/3` send, captured with:
+
+```bash
+curl -sS -o <file> https://mast.stsci.edu/vo-tap/api/v0.1/caom/sync \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "QUERY=<query>"
+```
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `tap_schema_tables.xml` | `SELECT * FROM TAP_SCHEMA.tables WHERE schema_name = 'ivoa'` | 200 | `text/xml; charset=utf-8` |
+| `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'ivoa.obscore'` | 200 | `text/xml; charset=utf-8` |
+
+Both end with a second `QUERY_STATUS`, `OVERFLOW`, after the table, although the first holds one row and the second 31. MAST marked every result as overflow that day, with `MAXREC=100000` and with no rows.

@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOTABLE xmlns="http://www.ivoa.net/xml/VOTable/v1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.4">
+  <RESOURCE type="results">
+    <INFO name="QUERY_STATUS" value="OK" />
+    <INFO name="QUERY_TIMESTAMP" value="2026-11-18T12:32:45.916" />
+    <INFO name="QUERY" value="SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'ivoa.ObsCore'" />
+    <TABLE>
+      <FIELD name="table_name" datatype="char" arraysize="64*">
+        <DESCRIPTION>the table this column belongs to</DESCRIPTION>
+      </FIELD>
+      <FIELD name="column_name" datatype="char" arraysize="64*">
+        <DESCRIPTION>the column name</DESCRIPTION>
+      </FIELD>
+      <FIELD name="utype" datatype="char" arraysize="512*">
+        <DESCRIPTION>lists the utypes of columns in the tableset</DESCRIPTION>
+      </FIELD>
+      <FIELD name="ucd" datatype="char" arraysize="64*">
+        <DESCRIPTION>lists the UCDs of columns in the tableset</DESCRIPTION>
+      </FIELD>
+      <FIELD name="unit" datatype="char" arraysize="64*">
+        <DESCRIPTION>lists the unit used for column values in the tableset</DESCRIPTION>
+      </FIELD>
+      <FIELD name="description" datatype="char" arraysize="512*">
+        <DESCRIPTION>describes the columns in the tableset</DESCRIPTION>
+      </FIELD>
+      <FIELD name="datatype" datatype="char" arraysize="64*">
+        <DESCRIPTION>base datatype of columns in the tableset</DESCRIPTION>
+      </FIELD>
+      <FIELD name="arraysize" datatype="char" arraysize="16*">
+        <DESCRIPTION>size of variable-length columns in the tableset</DESCRIPTION>
+      </FIELD>
+      <FIELD name="xtype" datatype="char" arraysize="64*">
+        <DESCRIPTION>a DALI or custom extended type annotation</DESCRIPTION>
+      </FIELD>
+      <FIELD name="&quot;size&quot;" datatype="int">
+        <DESCRIPTION>deprecated: use arraysize</DESCRIPTION>
+      </FIELD>
+      <FIELD name="principal" datatype="int">
+        <DESCRIPTION>a principal column; 1 means true, 0 means false</DESCRIPTION>
+      </FIELD>
+      <FIELD name="indexed" datatype="int">
+        <DESCRIPTION>an indexed column; 1 means true, 0 means false</DESCRIPTION>
+      </FIELD>
+      <FIELD name="std" datatype="int">
+        <DESCRIPTION>a standard column; 1 means true, 0 means false</DESCRIPTION>
+      </FIELD>
+      <FIELD name="column_index" datatype="int">
+        <DESCRIPTION>recommended sort order for columns of a table</DESCRIPTION>
+      </FIELD>
+      <DATA>
+        <TABLEDATA>
+<TR><TD>ivoa.ObsCore</TD><TD>calib_level</TD><TD>obscore:ObsDataset.calibLevel</TD><TD>meta.code;obs.calib</TD><TD/><TD>calibration level (0,1,2,3)</TD><TD>int</TD><TD/><TD/><TD/><TD>1</TD><TD>0</TD><TD>1</TD><TD>7</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>s_ra</TD><TD>obscore:Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C1</TD><TD>pos.eq.ra</TD><TD>deg</TD><TD>RA of central coordinates</TD><TD>double</TD><TD/><TD/><TD/><TD>1</TD><TD>0</TD><TD>1</TD><TD>10</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>s_dec</TD><TD>obscore:Char.SpatialAxis.Coverage.Location.Coord.Position2D.Value2.C2</TD><TD>pos.eq.dec</TD><TD>deg</TD><TD>DEC of central coordinates</TD><TD>double</TD><TD/><TD/><TD/><TD>1</TD><TD>0</TD><TD>1</TD><TD>11</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>s_fov</TD><TD>obscore:Char.SpatialAxis.Coverage.Bounds.Extent.diameter</TD><TD>phys.angSize;instr.fov</TD><TD>deg</TD><TD>size of the region covered (~diameter of minimum bounding circle)</TD><TD>double</TD><TD/><TD/><TD/><TD>1</TD><TD>0</TD><TD>1</TD><TD>12</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>s_region</TD><TD>obscore:Char.SpatialAxis.Coverage.Support.Area</TD><TD>pos.outline;obs.field</TD><TD/><TD>region bounded by observation</TD><TD>char</TD><TD>*</TD><TD>adql:REGION</TD><TD/><TD>1</TD><TD>1</TD><TD>1</TD><TD>13</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>s_resolution</TD><TD>obscore:Char.SpatialAxis.Resolution.refval.value</TD><TD>pos.angResolution</TD><TD>arcsec</TD><TD>typical spatial resolution</TD><TD>double</TD><TD/><TD/><TD/><TD>1</TD><TD>0</TD><TD>1</TD><TD>14</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>s_xel1</TD><TD>obscore:Char.SpatialAxis.numBins1</TD><TD>meta.number</TD><TD/><TD>dimensions (number of pixels) along one spatial axis</TD><TD>long</TD><TD/><TD/><TD/><TD>1</TD><TD>0</TD><TD>1</TD><TD>15</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>s_xel2</TD><TD>obscore:Char.SpatialAxis.numBins2</TD><TD>meta.number</TD><TD/><TD>dimensions (number of pixels) along the other spatial axis</TD><TD>long</TD><TD/><TD/><TD/><TD>1</TD><TD>0</TD><TD>1</TD><TD>16</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>t_min</TD><TD>obscore:Char.TimeAxis.Coverage.Bounds.Limits.StartTime</TD><TD>time.start;obs.exposure</TD><TD>d</TD><TD>start time of observation (MJD)</TD><TD>double</TD><TD/><TD/><TD/><TD>1</TD><TD>1</TD><TD>1</TD><TD>17</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>t_max</TD><TD>obscore:Char.TimeAxis.Coverage.Bounds.Limits.StopTime</TD><TD>time.end;obs.exposure</TD><TD>d</TD><TD>end time of observation (MJD)</TD><TD>double</TD><TD/><TD/><TD/><TD>1</TD><TD>1</TD><TD>1</TD><TD>18</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>t_exptime</TD><TD>obscore:Char.TimeAxis.Coverage.Support.Extent</TD><TD>time.duration;obs.exposure</TD><TD>s</TD><TD>exposure time of observation</TD><TD>double</TD><TD/><TD/><TD/><TD>1</TD><TD>1</TD><TD>1</TD><TD>19</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>t_resolution</TD><TD>obscore:Char.TimeAxis.Resolution.refval.value</TD><TD>time.resolution</TD><TD>s</TD><TD>typical temporal resolution</TD><TD>double</TD><TD/><TD/><TD/><TD>1</TD><TD>0</TD><TD>1</TD><TD>20</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>t_xel</TD><TD>obscore:Char.TimeAxis.numBins</TD><TD>meta.number</TD><TD/><TD>dimensions (number of pixels) along the time axis</TD><TD>long</TD><TD/><TD/><TD/><TD>1</TD><TD>0</TD><TD>1</TD><TD>21</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>em_min</TD><TD>obscore:Char.SpectralAxis.Coverage.Bounds.Limits.LoLimit</TD><TD>em.wl;stat.min</TD><TD>m</TD><TD>start spectral coordinate value</TD><TD>double</TD><TD/><TD/><TD/><TD>1</TD><TD>1</TD><TD>1</TD><TD>22</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>em_max</TD><TD>obscore:Char.SpectralAxis.Coverage.Bounds.Limits.HiLimit</TD><TD>em.wl;stat.max</TD><TD>m</TD><TD>stop spectral coordinate value</TD><TD>double</TD><TD/><TD/><TD/><TD>1</TD><TD>1</TD><TD>1</TD><TD>23</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>em_res_power</TD><TD>obscore:Char.SpectralAxis.Resolution.ResolPower.refval</TD><TD>spect.resolution</TD><TD/><TD>typical spectral resolution</TD><TD>double</TD><TD/><TD/><TD/><TD>1</TD><TD>0</TD><TD>1</TD><TD>24</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>em_xel</TD><TD>obscore:Char.SpectralAxis.numBins</TD><TD>meta.number</TD><TD/><TD>dimensions (number of pixels) along the energy axis</TD><TD>long</TD><TD/><TD/><TD/><TD>1</TD><TD>0</TD><TD>1</TD><TD>25</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>em_ucd</TD><TD>obscore:Char.SpectralAxis.ucd</TD><TD>meta.ucd</TD><TD/><TD>UCD describing the spectral axis</TD><TD>char</TD><TD>32*</TD><TD/><TD>32</TD><TD>1</TD><TD>0</TD><TD>1</TD><TD>26</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>pol_states</TD><TD>obscore:Char.PolarizationAxis.stateList</TD><TD>meta.code;phys.polarization</TD><TD/><TD>polarization states present in the data</TD><TD>char</TD><TD>32*</TD><TD/><TD>32</TD><TD>1</TD><TD>0</TD><TD>1</TD><TD>27</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>pol_xel</TD><TD>obscore:Char.PolarizationAxis.numBins</TD><TD>meta.number</TD><TD/><TD>dimensions (number of pixels) along the polarization axis</TD><TD>int</TD><TD/><TD/><TD/><TD>1</TD><TD>0</TD><TD>1</TD><TD>28</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>o_ucd</TD><TD>obscore:Char.ObservableAxis.ucd</TD><TD>meta.ucd</TD><TD/><TD>UCD describing the observable axis (pixel values)</TD><TD>char</TD><TD>32*</TD><TD/><TD>32</TD><TD>1</TD><TD>0</TD><TD>1</TD><TD>29</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>access_url</TD><TD>obscore:Access.Reference</TD><TD>meta.ref.url</TD><TD/><TD>URL to download the data</TD><TD>char</TD><TD>*</TD><TD>clob</TD><TD/><TD>1</TD><TD>0</TD><TD>1</TD><TD>30</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>access_estsize</TD><TD>obscore:Access.Size</TD><TD>phys.size;meta.file</TD><TD>kbyte</TD><TD>estimated size of the download</TD><TD>long</TD><TD/><TD/><TD/><TD>1</TD><TD>0</TD><TD>1</TD><TD>32</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>obs_publisher_did</TD><TD>obscore:Curation.PublisherDID</TD><TD>meta.ref.ivoid</TD><TD/><TD>publisher dataset identifier</TD><TD>char</TD><TD>256*</TD><TD>uri</TD><TD>256</TD><TD>1</TD><TD>1</TD><TD>1</TD><TD>1</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>obs_collection</TD><TD>obscore:DataID.Collection</TD><TD>meta.id</TD><TD/><TD>short name for the data colection</TD><TD>char</TD><TD>128*</TD><TD/><TD>128</TD><TD>1</TD><TD>0</TD><TD>1</TD><TD>2</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>facility_name</TD><TD>obscore:Provenance.ObsConfig.Facility.name</TD><TD>meta.id;instr.tel</TD><TD/><TD>telescope name</TD><TD>char</TD><TD>128*</TD><TD/><TD>128</TD><TD>1</TD><TD>0</TD><TD>1</TD><TD>3</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>instrument_name</TD><TD>obscore:Provenance.ObsConfig.Instrument.name</TD><TD>meta.id;instr</TD><TD/><TD>instrument name</TD><TD>char</TD><TD>128*</TD><TD/><TD>128</TD><TD>1</TD><TD>0</TD><TD>1</TD><TD>4</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>obs_id</TD><TD>obscore:DataID.observationID</TD><TD>meta.id</TD><TD/><TD>internal dataset identifier</TD><TD>char</TD><TD>128*</TD><TD/><TD>128</TD><TD>1</TD><TD>0</TD><TD>1</TD><TD>5</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>dataproduct_type</TD><TD>obscore:ObsDataset.dataProductType</TD><TD>meta.code.class</TD><TD/><TD>type of product</TD><TD>char</TD><TD>128*</TD><TD/><TD>128</TD><TD>1</TD><TD>0</TD><TD>1</TD><TD>6</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>obs_release_date</TD><TD>obscore:Curation.releaseDate</TD><TD>time.release</TD><TD/><TD>timestamp of date the data becomes publicly available</TD><TD>char</TD><TD>23*</TD><TD>timestamp</TD><TD>23</TD><TD>0</TD><TD>0</TD><TD>1</TD><TD>8</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>target_name</TD><TD>obscore:Target.Name</TD><TD>meta.id;src</TD><TD/><TD>name of intended target</TD><TD>char</TD><TD>32*</TD><TD/><TD>32</TD><TD>1</TD><TD>0</TD><TD>1</TD><TD>9</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>access_format</TD><TD>obscore:Access.Format</TD><TD>meta.code.mime</TD><TD/><TD>format of the data file(s)</TD><TD>char</TD><TD>128*</TD><TD/><TD>128</TD><TD>1</TD><TD>0</TD><TD>1</TD><TD>31</TD></TR>
+<TR><TD>ivoa.ObsCore</TD><TD>lastModified</TD><TD/><TD/><TD/><TD>timestamp of last modification of the metadata</TD><TD>char</TD><TD>23*</TD><TD>timestamp</TD><TD>23</TD><TD>0</TD><TD>1</TD><TD>0</TD><TD>34</TD></TR></TABLEDATA>
+      </DATA>
+    </TABLE>
+    <INFO name="placeholder" value="ignore" />
+  </RESOURCE>
+</VOTABLE>

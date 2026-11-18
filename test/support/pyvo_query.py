@@ -139,6 +139,9 @@ def read_job(path):
     }
 
 
+# The table also gives the names of its columns, which astropy makes unique
+# where the service repeats one, and their NumPy dtypes, for SpaceTAP's
+# Result.to_dataframe/1.
 def to_json(result):
     table = result.to_table()
     columns = [column.tolist() for column in table.columns.values()]
@@ -147,7 +150,24 @@ def to_json(result):
         "columns": list(result.fieldnames),
         "rows": [[value(cell) for cell in row] for row in zip(*columns)],
         "overflow": result.query_status == "OVERFLOW",
+        "names": table.colnames,
+        "dtypes": [dtype(column) for column in table.columns.values()],
     }
+
+
+# The NumPy dtype of a column, such as float32 or int16, or "string" for
+# text and "list" for an array. astropy holds a variable-length string or
+# array in an object column, and an array of fixed size in a column with
+# more than one dimension.
+def dtype(column):
+    if column.dtype.kind in "US":
+        return "string"
+    if column.dtype.kind == "O":
+        cells = [cell for cell in column.tolist() if cell is not None]
+        return "string" if all(isinstance(cell, str) for cell in cells) else "list"
+    if column.ndim > 1:
+        return "list"
+    return column.dtype.name
 
 
 # tolist() gives Python values, and None for a masked cell, which is how

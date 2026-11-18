@@ -56,6 +56,14 @@ The VOTable result was captured on 2026-11-10 with the same request and `FORMAT=
 
 Its rows are BINARY2. Besides the table, its results `RESOURCE` holds `PARAM`s, each with a `DESCRIPTION`, and a nested `RESOURCE`, and a `RESOURCE` of type `meta` with DataLink service descriptors follows it.
 
+A result with two columns of the same name was captured on 2026-11-18 with the same request and `FORMAT=votable` instead of `csv`:
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `repeated_names.xml` | `SELECT TOP 1 table_name, table_name FROM TAP_SCHEMA.tables` | 200 | `application/x-votable+xml` |
+
+Gaia names both `FIELD`s `table_name`, with no `ID`. Its rows are BINARY2.
+
 ## Job documents
 
 The files in `jobs/` are job documents: what the Gaia archive returned for the URL

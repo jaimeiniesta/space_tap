@@ -4,8 +4,10 @@ defmodule SpaceTAPServicesMetadataTest do
   # TAP_SCHEMA fixtures, and a column of that table. Like the other services
   # tests, a failure is a reason to look into that service, so they run with
   # `mix test.services`. MAST marks every result as overflow, so its lists
-  # come with a warning, which :capture_log keeps out of the output.
-  alias SpaceTAP.{Column, Table}
+  # come with a warning, which :capture_log keeps out of the output. A service
+  # with a `tables_error` gives that error for its schema, so the test notices
+  # when it lists its tables again.
+  alias SpaceTAP.{Column, Error, Table}
   alias SpaceTAP.Test.Services
 
   # The alias comes first because parameterize reads it.
@@ -16,12 +18,19 @@ defmodule SpaceTAPServicesMetadataTest do
   @moduletag timeout: 180_000
 
   test "lists the table of its fixtures among the tables of its schema",
-       %{url: url, metadata: {schema, table, _column}} do
-    assert {:ok, tables} =
-             SpaceTAP.tables(url, schema: schema, req_options: Services.req_options())
+       %{url: url, metadata: {schema, table, _column}} = service do
+    response = SpaceTAP.tables(url, schema: schema, req_options: Services.req_options())
 
-    assert Enum.all?(tables, &match?(%Table{schema: ^schema}, &1))
-    assert table in Enum.map(tables, & &1.name)
+    case service do
+      %{tables_error: {:error, type, status, message}} ->
+        assert {:error, %Error{type: ^type, status: ^status, message: actual}} = response
+        assert actual =~ message
+
+      _service ->
+        assert {:ok, tables} = response
+        assert Enum.all?(tables, &match?(%Table{schema: ^schema}, &1))
+        assert table in Enum.map(tables, & &1.name)
+    end
   end
 
   test "lists the columns of that table", %{url: url, metadata: {_schema, table, column}} do

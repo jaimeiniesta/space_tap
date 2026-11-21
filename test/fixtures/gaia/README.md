@@ -93,6 +93,25 @@ address and the User-Agent of the client that created the job. The IP address
 is the one change made to a captured file: it was replaced with `192.0.2.1`, an
 address reserved for documentation (RFC 5737).
 
+## TAP_SCHEMA
+
+`tap_schema_tables.xml` and `tap_schema_columns.xml` are what the Gaia archive answered on 2026-11-19 to the queries `SpaceTAP.tables/2` and `SpaceTAP.columns/3` send, captured with:
+
+```bash
+curl -sS -o <file> https://gea.esac.esa.int/tap-server/tap/sync \
+  --data-urlencode "REQUEST=doQuery" --data-urlencode "LANG=ADQL" \
+  --data-urlencode "FORMAT=votable" --data-urlencode "QUERY=<query>"
+```
+
+| File | Query | HTTP | Content-Type |
+|---|---|---|---|
+| `tap_schema_tables.xml` | `SELECT * FROM TAP_SCHEMA.tables` | 200 | `application/x-votable+xml` |
+| `tap_schema_columns.xml` | `SELECT * FROM TAP_SCHEMA.columns WHERE table_name = 'gaiadr3.gaia_source'` | 200 | `application/x-votable+xml` |
+
+Both carry their rows as BINARY2. `tap_schema_tables.xml` lists the tables of every schema: on 19 and 21 November 2026, any `WHERE` on `TAP_SCHEMA.tables`, such as the `WHERE schema_name = 'gaiadr3'` that `tables/2` sends with `schema: "gaiadr3"`, gave HTTP 500 with an error in the SQL Gaia wrote for it: `missing FROM-clause entry for table "cte_authorisation_…"`, with a number that changes from one query to the next.
+
+Several table descriptions in `tap_schema_tables.xml` write a no-break space as the byte `0xA0`, its code in Latin-1, as in the description of `gaiadr3.gaia_source_simulation`: `Frame\xa0(Charlot et al.,\xa02020`. That byte is neither ASCII, which VOTable 1.5 §6 requires of a `char`, nor valid UTF-8, so SpaceTAP and astropy both refuse the file, and `tables/2` is a `:decode_error` at Gaia. `columns/3` reads the columns of `gaiadr3.gaia_source`.
+
 ## VOSI
 
 `capabilities.xml` and `availability.xml` are the documents the Gaia archive served on 2026-11-18 for `SpaceTAP.availability/2`, captured with:

@@ -383,11 +383,12 @@ November, and VizieR and SIMBAD, both run by CDS, on 27 October, with CSV only.
 Async queries were checked on 17 November 2026 at every service but VizieR and
 SIMBAD, which didn't answer. Tables, columns and availability were checked on
 18 November 2026 at every service but Gaia, whose archive showed a downtime page
-that afternoon, and VizieR and SIMBAD, which didn't answer.
+that afternoon, and VizieR and SIMBAD, which didn't answer. Gaia's were checked
+on 21 November.
 
 | Service | Service URL | Formats | Async | Tables | Availability | Checked by | Notes |
 |---|---|---|---|---|---|---|---|
-| [Gaia archive][gaia] (ESA) | `https://gea.esac.esa.int/tap-server/tap` | CSV, VOTable | CSV, VOTable | Not checked yet | Not checked yet | Services and parity tests, fixtures, livebook | Redirects `http://` to `https://`, which loses the query: use `https://`. Stops an async job of an anonymous user after 60 seconds, as `:aborted`. |
+| [Gaia archive][gaia] (ESA) | `https://gea.esac.esa.int/tap-server/tap` | CSV, VOTable | CSV, VOTable | `columns/3` only | Yes | Services and parity tests, fixtures, livebook | Redirects `http://` to `https://`, which loses the query: use `https://`. Stops an async job of an anonymous user after 60 seconds, as `:aborted`. `tables/2` fails: some table descriptions in its `TAP_SCHEMA` have a byte that isn't ASCII, which VOTable doesn't allow in a `char`, so it is a `:decode_error`, and with `:schema` Gaia answers HTTP 500, as it does to any `WHERE` on `TAP_SCHEMA.tables`. |
 | GAVO Data Center | `https://dc.g-vo.org/tap` | CSV, VOTable | CSV, VOTable | Yes | Yes | Integration, services and parity tests, fixtures, livebooks | Runs DaCHS. Holds a copy of Gaia DR3 in `gaia.dr3lite`. Sends error documents with HTTP 500. Sends one row more than `:maxrec` asks for, and one row with `maxrec: 0`, marked as overflow. Lists its availability over `http://` and outside the service URL, which SpaceTAP reads with `https://`. |
 | NASA Exoplanet Archive | `https://exoplanetarchive.ipac.caltech.edu/TAP` | CSV, VOTable | CSV, VOTable | Yes | Yes | Services and parity tests, fixtures, livebooks | Labels CSV `text/plain`. Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a sorted result. Answers that an async job is deleted, and keeps it for 4 days. |
 | IRSA (IPAC) | `https://irsa.ipac.caltech.edu/TAP` | CSV, VOTable | VOTable only | Yes | Yes | Services and parity tests, fixtures, livebook | Sends the CSV result of an async job labelled as VOTable, so pass `format: :votable`. Answers that an async job is deleted, and keeps it. Writes a column's `arraysize` as a number, `"1"` for a single value. |

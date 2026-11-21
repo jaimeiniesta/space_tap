@@ -132,6 +132,17 @@ defmodule SpaceTAPTAPSchemaTest do
       assert message =~ "TAP_SCHEMA.tables has no table_name column"
     end
 
+    # Gaia writes a no-break space as the byte 0xA0, its code in Latin-1, in
+    # some table descriptions. A char is ASCII (VOTable 1.5 §6), and astropy
+    # refuses the document too.
+    test "is a :decode_error when a description isn't ASCII, as in Gaia's TAP_SCHEMA.tables" do
+      stub_service(fixture("gaia", "tap_schema_tables.xml"))
+
+      assert {:error, %Error{type: :decode_error, message: message, status: 200}} = tables()
+      assert message =~ ~s(row 18, field "description")
+      assert message =~ "is not a valid char"
+    end
+
     # MAST marks every result as overflow, so the list comes back with a
     # warning rather than an error.
     test "returns the tables of a result marked as overflow, and warns that the list may be cut" do
@@ -236,6 +247,16 @@ defmodule SpaceTAPTAPSchemaTest do
                principal: false,
                std: nil
              }
+    end
+
+    test "reads the columns of a result in BINARY2, as Gaia sends it" do
+      stub_service(fixture("gaia", "tap_schema_columns.xml"))
+
+      assert {:ok, columns} = columns("gaiadr3.gaia_source")
+      assert length(columns) == 152
+
+      assert %Column{datatype: "long", ucd: "meta.id", indexed: true, principal: true} =
+               Enum.find(columns, &(&1.name == "source_id"))
     end
 
     # IRSA declares arraysize as an int.

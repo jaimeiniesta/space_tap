@@ -6,10 +6,14 @@ defmodule SpaceTAPIntegrationTest do
   use ExUnit.Case, async: false
 
   alias SpaceTAP.{ADQL, Availability, Column, Error, Job, Result, Table}
+  alias SpaceTAP.Test.Services
 
   @moduletag :integration
 
   @service_url "https://dc.g-vo.org/tap"
+
+  # The live tests keep Req's retries, which SpaceTAP turns off (ADR 0016).
+  @options [req_options: Services.req_options()]
 
   @pleiades """
   SELECT TOP 5 source_id, ra, dec, parallax, phot_g_mean_mag
@@ -24,7 +28,8 @@ defmodule SpaceTAPIntegrationTest do
   """
 
   test "runs a Pleiades cone search" do
-    assert {:ok, %Result{columns: columns, rows: rows}} = SpaceTAP.query(@service_url, @pleiades)
+    assert {:ok, %Result{columns: columns, rows: rows}} =
+             SpaceTAP.query(@service_url, @pleiades, @options)
 
     assert columns == ["source_id", "ra", "dec", "parallax", "phot_g_mean_mag"]
     assert length(rows) == 5
@@ -32,7 +37,7 @@ defmodule SpaceTAPIntegrationTest do
 
   test "reads the VOTable with typed values" do
     assert {:ok, %Result{columns: columns, rows: rows, fields: fields, overflow: false}} =
-             SpaceTAP.query(@service_url, @pleiades, format: :votable)
+             SpaceTAP.query(@service_url, @pleiades, [format: :votable] ++ @options)
 
     assert columns == ["source_id", "ra", "dec", "parallax", "phot_g_mean_mag"]
     # gaia.dr3lite declares parallax a float, where Gaia's archive has a double.
@@ -52,7 +57,7 @@ defmodule SpaceTAPIntegrationTest do
     adql = "SELECT TOP 10 source_id FROM gaia.dr3lite ORDER BY source_id"
 
     assert {:ok, %Result{rows: rows, overflow: true}} =
-             SpaceTAP.query(@service_url, adql, format: :votable, maxrec: 3)
+             SpaceTAP.query(@service_url, adql, [format: :votable, maxrec: 3] ++ @options)
 
     assert length(rows) == 4
   end
@@ -61,7 +66,7 @@ defmodule SpaceTAPIntegrationTest do
     adql = "SELECT TOP 10 source_id FROM gaia.dr3lite ORDER BY source_id"
 
     assert {:ok, %Result{columns: ["source_id"], rows: rows}} =
-             SpaceTAP.query(@service_url, adql, maxrec: 3)
+             SpaceTAP.query(@service_url, adql, [maxrec: 3] ++ @options)
 
     assert length(rows) == 4
   end
@@ -72,7 +77,7 @@ defmodule SpaceTAPIntegrationTest do
     adql = "SELECT TOP 3 source_id, ra, dec FROM gaia.dr3lite"
 
     assert {:ok, %Result{columns: ["source_id", "ra", "dec"], rows: rows, overflow: true}} =
-             SpaceTAP.query(@service_url, adql, format: :votable, maxrec: 0)
+             SpaceTAP.query(@service_url, adql, [format: :votable, maxrec: 0] ++ @options)
 
     assert length(rows) == 1
   end
@@ -82,7 +87,7 @@ defmodule SpaceTAPIntegrationTest do
     adql = "SELEC TOP 3 source_id FROM gaia.dr3lite"
 
     assert {:error, %Error{type: :service_error, status: 500, message: message}} =
-             SpaceTAP.query(@service_url, adql)
+             SpaceTAP.query(@service_url, adql, @options)
 
     assert message =~ "Could not parse your query"
   end
@@ -94,10 +99,11 @@ defmodule SpaceTAPIntegrationTest do
           ADQL.cone("ra", "dec", 56.75, 24.12, 1.0) <>
           " AND parallax IS NOT NULL AND phot_g_mean_mag IS NOT NULL ORDER BY phot_g_mean_mag"
 
-      assert {:ok, %Result{rows: rows}} = SpaceTAP.query(@service_url, adql, format: :votable)
+      assert {:ok, %Result{rows: rows}} =
+               SpaceTAP.query(@service_url, adql, [format: :votable] ++ @options)
 
       assert {:ok, %Result{rows: ^rows}} =
-               SpaceTAP.query(@service_url, @pleiades, format: :votable)
+               SpaceTAP.query(@service_url, @pleiades, [format: :votable] ++ @options)
 
       assert length(rows) == 5
     end
@@ -108,21 +114,21 @@ defmodule SpaceTAPIntegrationTest do
           ADQL.literal(["gaia.dr3lite", "hipparcos.main"]) <>
           " OR description = " <> ADQL.literal("Barnard's Star")
 
-      assert {:ok, %Result{rows: rows}} = SpaceTAP.query(@service_url, adql)
+      assert {:ok, %Result{rows: rows}} = SpaceTAP.query(@service_url, adql, @options)
       assert Enum.sort(rows) == [["gaia.dr3lite"], ["hipparcos.main"]]
     end
   end
 
   describe "metadata" do
     test "lists the tables of a schema" do
-      assert {:ok, tables} = SpaceTAP.tables(@service_url, schema: "gaia")
+      assert {:ok, tables} = SpaceTAP.tables(@service_url, [schema: "gaia"] ++ @options)
 
       assert %Table{schema: "gaia", type: "table"} =
                Enum.find(tables, &(&1.name == "gaia.dr3lite"))
     end
 
     test "lists the columns of a table, with their types, units and UCDs" do
-      assert {:ok, columns} = SpaceTAP.columns(@service_url, "gaia.dr3lite")
+      assert {:ok, columns} = SpaceTAP.columns(@service_url, "gaia.dr3lite", @options)
 
       assert %Column{datatype: "float", unit: "mas", ucd: "pos.parallax", indexed: true} =
                Enum.find(columns, &(&1.name == "parallax"))
@@ -130,7 +136,8 @@ defmodule SpaceTAPIntegrationTest do
 
     # GAVO lists its availability over http:// and outside the service URL.
     test "says it is available" do
-      assert {:ok, %Availability{available: true}} = SpaceTAP.availability(@service_url)
+      assert {:ok, %Availability{available: true}} =
+               SpaceTAP.availability(@service_url, @options)
     end
   end
 
@@ -139,7 +146,7 @@ defmodule SpaceTAPIntegrationTest do
     # before ExUnit gives up on the test.
     @describetag timeout: 600_000
 
-    @async_options [timeout: 300_000]
+    @async_options [timeout: 300_000] ++ @options
 
     test "runs the Pleiades cone search as a job, with typed values" do
       assert {:ok, %Result{columns: columns, rows: rows, fields: fields, overflow: false}} =
@@ -180,7 +187,7 @@ defmodule SpaceTAPIntegrationTest do
 
     test "submits, waits for, reads and deletes a job, one step at a time" do
       assert {:ok, %Job{url: url, format: :votable} = job} =
-               Job.submit(@service_url, @pleiades, format: :votable)
+               Job.submit(@service_url, @pleiades, [format: :votable] ++ @options)
 
       # GAVO runs its jobs under another path than the service URL.
       assert url =~ ~r{^https://dc\.g-vo\.org/__system__/tap/run/async/}
@@ -191,14 +198,14 @@ defmodule SpaceTAPIntegrationTest do
       # GAVO lists the result on its own host: with http:// until November
       # 2026, which result/2 reads with https://, and with https:// since.
       assert result_url =~ ~r{^https?://dc\.g-vo\.org/}
-      assert {:ok, %Result{rows: rows}} = Job.result(job)
+      assert {:ok, %Result{rows: rows}} = Job.result(job, @options)
       assert length(rows) == 5
 
-      assert {:ok, %Job{phase: :completed}} = Job.get(url, format: :votable)
-      assert Job.delete(job) == :ok
+      assert {:ok, %Job{phase: :completed}} = Job.get(url, [format: :votable] ++ @options)
+      assert Job.delete(job, @options) == :ok
 
       # DaCHS answers 404 with an error document for a job it no longer has.
-      assert {:error, %Error{type: :service_error, status: 404}} = Job.get(url)
+      assert {:error, %Error{type: :service_error, status: 404}} = Job.get(url, @options)
     end
   end
 end

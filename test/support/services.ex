@@ -225,7 +225,10 @@ defmodule SpaceTAP.Test.Services do
   @spec async_csv_result(t()) :: expected()
   def async_csv_result(service), do: Map.get(service, :async_csv_result, csv_result(service))
 
-  # IRSA and NED can take longer than Req's default of 15 seconds.
+  # IRSA and NED can take longer than Req's default of 15 seconds. The live
+  # tests keep Req's retries, which SpaceTAP turns off (ADR 0016): a
+  # passing failure of a service isn't what they check, and the tests of
+  # `mix test.release` gate a release.
   @spec req_options() :: keyword()
-  def req_options, do: [receive_timeout: 120_000]
+  def req_options, do: [receive_timeout: 120_000, retry: :safe_transient]
 end

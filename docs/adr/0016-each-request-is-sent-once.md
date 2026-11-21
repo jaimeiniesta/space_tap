@@ -13,3 +13,5 @@ SpaceTAP sends each request to a TAP service once: `SpaceTAP.HTTP.run/2` sets Re
 - A transient error on the request for the result of `SpaceTAP.async_query/3` fails the query, after the job has run, and `async_query/3` deletes the job. `req_options: [retry: :safe_transient]` gives Req's behaviour back, with its `Retry-After` waits.
 - `SpaceTAP.Job.wait/2` keeps to its `:timeout` within one request, and returns the error of a request that fails at once.
 - Setting `:retry` is the one way to retry: `:max_retries` or `:retry_delay` alone, with `retry: false`, retry nothing.
+- A connection the service closes while it sits idle in Finch's pool doesn't need a retry: the pool keeps idle connections in active mode and drops one the moment it is closed, so the first request after a pause opens a new one. Checked against GAVO with a query after 120 and 300 seconds idle, both answered.
+- The live tests, integration, services and parity, keep Req's retries with `retry: :safe_transient` in their `:req_options`: a passing failure of a service isn't what they check, and `mix test.release` gates a release.

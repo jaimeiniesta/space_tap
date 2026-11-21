@@ -82,9 +82,12 @@ defmodule SpaceTAP do
       `:receive_timeout` to wait longer than Req's default 15 seconds.
       SpaceTAP sets `:method`, `:url`, `:form`, `:user_agent`,
       `:decode_body`, `:http_errors` and `:into` itself, and ignores them
-      here. Other options go to Req as given, and some change the request:
-      a `user-agent` in `:headers` replaces SpaceTAP's, and `:params` adds
-      parameters to the URL.
+      here, and sends each request once: it sets `retry: false` unless
+      `:retry` is here, since Req would otherwise retry a `GET` that fails
+      with a 5xx or a timeout three times, waiting as long as a
+      `Retry-After` header says. Other options go to Req as given, and some
+      change the request: a `user-agent` in `:headers` replaces SpaceTAP's,
+      and `:params` adds parameters to the URL.
 
   An unknown option, or a `:format`, `:maxrec` or `:req_options` that isn't
   what the list above says, raises `ArgumentError`.

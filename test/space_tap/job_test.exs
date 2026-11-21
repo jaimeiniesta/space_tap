@@ -422,10 +422,11 @@ defmodule SpaceTAP.JobTest do
       elapsed = System.monotonic_time(:millisecond) - started
 
       # Without a pause, it would ask hundreds of times. It asks with the
-      # seconds left, then pauses a second, asks again and pauses no longer
-      # than the time left.
+      # seconds left, then pauses a second, asks again, without WAIT since
+      # less than a second is left, and pauses no longer than the time left.
       assert_received {:request, "GET", "/tap/async/42", %{"WAIT" => "1"}}
-      assert_received {:request, "GET", "/tap/async/42", %{"WAIT" => "0"}}
+      assert_received {:request, "GET", "/tap/async/42", params}
+      refute Map.has_key?(params, "WAIT")
       refute_received {:request, _method, _path, _params}
       assert elapsed in 1_200..1_700
     end
@@ -440,11 +441,17 @@ defmodule SpaceTAP.JobTest do
                 }}
     end
 
-    test "returns the error a request gives" do
-      # Req tries a GET again after a transport error or a 5xx, so a 403.
-      expect_request("GET", "/tap/async/42", &respond(&1, 403, "text/html", ""))
+    test "returns the error a request gives at once, without Req's retries" do
+      # Req would retry a GET that gets a 503 three times, with a growing
+      # delay, past the time the caller gave.
+      expect_request("GET", "/tap/async/42", &respond(&1, 503, "text/html", ""))
 
-      assert {:error, %Error{type: :http_error, status: 403}} = wait(job(:executing))
+      started = System.monotonic_time(:millisecond)
+
+      assert {:error, %Error{type: :http_error, status: 503}} =
+               wait(job(:executing), timeout: 1_000)
+
+      assert System.monotonic_time(:millisecond) - started < 500
     end
 
     test "raises on an option it doesn't know or can't use" do

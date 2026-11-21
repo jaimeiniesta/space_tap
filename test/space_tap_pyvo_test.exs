@@ -4,7 +4,7 @@ defmodule SpaceTAPPyvoTest do
   # The other services have theirs in SpaceTAPServicesPyvoTest.
   use ExUnit.Case, async: false
 
-  alias SpaceTAP.Test.Pyvo
+  alias SpaceTAP.Test.{Pyvo, Services}
 
   @moduletag :pyvo
 
@@ -13,6 +13,9 @@ defmodule SpaceTAPPyvoTest do
   end
 
   @gavo_url "https://dc.g-vo.org/tap"
+
+  # The live tests keep Req's retries, which SpaceTAP turns off (ADR 0016).
+  @options [req_options: Services.req_options()]
 
   @pleiades """
   SELECT TOP 5 source_id, ra, dec, parallax, phot_g_mean_mag
@@ -30,25 +33,29 @@ defmodule SpaceTAPPyvoTest do
   @maxrec_query "SELECT TOP 10 source_id FROM gaia.dr3lite ORDER BY source_id"
 
   test "matches PyVO for a Pleiades cone search on GAVO's copy of Gaia DR3" do
-    Pyvo.assert_parity(@gavo_url, @pleiades)
+    Pyvo.assert_parity(@gavo_url, @pleiades, @options)
   end
 
   test "matches PyVO when MAXREC limits rows on GAVO" do
-    Pyvo.assert_parity(@gavo_url, @maxrec_query, maxrec: 3)
+    Pyvo.assert_parity(@gavo_url, @maxrec_query, [maxrec: 3] ++ @options)
   end
 
   test "matches PyVO for GAVO's tables, the columns of gaia.dr3lite and its availability" do
-    Pyvo.assert_metadata_parity(@gavo_url, "gaia.dr3lite")
+    Pyvo.assert_metadata_parity(@gavo_url, "gaia.dr3lite", @options)
   end
 
   # A job may wait in GAVO's queue for minutes.
   @tag timeout: 600_000
   test "matches PyVO for the Pleiades cone search as an async job" do
-    Pyvo.assert_parity(@gavo_url, @pleiades, async: true, timeout: 300_000)
+    Pyvo.assert_parity(@gavo_url, @pleiades, [async: true, timeout: 300_000] ++ @options)
   end
 
   @tag timeout: 600_000
   test "matches PyVO when MAXREC limits the rows of an async job" do
-    Pyvo.assert_parity(@gavo_url, @maxrec_query, async: true, maxrec: 3, timeout: 300_000)
+    Pyvo.assert_parity(
+      @gavo_url,
+      @maxrec_query,
+      [async: true, maxrec: 3, timeout: 300_000] ++ @options
+    )
   end
 end

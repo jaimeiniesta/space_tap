@@ -91,6 +91,36 @@ defmodule SpaceTAPAvailabilityTest do
     assert_received {:request, %Plug.Conn{request_path: "/tap/status/availability"}}
   end
 
+  # Req logs the redirect.
+  @tag :capture_log
+  test "resolves it against where the redirects led, the base of a document (RFC 3986 §5.1.3)" do
+    test = self()
+
+    Req.Test.stub(SpaceTAP, fn conn ->
+      send(test, {:request, conn})
+
+      case conn.request_path do
+        "/tap/capabilities" ->
+          conn
+          |> Plug.Conn.put_resp_header("location", "https://tap.example.org/tap1/capabilities")
+          |> Plug.Conn.send_resp(301, "")
+
+        "/tap1/capabilities" ->
+          conn
+          |> put_content_type("text/xml")
+          |> Plug.Conn.send_resp(200, capabilities("status/availability"))
+
+        "/tap1/status/availability" ->
+          conn |> put_content_type("text/xml") |> Plug.Conn.send_resp(200, availability_xml(true))
+
+        _other ->
+          Plug.Conn.send_resp(conn, 404, "")
+      end
+    end)
+
+    assert {:ok, %Availability{available: true}} = availability("https://tap.example.org/tap")
+  end
+
   # KOA sends both documents with no Content-Type.
   test "reads documents with no Content-Type as XML" do
     stub_fixtures("koa", nil)

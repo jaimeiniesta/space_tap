@@ -124,6 +124,14 @@ defmodule SpaceTAP.Job do
   started, `submit/3` deletes it and returns the error, since the error
   doesn't give the job's URL.
 
+  The job is never read over `http://` for a service at an `https://` URL.
+  When the service answers with an `http://` URL on its own host, as the
+  NASA Exoplanet Archive does, the job is read with `https://`, and one on
+  another host isn't read, nor deleted: it is a `:decode_error` that names
+  it. On another host, scheme or port, the `authorization` header and Req's
+  `:auth` option aren't sent, as Req does when a redirect leads to another
+  host.
+
   ## Options
 
   The same as for `SpaceTAP.query/3`:
@@ -145,15 +153,18 @@ defmodule SpaceTAP.Job do
 
     # The service answers 303 with the URL of the job (UWS 1.1 §2.2.3.1),
     # which isn't followed, so that SpaceTAP knows the job exists even if
-    # what comes next fails.
+    # what comes next fails, and is read as any URL a service lists: with
+    # https:// when the service gives http:// on its own host, as the NASA
+    # Exoplanet Archive does, and without credentials on another host.
     {_url, response} =
       HTTP.run(req_options, method: :post, url: url, form: form, redirect: false)
 
     case response do
       {:ok, %Req.Response{status: 303} = response} ->
-        case Req.Response.get_header(response, "location") do
-          [location | _locations] -> run(URI.merge(url, location), opts[:format], req_options)
-          [] -> HTTP.error(:http_error, "no Location for the new job", 303)
+        with {:ok, listed_url} <- job_location(response, url),
+             {:ok, job_url, req_options} <-
+               HTTP.listed(req_options, url, listed_url, "the service lists the new job") do
+          run(job_url, opts[:format], req_options)
         end
 
       # Only a 303 points to a job. Another redirect is the web server's,
@@ -334,13 +345,36 @@ defmodule SpaceTAP.Job do
   # Private functions #
   #####################
 
-  # Reads the new job, where the redirects end, which is its URL: the NASA
-  # Exoplanet Archive gives an http:// URL, which it redirects to https://.
-  # A job SpaceTAP can't read or start is deleted, since the error doesn't
-  # give its URL, and nothing else could delete it before the service
-  # destroys it, which IRSA never does.
+  # The job the 303 points to, resolved against the list of jobs the query
+  # went to. A Location that is the list itself, as an empty one resolves
+  # to, points to no job: reading it would fail, and deleting it would be a
+  # request to the list, where a POST creates a job.
+  defp job_location(response, list_url) do
+    case Req.Response.get_header(response, "location") do
+      [] ->
+        HTTP.error(:http_error, "no Location for the new job", 303)
+
+      [location | _locations] ->
+        job_url = list_url |> URI.merge(location) |> URI.to_string()
+
+        if String.trim_trailing(job_url, "/") == list_url do
+          message =
+            "expected a 303 to the new job (UWS 1.1 §2.2.3.1), got one to the list of jobs: " <>
+              job_url
+
+          HTTP.error(:http_error, message, 303)
+        else
+          {:ok, job_url}
+        end
+    end
+  end
+
+  # Reads the new job, where the redirects end, which is its URL. A job
+  # SpaceTAP can't read or start is deleted, since the error doesn't give
+  # its URL, and nothing else could delete it before the service destroys
+  # it, which IRSA never does.
   defp run(job_url, format, req_options) do
-    {url, response} = HTTP.run(req_options, method: :get, url: URI.to_string(job_url))
+    {url, response} = HTTP.run(req_options, method: :get, url: job_url)
 
     result =
       with {:ok, job} <- HTTP.classify(response, &read_job/1, &job(&1, url, format, &2, &3)) do
@@ -441,18 +475,10 @@ defmodule SpaceTAP.Job do
   # The NASA Exoplanet Archive lists http:// URLs on its own host, which it
   # redirects to https://, and GAVO listed them until November 2026.
   defp read_result(%__MODULE__{phase: :completed} = job, req_options) do
-    case HTTP.secure(job.url, job.result_url) do
-      {:ok, url} ->
-        {_url, response} =
-          HTTP.run(HTTP.credentials(req_options, job.url, url), method: :get, url: url)
-
-        HTTP.read_result(response, job.format)
-
-      :insecure ->
-        message =
-          "the job is at an https:// URL and lists its result at an http:// one: #{job.result_url}"
-
-        HTTP.error(:decode_error, message, nil)
+    with {:ok, url, req_options} <-
+           HTTP.listed(req_options, job.url, job.result_url, "the job lists its result") do
+      {_url, response} = HTTP.run(req_options, method: :get, url: url)
+      HTTP.read_result(response, job.format)
     end
   end
 

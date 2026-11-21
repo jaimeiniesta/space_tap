@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `SpaceTAP.Job.submit/3` reads the job the service's 303 points to as `SpaceTAP.Job.result/2` reads a result and `SpaceTAP.availability/2` an availability, by the one rule for every URL a service lists (`docs/adr/0015-listed-urls-are-read-by-one-rule.md`): an `http://` job URL on the service's host, as the NASA Exoplanet Archive answers, is read with `https://`, and a job on another host, scheme or port gets neither the `authorization` header nor Req's `:auth` option, in the requests that read, start and delete it. Before, the first request to the job went to the URL as given, with the credentials, which at the NASA Exoplanet Archive meant over `http://`, and Req dropped them on the redirect to `https://`, so the job was read without them. An `http://` job on another host is a `:decode_error`, and stays on the service.
+- `SpaceTAP.Job.submit/3` doesn't read or delete the list of jobs when the 303 points there, as it does with an empty `Location`: that is an `:http_error`, since a `POST` to delete at the list would create a job.
+- The host of a URL a service lists is compared with the service's without regard to case (RFC 3986 §3.2.2), so `http://TAP.example.org/...` from `https://tap.example.org` is read with `https://` too.
+- `SpaceTAP.availability/2` resolves a relative availability URL against the URL the redirects to `/capabilities` led to, the base of the document (RFC 3986 §5.1.3), rather than against the URL it asked.
+
 ## [0.4.0] - 2026-11-21
 
 ### Added

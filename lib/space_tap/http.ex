@@ -144,38 +144,29 @@ defmodule SpaceTAP.HTTP do
     end
   end
 
-  # Where to fetch a document a service lists at `url`, from a request to
-  # `from_url`: never over http:// after https://. An http:// URL on the
-  # same host is fetched with https://, which GAVO serves too; one on
-  # another host is :insecure.
-  @spec secure(String.t(), String.t()) :: {:ok, String.t()} | :insecure
-  def secure(from_url, url) do
-    from = URI.parse(from_url)
-    to = URI.parse(url)
+  # Where to read a listed URL, one the service at `from_url` gave in a
+  # response, and with which options: the job a 303 points to, the result a
+  # job document lists or the availability the capabilities list
+  # (docs/adr/0015-listed-urls-are-read-by-one-rule.md). Never over http://
+  # after https://: an http:// URL on the host of `from_url` is read with
+  # https://, which GAVO and the NASA Exoplanet Archive serve, and one on
+  # another host isn't read, which `what`, such as "the job lists its
+  # result", explains. Credentials stay with the scheme, host and port of
+  # `from_url`, as Req keeps them from a redirect that leaves them (its
+  # :redirect_trusted option).
+  @spec listed(keyword(), String.t(), String.t(), String.t()) ::
+          {:ok, String.t(), keyword()} | {:error, Error.t()}
+  def listed(req_options, from_url, url, what) do
+    case secure(from_url, url) do
+      {:ok, url} ->
+        {:ok, url, credentials(req_options, from_url, url)}
 
-    cond do
-      from.scheme != "https" or to.scheme != "http" ->
-        {:ok, url}
-
-      to.host == from.host and to.port == 80 ->
-        {:ok, URI.to_string(%{to | scheme: "https", port: 443})}
-
-      true ->
-        :insecure
-    end
-  end
-
-  # Credentials stay with the host, scheme and port of `from_url`, as Req
-  # keeps them from a redirect that leaves them (its :redirect_trusted
-  # option).
-  @spec credentials(keyword(), String.t(), String.t()) :: keyword()
-  def credentials(req_options, from_url, url) do
-    if origin(from_url) == origin(url) do
-      req_options
-    else
-      req_options
-      |> Keyword.delete(:auth)
-      |> Keyword.replace_lazy(:headers, &without_authorization/1)
+      :insecure ->
+        error(
+          :decode_error,
+          "#{what} at an http:// URL, which isn't read after https://: #{url}",
+          nil
+        )
     end
   end
 
@@ -276,10 +267,40 @@ defmodule SpaceTAP.HTTP do
     if media_type == "", do: nil, else: media_type
   end
 
+  defp secure(from_url, url) do
+    from = URI.parse(from_url)
+    to = URI.parse(url)
+
+    cond do
+      from.scheme != "https" or to.scheme != "http" ->
+        {:ok, url}
+
+      host(to) == host(from) and to.port == 80 ->
+        {:ok, URI.to_string(%{to | scheme: "https", port: 443})}
+
+      true ->
+        :insecure
+    end
+  end
+
+  defp credentials(req_options, from_url, url) do
+    if origin(from_url) == origin(url) do
+      req_options
+    else
+      req_options
+      |> Keyword.delete(:auth)
+      |> Keyword.replace_lazy(:headers, &without_authorization/1)
+    end
+  end
+
   defp origin(url) do
     uri = URI.parse(url)
-    {uri.scheme, uri.host, uri.port}
+    {uri.scheme, host(uri), uri.port}
   end
+
+  # A host is case-insensitive (RFC 3986 §3.2.2).
+  defp host(%URI{host: nil}), do: nil
+  defp host(%URI{host: host}), do: String.downcase(host)
 
   defp without_authorization(headers) do
     Enum.reject(headers, fn {name, _value} ->

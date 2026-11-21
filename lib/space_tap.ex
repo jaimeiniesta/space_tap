@@ -280,24 +280,17 @@ defmodule SpaceTAP do
     req_options = HTTP.req_options(opts[:req_options])
     capabilities_url = String.trim_trailing(service_url, "/") <> "/capabilities"
 
-    {_url, response} = HTTP.run(req_options, method: :get, url: capabilities_url)
+    # A relative URL in the capabilities is relative to where the redirects
+    # led (RFC 3986 §5.1.3), and the rule for reading it starts from the
+    # service, which is where the credentials belong.
+    {capabilities_url, response} = HTTP.run(req_options, method: :get, url: capabilities_url)
 
-    with {:ok, listed_url} <- HTTP.read_vosi(response, &VOSI.availability_url/1) do
-      listed_url = capabilities_url |> URI.merge(listed_url) |> URI.to_string()
-
-      case HTTP.secure(capabilities_url, listed_url) do
-        {:ok, url} ->
-          req_options = HTTP.credentials(req_options, capabilities_url, url)
-          {_url, response} = HTTP.run(req_options, method: :get, url: url)
-          HTTP.read_vosi(response, &VOSI.availability/1)
-
-        :insecure ->
-          message =
-            "the service is at an https:// URL and lists its availability at an http:// one: " <>
-              listed_url
-
-          HTTP.error(:decode_error, message, nil)
-      end
+    with {:ok, listed_url} <- HTTP.read_vosi(response, &VOSI.availability_url/1),
+         listed_url = capabilities_url |> URI.merge(listed_url) |> URI.to_string(),
+         {:ok, url, req_options} <-
+           HTTP.listed(req_options, service_url, listed_url, "the service lists its availability") do
+      {_url, response} = HTTP.run(req_options, method: :get, url: url)
+      HTTP.read_vosi(response, &VOSI.availability/1)
     end
   end
 

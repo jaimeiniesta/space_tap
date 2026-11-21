@@ -4,6 +4,13 @@ defmodule SpaceTAP.VOTable.Value do
   # Turns one cell into an Elixir value, following the datatype and arraysize
   # of its field (VOTable 1.5 §6) and ADR 0007: the text of a TABLEDATA cell
   # (§5.1), or the bytes of a BINARY or BINARY2 one (§5.3, §5.4).
+  #
+  # What the field says about every one of its cells is read once, by
+  # prepare/1, into the decoder the other functions take: a table has as
+  # many cells of a field as rows, and the arraysize and the null value take
+  # some parsing. A field SpaceTAP can't read has no decoder, so it is an
+  # error even when no cell uses it: a table may have no rows, and an empty
+  # TD is nil before anything else is read.
 
   alias SpaceTAP.Field
 
@@ -20,7 +27,9 @@ defmodule SpaceTAP.VOTable.Value do
   # hexadigits it may have (§6).
   @integer_bits %{unsignedByte: 8, short: 16, int: 32, long: 64}
 
-  # The bytes of one element of each datatype in BINARY and BINARY2 (§2.1).
+  # The bytes of one element of each datatype in BINARY and BINARY2 (§2.1),
+  # which are also the units a string is counted in: a char is ASCII (§6),
+  # one byte, and a unicodeChar a UTF-16 unit of two (ADR 0007).
   @element_bytes %{
     boolean: 1,
     unsignedByte: 1,
@@ -33,160 +42,168 @@ defmodule SpaceTAP.VOTable.Value do
     double: 8
   }
 
-  # Checks what a field says about its cells, the datatype, the arraysize and
-  # the null value, as reading a cell does. An invalid one is an error even
-  # when no cell uses it: a table may have no rows, and an empty TD is nil
-  # before anything else is read.
-  @spec check_field(Field.t()) :: :ok | {:error, String.t()}
+  # The decoder of the cells of one field: the field itself, which its
+  # errors name, its datatype, its shape, its null value read as a value of
+  # the datatype, and the bytes of one element.
+  @enforce_keys [:field, :datatype, :shape, :null, :bytes]
+  defstruct [:field, :datatype, :shape, :null, :bytes]
 
-  def check_field(%Field{datatype: datatype} = field) when datatype in @unsupported,
+  @type t :: %__MODULE__{
+          field: Field.t(),
+          datatype: Field.datatype(),
+          shape: shape(),
+          null: term(),
+          bytes: 1 | 2 | 4 | 8
+        }
+
+  # A field without arraysize holds one element (§2.1). Otherwise, the fixed
+  # dimensions and the last one (§2.2): dimensions separated by "x", the
+  # first changing fastest, and only the last one variable, so "N*" holds up
+  # to N elements and "*" any number.
+  @type shape :: :scalar | {[pos_integer()], pos_integer() | {:at_most, pos_integer()} | :any}
+
+  @spec prepare(Field.t()) :: {:ok, t()} | {:error, String.t()}
+  def prepare(%Field{datatype: datatype} = field) when datatype in @unsupported,
     do: unsupported(field)
 
-  def check_field(%Field{} = field) do
-    with {:ok, _shape} <- binary_shape(field),
-         {:ok, _null} <- null(field),
-         do: :ok
+  def prepare(%Field{datatype: datatype} = field) do
+    with {:ok, shape} <- shape(field),
+         {:ok, null} <- null(field) do
+      {:ok,
+       %__MODULE__{
+         field: field,
+         datatype: datatype,
+         shape: shape,
+         null: null,
+         bytes: Map.fetch!(@element_bytes, datatype)
+       }}
+    end
   end
 
-  @spec parse_text(String.t(), Field.t()) :: {:ok, term()} | {:error, String.t()}
-
-  def parse_text(_text, %Field{datatype: datatype} = field) when datatype in @unsupported,
-    do: unsupported(field)
-
-  def parse_text("", %Field{}), do: {:ok, nil}
+  @spec parse_text(String.t(), t()) :: {:ok, term()} | {:error, String.t()}
+  def parse_text("", %__MODULE__{}), do: {:ok, nil}
 
   # A string is an array of characters, written with no separator and with
-  # its white space (§5.1). A fixed arraysize is the most characters it holds,
-  # since §5.1 writes Apple in an arraysize of 10. A char is ASCII (§6), and a
-  # unicodeChar is counted in UTF-16 units, the two bytes it takes in BINARY,
-  # so a character beyond U+FFFF counts twice (ADR 0007).
-  def parse_text(text, %Field{datatype: datatype} = field)
+  # its white space (§5.1).
+  def parse_text(text, %__MODULE__{datatype: datatype} = decoder)
       when datatype in @string_datatypes do
-    with {:ok, null} <- null(field), do: text_string(text, null, field)
+    case encode(text, datatype) do
+      {:ok, encoded} -> string(text, encoded, decoder)
+      :error -> invalid(text, decoder)
+    end
   end
 
-  def parse_text(text, %Field{arraysize: nil} = field) do
+  def parse_text(text, %__MODULE__{shape: :scalar} = decoder) do
     case token(text) do
-      :none ->
-        {:ok, nil}
-
-      {:ok, token} ->
-        scalar(token, field)
-
-      :many ->
-        invalid(text, field)
+      :none -> {:ok, nil}
+      {:ok, token} -> scalar(token, decoder)
+      :many -> invalid(text, decoder)
     end
   end
 
   # The numbers of an array are separated by white space (§5.1). An array
   # with none is nil, since TABLEDATA writes it like a null (§5.5).
-  def parse_text(text, %Field{} = field) do
-    with {:ok, shape} <- shape(field),
-         {:ok, null} <- null(field) do
-      case String.split(text, @whitespace, trim: true) do
-        [] -> {:ok, nil}
-        tokens -> array(tokens, shape, null, text, field)
-      end
+  def parse_text(text, %__MODULE__{} = decoder) do
+    case String.split(text, @whitespace, trim: true) do
+      [] -> {:ok, nil}
+      tokens -> array(tokens, text, decoder)
     end
   end
 
   # BINARY writes the cells of a row one after another, with no separator,
   # and their numbers big-endian (§5.3). BINARY2 adds the null flags of each
   # row, which Binary.rows/3 reads (§5.4). Returns the bytes after the cell.
-  @spec parse_binary(binary(), Field.t()) :: {:ok, term(), binary()} | {:error, String.t()}
-
-  def parse_binary(bytes, %Field{} = field) do
-    with {:ok, cell, rest, shape, null} <- split_cell(bytes, field),
-         {:ok, value} <- binary_value(cell, shape, null, field),
+  @spec parse_binary(binary(), t()) :: {:ok, term(), binary()} | {:error, String.t()}
+  def parse_binary(bytes, %__MODULE__{} = decoder) do
+    with {:ok, cell, rest} <- split_cell(bytes, decoder),
+         {:ok, value} <- binary_value(cell, decoder),
          do: {:ok, value, rest}
   end
 
   # BINARY2 flags a null cell, but its bytes are still there, and §5.4 only
   # recommends what they hold: NaN or zeros, and a length of 0 for a
   # variable-length array. So they are skipped without reading them, though
-  # the field and the layout of the cell are checked as in parse_binary/2.
-  @spec skip_binary(binary(), Field.t()) :: {:ok, binary()} | {:error, String.t()}
-
-  def skip_binary(bytes, %Field{} = field) do
-    with {:ok, _cell, rest, _shape, _null} <- split_cell(bytes, field), do: {:ok, rest}
+  # the layout of the cell is checked as in parse_binary/2.
+  @spec skip_binary(binary(), t()) :: {:ok, binary()} | {:error, String.t()}
+  def skip_binary(bytes, %__MODULE__{} = decoder) do
+    with {:ok, _cell, rest} <- split_cell(bytes, decoder), do: {:ok, rest}
   end
 
   #####################
   # Private functions #
   #####################
 
-  defp scalar(token, field) do
-    with {:ok, null} <- null(field) do
-      case element(token, field.datatype) do
-        {:ok, value} -> {:ok, unless_null(value, null)}
-        :error -> invalid(token, field)
-      end
+  defp scalar(token, %{datatype: datatype, null: null} = decoder) do
+    case element(token, datatype) do
+      {:ok, value} -> {:ok, unless_null(value, null)}
+      :error -> invalid(token, decoder)
     end
   end
 
-  defp array(tokens, {fixed, _last} = shape, null, text, field) do
+  defp array(tokens, text, %{shape: {fixed, _last} = shape} = decoder) do
     if fits?(length(tokens), shape) do
-      with {:ok, values} <- elements(tokens, field, null, []), do: {:ok, nest(values, fixed)}
+      with {:ok, values} <- elements(tokens, decoder, []), do: {:ok, nest(values, fixed)}
     else
-      doesnt_fit(text, field)
+      doesnt_fit(text, decoder)
     end
   end
 
-  # A fixed size is the most characters a string holds, so "Apple" fits in
-  # 10, but the strings of a multidimensional array fill the first dimension:
-  # without a separator, that is the only way to tell where each one ends.
-  # §4.7 says the null value is never an array, but a string is an array of
-  # characters, so the null value of a string field is compared with each
-  # whole string.
-  defp text_string(text, null, %Field{datatype: datatype} = field) do
-    cond do
-      datatype == :char and not ascii?(text) -> invalid(text, field)
-      field.arraysize == nil and units(text, datatype) != 1 -> invalid(text, field)
-      field.arraysize == nil -> {:ok, unless_null(text, null)}
-      true -> with {:ok, shape} <- shape(field), do: string(text, shape, null, field)
+  # A string in the elements of its datatype, which count its characters: a
+  # char is ASCII (§6), one byte each, and a unicodeChar is counted in UTF-16
+  # units, the two bytes it takes in BINARY, so a character beyond U+FFFF
+  # counts twice (ADR 0007). Saxy hands over valid UTF-8 only, but text that
+  # isn't is an error here too, not a crash.
+  defp encode(text, :char), do: if(ascii?(text), do: {:ok, text}, else: :error)
+
+  defp encode(text, :unicodeChar) do
+    case :unicode.characters_to_binary(text, :utf8, {:utf16, :big}) do
+      encoded when is_binary(encoded) -> {:ok, encoded}
+      _invalid_or_incomplete -> :error
     end
   end
 
-  defp string(text, {[], last}, null, field) do
+  # A field without arraysize holds one character (§2.1).
+  defp string(text, encoded, %{shape: :scalar, bytes: bytes} = decoder) do
+    if byte_size(encoded) == bytes,
+      do: {:ok, unless_null(text, decoder.null)},
+      else: invalid(text, decoder)
+  end
+
+  # A fixed size is the most characters a string holds, since §5.1 writes
+  # Apple in an arraysize of 10. §4.7 says the null value is never an array,
+  # but a string is an array of characters, so the null value of a string
+  # field is compared with each whole string.
+  defp string(text, encoded, %{shape: {[], last}, bytes: bytes} = decoder) do
     last = if is_integer(last), do: {:at_most, last}, else: last
 
-    if fits_last?(units(text, field.datatype), last),
-      do: {:ok, unless_null(text, null)},
-      else: doesnt_fit(text, field)
+    if fits_last?(div(byte_size(encoded), bytes), last),
+      do: {:ok, unless_null(text, decoder.null)},
+      else: doesnt_fit(text, decoder)
   end
 
-  # The strings are cut where BINARY would cut them, so a character beyond
-  # U+FFFF split between two of them is a lone surrogate in each, an error.
-  defp string(text, {[size | fixed], _last} = shape, null, %Field{datatype: datatype} = field) do
-    unit = Map.fetch!(@element_bytes, datatype)
-    encoded = encode(text, datatype)
-
-    if fits?(div(byte_size(encoded), unit), shape) do
-      case text_strings(encoded, size * unit, null, datatype, []) do
+  # The strings of a multidimensional array fill the first dimension:
+  # without a separator, that is the only way to tell where each one ends.
+  # They are cut where BINARY would cut them, so a character beyond U+FFFF
+  # split between two of them is a lone surrogate in each, an error.
+  defp string(text, encoded, %{shape: {[size | fixed], _last} = shape, bytes: bytes} = decoder) do
+    if fits?(div(byte_size(encoded), bytes), shape) do
+      case text_strings(encoded, size * bytes, decoder, []) do
         {:ok, strings} -> {:ok, nest(strings, fixed)}
-        :error -> invalid(text, field)
+        :error -> invalid(text, decoder)
       end
     else
-      doesnt_fit(text, field)
+      doesnt_fit(text, decoder)
     end
   end
 
-  defp text_strings(<<>>, _bytes, _null, _datatype, strings), do: {:ok, Enum.reverse(strings)}
+  defp text_strings(<<>>, _bytes, _decoder, strings), do: {:ok, Enum.reverse(strings)}
 
-  defp text_strings(encoded, bytes, null, datatype, strings) do
+  defp text_strings(encoded, bytes, decoder, strings) do
     {string, rest} = :erlang.split_binary(encoded, bytes)
 
-    with {:ok, string} <- text(string, datatype),
-         do: text_strings(rest, bytes, null, datatype, [unless_null(string, null) | strings])
+    with {:ok, string} <- text(string, decoder.datatype),
+         do: text_strings(rest, bytes, decoder, [unless_null(string, decoder.null) | strings])
   end
-
-  # A string in the elements of its datatype: one byte for each char, which
-  # is ASCII, and a UTF-16 unit of two bytes for each unicodeChar.
-  defp encode(text, :char), do: text
-  defp encode(text, :unicodeChar), do: :unicode.characters_to_binary(text, :utf8, {:utf16, :big})
-
-  defp units(text, datatype),
-    do: div(byte_size(encode(text, datatype)), Map.fetch!(@element_bytes, datatype))
 
   # The null value is one TABLEDATA value of the datatype (§4.7). It is read
   # like a cell, so 0x8000 and -32768 are the same null of a short. A field
@@ -209,11 +226,6 @@ defmodule SpaceTAP.VOTable.Value do
       _other -> invalid_null(text, field)
     end
   end
-
-  defp invalid_null(text, %Field{name: name, datatype: datatype}),
-    do:
-      {:error,
-       "field #{inspect(name)}: the null value #{inspect(text)} is not a valid #{datatype}"}
 
   defp unless_null(value, null), do: if(value == null, do: nil, else: value)
 
@@ -242,12 +254,12 @@ defmodule SpaceTAP.VOTable.Value do
 
   # Each element of an array is checked against the null value, the only way
   # to mark one of them as null (§5.5).
-  defp elements([], _field, _null, values), do: {:ok, Enum.reverse(values)}
+  defp elements([], _decoder, values), do: {:ok, Enum.reverse(values)}
 
-  defp elements([token | tokens], field, null, values) do
-    case element(token, field.datatype) do
-      {:ok, value} -> elements(tokens, field, null, [unless_null(value, null) | values])
-      :error -> invalid(token, field)
+  defp elements([token | tokens], %{datatype: datatype, null: null} = decoder, values) do
+    case element(token, datatype) do
+      {:ok, value} -> elements(tokens, decoder, [unless_null(value, null) | values])
+      :error -> invalid(token, decoder)
     end
   end
 
@@ -255,9 +267,10 @@ defmodule SpaceTAP.VOTable.Value do
   defp nest(values, []), do: values
   defp nest(values, [size | fixed]), do: values |> Enum.chunk_every(size) |> nest(fixed)
 
-  # §2.2: dimensions separated by "x", the first changing fastest, and only
-  # the last one variable: "N*" holds up to N elements, "*" any number. The
-  # shape is the list of fixed dimensions and the last one.
+  # The shape of the cells, from the arraysize: the fixed dimensions and the
+  # last one, or :scalar without one.
+  defp shape(%Field{arraysize: nil}), do: {:ok, :scalar}
+
   defp shape(%Field{arraysize: arraysize} = field) do
     {fixed, [last]} = arraysize |> String.split("x") |> Enum.split(-1)
 
@@ -451,105 +464,95 @@ defmodule SpaceTAP.VOTable.Value do
   defp range(_bits, :unsignedByte), do: {0, 255}
   defp range(bits, _datatype), do: {-Bitwise.bsl(1, bits - 1), Bitwise.bsl(1, bits - 1) - 1}
 
-  # The bytes of the elements of a cell, its shape and the null value of its
-  # field, with the bytes after it.
-  defp split_cell(_bytes, %Field{datatype: datatype} = field) when datatype in @unsupported,
-    do: unsupported(field)
-
-  defp split_cell(bytes, %Field{datatype: datatype} = field) do
-    with {:ok, shape} <- binary_shape(field),
-         {:ok, null} <- null(field),
-         {:ok, count, bytes} <- element_count(bytes, shape, field),
-         {:ok, cell, rest} <- take(bytes, count * Map.fetch!(@element_bytes, datatype), field),
-         do: {:ok, cell, rest, shape, null}
+  # The bytes of the elements of a cell, with the bytes after it.
+  defp split_cell(bytes, %{shape: shape, bytes: unit} = decoder) do
+    with {:ok, count, bytes} <- element_count(bytes, shape, decoder),
+         do: take(bytes, count * unit, decoder)
   end
 
   # The bytes of a cell, split off without copying them.
-  defp take(bytes, size, _field) when byte_size(bytes) >= size do
+  defp take(bytes, size, _decoder) when byte_size(bytes) >= size do
     {cell, rest} = :erlang.split_binary(bytes, size)
     {:ok, cell, rest}
   end
 
-  defp take(_bytes, _size, field),
-    do: {:error, "field #{inspect(field.name)}: the data ends in the middle of the cell"}
+  defp take(_bytes, _size, %{field: %Field{name: name}}),
+    do: {:error, "field #{inspect(name)}: the data ends in the middle of the cell"}
 
   # §5.3: a variable-length array starts with its length, a 4-byte integer.
   # Only the last dimension may vary (§2.2), so in "3x*" the length counts
   # arrays of 3 elements, as astropy reads it.
-  defp element_count(bytes, :scalar, _field), do: {:ok, 1, bytes}
+  defp element_count(bytes, :scalar, _decoder), do: {:ok, 1, bytes}
 
-  defp element_count(bytes, {fixed, last}, _field) when is_integer(last),
+  defp element_count(bytes, {fixed, last}, _decoder) when is_integer(last),
     do: {:ok, Enum.product(fixed) * last, bytes}
 
-  defp element_count(<<length::unsigned-big-32, rest::binary>>, {fixed, last}, field) do
+  defp element_count(<<length::unsigned-big-32, rest::binary>>, {fixed, last}, decoder) do
     if fits_last?(length, last) do
       {:ok, Enum.product(fixed) * length, rest}
     else
+      %Field{name: name, arraysize: arraysize} = decoder.field
+
       {:error,
-       "field #{inspect(field.name)}: a length of #{length} doesn't fit arraysize #{inspect(field.arraysize)}"}
+       "field #{inspect(name)}: a length of #{length} doesn't fit arraysize #{inspect(arraysize)}"}
     end
   end
 
-  defp element_count(_bytes, _shape, field), do: take(<<>>, 4, field)
-
-  # A field without arraysize holds one element (§2.1).
-  defp binary_shape(%Field{arraysize: nil}), do: {:ok, :scalar}
-  defp binary_shape(field), do: shape(field)
+  defp element_count(_bytes, _shape, decoder), do: take(<<>>, 4, decoder)
 
   # One character is a string of one, cut at a NUL like any fixed one.
-  defp binary_value(cell, :scalar, null, %Field{datatype: datatype} = field)
+  defp binary_value(cell, %{shape: :scalar, datatype: datatype} = decoder)
        when datatype in @string_datatypes,
-       do: binary_string(before_nul(cell, datatype), null, field)
+       do: binary_string(before_nul(cell, datatype), decoder)
 
-  defp binary_value(cell, :scalar, null, field) do
-    with {:ok, [value]} <- binary_elements(cell, field, null, []), do: {:ok, value}
+  # The cell of a scalar is the bytes of its one element, no more.
+  defp binary_value(cell, %{shape: :scalar, datatype: datatype, null: null} = decoder) do
+    case binary_element(cell, datatype) do
+      {:ok, value, <<>>} -> {:ok, unless_null(value, null)}
+      :error -> invalid(cell, decoder)
+    end
   end
 
   # An array with no elements and a string with no characters are nil
   # (ADR 0007).
-  defp binary_value(<<>>, _shape, _null, _field), do: {:ok, nil}
+  defp binary_value(<<>>, _decoder), do: {:ok, nil}
 
   # A string ends where the length of a variable arraysize says, so only a
   # fixed one is cut at a NUL, as astropy reads them.
-  defp binary_value(cell, {[], last}, null, %Field{datatype: datatype} = field)
+  defp binary_value(cell, %{shape: {[], last}, datatype: datatype} = decoder)
        when datatype in @string_datatypes do
     if is_integer(last),
-      do: binary_string(before_nul(cell, datatype), null, field),
-      else: binary_string(cell, null, field)
+      do: binary_string(before_nul(cell, datatype), decoder),
+      else: binary_string(cell, decoder)
   end
 
   # Each string of a multidimensional array takes the whole first dimension,
   # so it is a fixed one.
-  defp binary_value(cell, {[size | fixed], _last}, null, %Field{datatype: datatype} = field)
+  defp binary_value(cell, %{shape: {[size | fixed], _last}, datatype: datatype} = decoder)
        when datatype in @string_datatypes do
-    bytes = size * Map.fetch!(@element_bytes, datatype)
-
-    with {:ok, strings} <- binary_strings(cell, bytes, null, field, []),
+    with {:ok, strings} <- binary_strings(cell, size * decoder.bytes, decoder, []),
          do: {:ok, nest(strings, fixed)}
   end
 
-  defp binary_value(cell, {fixed, _last}, null, field) do
-    with {:ok, values} <- binary_elements(cell, field, null, []), do: {:ok, nest(values, fixed)}
+  defp binary_value(cell, %{shape: {fixed, _last}} = decoder) do
+    with {:ok, values} <- binary_elements(cell, decoder, []), do: {:ok, nest(values, fixed)}
   end
 
-  defp binary_strings(<<>>, _bytes, _null, _field, strings), do: {:ok, Enum.reverse(strings)}
+  defp binary_strings(<<>>, _bytes, _decoder, strings), do: {:ok, Enum.reverse(strings)}
 
-  defp binary_strings(cell, bytes, null, field, strings) do
+  defp binary_strings(cell, bytes, decoder, strings) do
     {string, rest} = :erlang.split_binary(cell, bytes)
 
-    with {:ok, string} <- binary_string(before_nul(string, field.datatype), null, field),
-         do: binary_strings(rest, bytes, null, field, [string | strings])
+    with {:ok, string} <- binary_string(before_nul(string, decoder.datatype), decoder),
+         do: binary_strings(rest, bytes, decoder, [string | strings])
   end
 
-  defp binary_elements(<<>>, _field, _null, values), do: {:ok, Enum.reverse(values)}
+  defp binary_elements(<<>>, _decoder, values), do: {:ok, Enum.reverse(values)}
 
-  defp binary_elements(bytes, field, null, values) do
-    case binary_element(bytes, field.datatype) do
-      {:ok, value, rest} ->
-        binary_elements(rest, field, null, [unless_null(value, null) | values])
-
-      :error ->
-        invalid(binary_part(bytes, 0, Map.fetch!(@element_bytes, field.datatype)), field)
+  defp binary_elements(bytes, %{datatype: datatype, null: null} = decoder, values) do
+    case binary_element(bytes, datatype) do
+      {:ok, value, rest} -> binary_elements(rest, decoder, [unless_null(value, null) | values])
+      :error -> invalid(binary_part(bytes, 0, decoder.bytes), decoder)
     end
   end
 
@@ -608,13 +611,22 @@ defmodule SpaceTAP.VOTable.Value do
   # holds no character beyond U+FFFF; they are read as UTF-16, as astropy
   # does, so a surrogate pair is one character and a lone surrogate is an
   # error (ADR 0007). A string with no characters is nil (ADR 0007).
-  defp binary_string(bytes, null, field) do
-    case text(bytes, field.datatype) do
+  defp binary_string(bytes, %{datatype: datatype, null: null} = decoder) do
+    case text(bytes, datatype) do
       {:ok, ""} -> {:ok, nil}
-      {:ok, string} -> {:ok, unless_null(string, null)}
-      :error -> invalid(bytes, field)
+      {:ok, string} -> {:ok, string |> unless_null(null) |> own(datatype)}
+      :error -> invalid(bytes, decoder)
     end
   end
+
+  # A char string is the bytes of the stream themselves, and one of more than
+  # 64 bytes would stay a reference into the stream, keeping all of it in
+  # memory for as long as the string lives, however little of the result is
+  # left. So it gets a binary of its own: 10 ms for 200,000 strings. A
+  # unicodeChar string is already one, and the runtime copies a shorter one.
+  defp own(nil, _datatype), do: nil
+  defp own(string, :char), do: :binary.copy(string)
+  defp own(string, :unicodeChar), do: string
 
   defp text(bytes, :char), do: if(ascii?(bytes), do: {:ok, bytes}, else: :error)
 
@@ -625,15 +637,21 @@ defmodule SpaceTAP.VOTable.Value do
     end
   end
 
+  # The errors of a field, found by prepare/1, and those of a cell, found
+  # with its decoder, name the field.
   defp unsupported(%Field{name: name, datatype: datatype}),
     do: {:error, "field #{inspect(name)}: the #{datatype} datatype is not supported"}
 
-  defp invalid(text, %Field{name: name, datatype: datatype}) do
-    {:error, "field #{inspect(name)}: #{inspect(text)} is not a valid #{datatype}"}
-  end
+  defp invalid_null(text, %Field{name: name, datatype: datatype}),
+    do:
+      {:error,
+       "field #{inspect(name)}: the null value #{inspect(text)} is not a valid #{datatype}"}
 
-  defp doesnt_fit(text, %Field{name: name, arraysize: arraysize}) do
-    {:error,
-     "field #{inspect(name)}: #{inspect(text)} doesn't fit arraysize #{inspect(arraysize)}"}
-  end
+  defp invalid(text, %{field: %Field{name: name, datatype: datatype}}),
+    do: {:error, "field #{inspect(name)}: #{inspect(text)} is not a valid #{datatype}"}
+
+  defp doesnt_fit(text, %{field: %Field{name: name, arraysize: arraysize}}),
+    do:
+      {:error,
+       "field #{inspect(name)}: #{inspect(text)} doesn't fit arraysize #{inspect(arraysize)}"}
 end

@@ -4,6 +4,40 @@ defmodule SpaceTAP.VOTable.ValueTest do
   alias SpaceTAP.Field
   alias SpaceTAP.VOTable.Value
 
+  describe "prepare/1" do
+    test "reads what the field says about every cell once: its shape, its null value and the bytes of an element" do
+      field = %Field{name: "col", datatype: :short, arraysize: "2x3*", null: "0x8000"}
+
+      assert Value.prepare(field) ==
+               {:ok,
+                %Value{
+                  field: field,
+                  datatype: :short,
+                  shape: {[2], {:at_most, 3}},
+                  null: -32_768,
+                  bytes: 2
+                }}
+    end
+
+    test "gives a field without arraysize the shape of one element (§2.1)" do
+      field = %Field{name: "col", datatype: :double}
+
+      assert Value.prepare(field) ==
+               {:ok, %Value{field: field, datatype: :double, shape: :scalar, null: nil, bytes: 8}}
+    end
+
+    test "rejects a field SpaceTAP can't read, so that no cell is read with it" do
+      assert Value.prepare(%Field{name: "col", datatype: :bit}) ==
+               {:error, ~s(field "col": the bit datatype is not supported)}
+
+      assert Value.prepare(%Field{name: "col", datatype: :int, arraysize: "3x"}) ==
+               {:error, ~s(field "col": "3x" is not a valid arraysize)}
+
+      assert Value.prepare(%Field{name: "col", datatype: :short, null: "abc"}) ==
+               {:error, ~s(field "col": the null value "abc" is not a valid short)}
+    end
+  end
+
   describe "parse_text/2" do
     test "reads an empty cell as nil, whatever the datatype (§5.1)" do
       for datatype <- [
@@ -178,6 +212,16 @@ defmodule SpaceTAP.VOTable.ValueTest do
                {:error, ~s(field "col": "Málaga" is not a valid char)}
 
       assert parse("Málaga", :unicodeChar, arraysize: "*") == {:ok, "Málaga"}
+    end
+
+    test "rejects a unicodeChar that isn't valid UTF-8, which Saxy never hands over" do
+      assert parse(<<0xFF>>, :unicodeChar) ==
+               {:error, ~s(field "col": <<255>> is not a valid unicodeChar)}
+
+      assert parse(<<"A", 0xFF>>, :unicodeChar, arraysize: "*") ==
+               {:error, ~s(field "col": <<65, 255>> is not a valid unicodeChar)}
+
+      assert {:error, _} = parse(<<"AB", 0xC3>>, :unicodeChar, arraysize: "2x*")
     end
   end
 
@@ -550,6 +594,22 @@ defmodule SpaceTAP.VOTable.ValueTest do
                {:error, ~s(field "col": a length of 6 doesn't fit arraysize "5*")}
     end
 
+    test "gives a char string a binary of its own, so that keeping it doesn't keep the whole stream" do
+      # A string of more than 64 bytes, which the runtime would otherwise
+      # leave as a reference into the stream.
+      long = String.duplicate("a", 70)
+      stream = <<70::32, long::binary, long::binary, 0::80, long::binary, long::binary, 0::800>>
+
+      assert {:ok, variable, rest} = parse_bytes(stream, :char, arraysize: "*")
+      assert {:ok, fixed, rest} = parse_bytes(rest, :char, arraysize: "80")
+      assert {:ok, [first, second], _rest} = parse_bytes(rest, :char, arraysize: "70x2")
+
+      for string <- [variable, fixed, first, second] do
+        assert string == long
+        assert :binary.referenced_byte_size(string) == 70, "expected a binary of its own"
+      end
+    end
+
     test "reads a multidimensional array of characters as a list of strings, each up to its first NUL" do
       assert parse_bytes(<<"Apple", "Orang", "Kiwi", 0>>, :char, arraysize: "5x3") ==
                {:ok, ["Apple", "Orang", "Kiwi"], ""}
@@ -627,15 +687,20 @@ defmodule SpaceTAP.VOTable.ValueTest do
     end
   end
 
+  # Each helper reads one cell as the readers do: with the decoder prepare/1
+  # gives for the field, or its error.
   defp parse(text, datatype, attributes \\ []) do
-    Value.parse_text(text, struct!(Field, [name: "col", datatype: datatype] ++ attributes))
+    with {:ok, decoder} <- prepare(datatype, attributes), do: Value.parse_text(text, decoder)
   end
 
   defp parse_bytes(bytes, datatype, attributes \\ []) do
-    Value.parse_binary(bytes, struct!(Field, [name: "col", datatype: datatype] ++ attributes))
+    with {:ok, decoder} <- prepare(datatype, attributes), do: Value.parse_binary(bytes, decoder)
   end
 
   defp skip_bytes(bytes, datatype, attributes \\ []) do
-    Value.skip_binary(bytes, struct!(Field, [name: "col", datatype: datatype] ++ attributes))
+    with {:ok, decoder} <- prepare(datatype, attributes), do: Value.skip_binary(bytes, decoder)
   end
+
+  defp prepare(datatype, attributes),
+    do: Value.prepare(struct!(Field, [name: "col", datatype: datatype] ++ attributes))
 end

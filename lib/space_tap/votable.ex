@@ -130,22 +130,14 @@ defmodule SpaceTAP.VOTable do
     %{document | fields: [Map.put(field, "null", XML.attribute(attributes, "null")) | fields]}
   end
 
-  # The fields TABLEDATA rows are read with, all known by now. One SpaceTAP
-  # can't read leaves the rows unread, and table/1 returns its error.
-  def start(:tabledata, _attributes, document) do
-    columns =
-      case fields(Enum.reverse(document.fields), []) do
-        {:ok, fields} -> {fields, length(fields)}
-        {:error, _message} -> nil
-      end
-
-    %{document | data: :tabledata, columns: columns}
-  end
-
-  # The child of DATA says how the rows are written (ADR 0005).
+  # The child of DATA says how the rows are written (ADR 0005). The FIELDs
+  # all come before it (§3.8), so the decoder of each one's cells is prepared
+  # here, once, for the TABLEDATA rows read as they come and for table/1. A
+  # field SpaceTAP can't read leaves the rows unread, and table/1 returns its
+  # error.
   def start(serialization, _attributes, document)
       when serialization in [:tabledata, :binary, :binary2, :fits],
-      do: %{document | data: serialization}
+      do: %{document | data: serialization, columns: prepare(document.fields)}
 
   def start(:tr, _attributes, document), do: %{document | row: []}
 
@@ -179,10 +171,10 @@ defmodule SpaceTAP.VOTable do
   def finish(:td, _text, document),
     do: %{document | row: [{:encoding, document.encoding} | document.row]}
 
-  def finish(:tr, _text, %{columns: {fields, count}, row_error: nil} = document) do
+  def finish(:tr, _text, %{columns: {:ok, decoders, count}, row_error: nil} = document) do
     number = document.row_count + 1
 
-    case text_row(Enum.reverse(document.row), fields, count, number) do
+    case text_row(Enum.reverse(document.row), decoders, count, number) do
       {:ok, values} -> %{document | rows: [values | document.rows], row_count: number}
       {:error, message} -> %{document | row_error: message, row_count: number}
     end
@@ -232,17 +224,29 @@ defmodule SpaceTAP.VOTable do
   defp table(%{late_field: true}), do: {:error, "a FIELD comes after the DATA of the TABLE"}
 
   defp table(document) do
-    with {:ok, fields} <- fields(Enum.reverse(document.fields), []),
-         {:ok, rows} <- rows(document, fields) do
+    with {:ok, decoders, _count} <- columns(document),
+         {:ok, rows} <- rows(document, decoders) do
       overflow = Enum.any?(document.statuses, &match?({"OVERFLOW", _message}, &1))
-      {:ok, %{fields: fields, rows: rows, overflow: overflow}}
+      {:ok, %{fields: Enum.map(decoders, & &1.field), rows: rows, overflow: overflow}}
     end
   end
 
-  defp fields([], fields), do: {:ok, Enum.reverse(fields)}
+  # DATA is optional in a TABLE (§3.8), and the fields of one without it
+  # are read here instead.
+  defp columns(%{columns: nil, fields: fields}), do: prepare(fields)
+  defp columns(%{columns: columns}), do: columns
 
-  defp fields([attributes | rest], fields) do
-    with {:ok, field} <- field(attributes), do: fields(rest, [field | fields])
+  # The decoder of the cells of each FIELD, in their order, with their count,
+  # or the error of the first field SpaceTAP can't read.
+  defp prepare(fields) do
+    with {:ok, decoders} <- decoders(Enum.reverse(fields), []),
+         do: {:ok, decoders, length(decoders)}
+  end
+
+  defp decoders([], decoders), do: {:ok, Enum.reverse(decoders)}
+
+  defp decoders([attributes | rest], decoders) do
+    with {:ok, decoder} <- field(attributes), do: decoders(rest, [decoder | decoders])
   end
 
   # A FIELD needs a name and a datatype (§4), which is one of the twelve of
@@ -251,7 +255,7 @@ defmodule SpaceTAP.VOTable do
   defp field(%{"name" => name} = attributes) do
     case Map.fetch(attributes, "datatype") do
       {:ok, datatype} when is_map_key(@datatypes, datatype) ->
-        field = %Field{
+        Value.prepare(%Field{
           name: name,
           datatype: Map.fetch!(@datatypes, datatype),
           arraysize: attributes["arraysize"],
@@ -261,9 +265,7 @@ defmodule SpaceTAP.VOTable do
           utype: attributes["utype"],
           description: attributes["description"],
           null: attributes["null"]
-        }
-
-        with :ok <- Value.check_field(field), do: {:ok, field}
+        })
 
       {:ok, datatype} ->
         {:error, ~s(field #{inspect(name)}: unknown datatype #{inspect(datatype)})}
@@ -276,39 +278,39 @@ defmodule SpaceTAP.VOTable do
   defp field(_attributes), do: {:error, "a FIELD has no name"}
 
   # DATA is optional in a TABLE, which then has no rows (VOTable 1.5 §3.8).
-  defp rows(%{data: nil}, _fields), do: {:ok, []}
+  defp rows(%{data: nil}, _decoders), do: {:ok, []}
 
-  defp rows(%{data: :tabledata, row_error: nil, rows: rows}, _fields),
+  defp rows(%{data: :tabledata, row_error: nil, rows: rows}, _decoders),
     do: {:ok, Enum.reverse(rows)}
 
-  defp rows(%{data: :tabledata, row_error: message}, _fields), do: {:error, message}
+  defp rows(%{data: :tabledata, row_error: message}, _decoders), do: {:error, message}
 
   # FITS is a file format of its own, which SpaceTAP doesn't read (ADR 0005).
-  defp rows(%{data: :fits}, _fields), do: {:error, "the FITS serialization is not supported"}
+  defp rows(%{data: :fits}, _decoders), do: {:error, "the FITS serialization is not supported"}
 
-  defp rows(%{data: serialization, stream: stream}, fields) do
+  defp rows(%{data: serialization, stream: stream}, decoders) do
     with {:ok, bytes} <- stream(stream, serialization),
-         do: Binary.rows(bytes, fields, serialization)
+         do: Binary.rows(bytes, decoders, serialization)
   end
 
   # Each TR has a TD for each FIELD, in their order (§5.1).
-  defp text_row(texts, fields, count, number) do
+  defp text_row(texts, decoders, count, number) do
     case length(texts) do
-      ^count -> cells(texts, fields, number, [])
+      ^count -> cells(texts, decoders, number, [])
       cells -> {:error, "row #{number} has #{cells} cells for #{count} fields"}
     end
   end
 
   defp cells([], [], _number, values), do: {:ok, Enum.reverse(values)}
 
-  defp cells([{:encoding, encoding} | _texts], [field | _fields], number, _values) do
+  defp cells([{:encoding, encoding} | _texts], [decoder | _decoders], number, _values) do
     {:error,
-     ~s(row #{number}, field #{inspect(field.name)}: the TD encoding #{inspect(encoding)} is not supported)}
+     ~s(row #{number}, field #{inspect(decoder.field.name)}: the TD encoding #{inspect(encoding)} is not supported)}
   end
 
-  defp cells([text | texts], [field | fields], number, values) do
-    case Value.parse_text(text, field) do
-      {:ok, value} -> cells(texts, fields, number, [value | values])
+  defp cells([text | texts], [decoder | decoders], number, values) do
+    case Value.parse_text(text, decoder) do
+      {:ok, value} -> cells(texts, decoders, number, [value | values])
       {:error, message} -> {:error, "row #{number}, " <> message}
     end
   end

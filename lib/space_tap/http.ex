@@ -176,6 +176,21 @@ defmodule SpaceTAP.HTTP do
     end
   end
 
+  # The credentials half of the rule for listed URLs: the options for a
+  # request to `url`, from those given for `from_url`. SpaceTAP.Job applies
+  # it to a job URL `listed/4` has already read, with the options of each
+  # call about the job.
+  @spec credentials(keyword(), String.t(), String.t()) :: keyword()
+  def credentials(req_options, from_url, url) do
+    if origin(from_url) == origin(url) do
+      req_options
+    else
+      req_options
+      |> Keyword.delete(:auth)
+      |> Keyword.replace_lazy(:headers, &without_authorization/1)
+    end
+  end
+
   @spec error(Error.type(), String.t(), integer() | nil) :: {:error, Error.t()}
   def error(type, message, status) do
     {:error, %Error{type: type, message: message, status: status}}
@@ -286,16 +301,6 @@ defmodule SpaceTAP.HTTP do
 
       true ->
         :insecure
-    end
-  end
-
-  defp credentials(req_options, from_url, url) do
-    if origin(from_url) == origin(url) do
-      req_options
-    else
-      req_options
-      |> Keyword.delete(:auth)
-      |> Keyword.replace_lazy(:headers, &without_authorization/1)
     end
   end
 

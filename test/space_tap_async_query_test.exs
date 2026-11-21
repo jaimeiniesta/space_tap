@@ -79,6 +79,32 @@ defmodule SpaceTAPAsyncQueryTest do
       assert {:ok, %Result{}} = async_query(format: :votable)
     end
 
+    test "sends no credentials to a job on another host, in any of its requests" do
+      expect_request("POST", "/tap/async", fn conn ->
+        assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer secret"]
+        redirect(conn, 303, "https://jobs.example.org/async/42")
+      end)
+
+      for {method, path, respond} <- [
+            {"GET", "/async/42", &phase_document(&1, "PENDING")},
+            {"POST", "/async/42/phase", &redirect(&1, 303, "https://jobs.example.org/async/42")},
+            {"GET", "/async/42", &phase_document(&1, "EXECUTING")},
+            {"GET", "/async/42", &phase_document(&1, "COMPLETED")},
+            {"GET", "/async/42/results/result",
+             &respond(&1, 200, "text/csv", fixture("gavo", "hipparcos.csv"))},
+            {"DELETE", "/async/42", &redirect(&1, 303, "https://jobs.example.org/async")}
+          ] do
+        expect_request(method, path, fn conn ->
+          assert conn.host == "jobs.example.org"
+          assert Plug.Conn.get_req_header(conn, "authorization") == []
+          respond.(conn)
+        end)
+      end
+
+      assert {:ok, %Result{}} =
+               async_query(req_options: [auth: {:bearer, "secret"}] ++ req_options())
+    end
+
     test "has nothing to delete when the service doesn't create the job" do
       expect_request("POST", "/tap/async", fn conn ->
         respond(conn, 400, "text/xml", fixture("gaia", "syntax_error.xml"))

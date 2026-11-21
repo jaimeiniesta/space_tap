@@ -106,28 +106,101 @@ defmodule SpaceTAP.JobTest do
     end
 
     test "takes the URL of the job from where the redirects end" do
-      # The NASA Exoplanet Archive answers with an http:// URL with a double
-      # slash, which it redirects to https://.
+      expect_request(
+        "POST",
+        "/tap/async",
+        &redirect(&1, 303, "https://tap.example.org//tap/async/42")
+      )
+
+      expect_request("GET", "//tap/async/42", &redirect(&1, 301, @job_url))
+      expect_request("GET", "/tap/async/42", &job_document(&1, "gaia", "executing.xml"))
+
+      assert {:ok, %Job{url: @job_url, phase: :executing}} = submit()
+    end
+
+    test "reads an http:// job on the service's host with https://, as the NASA Exoplanet Archive answers" do
+      # It answers with an http:// URL with a double slash, which it
+      # redirects to https://: the credentials never go over http://.
       expect_request(
         "POST",
         "/tap/async",
         &redirect(&1, 303, "http://tap.example.org//tap/async/42")
       )
 
-      expect_request(
-        "GET",
-        "//tap/async/42",
-        &redirect(&1, 301, "https://tap.example.org//tap/async/42")
-      )
-
-      expect_request(
-        "GET",
-        "//tap/async/42",
-        &job_document(&1, "exoplanet_archive", "completed.xml")
-      )
+      expect_request("GET", "//tap/async/42", fn conn ->
+        assert conn.scheme == :https
+        assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer secret"]
+        job_document(conn, "exoplanet_archive", "completed.xml")
+      end)
 
       assert {:ok, %Job{url: "https://tap.example.org//tap/async/42", phase: :completed}} =
-               submit()
+               submit(req_options: [auth: {:bearer, "secret"}] ++ @req_options)
+    end
+
+    test "sends no credentials to a job on another host, as Req does on a redirect" do
+      expect_request("POST", "/tap/async", fn conn ->
+        assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer secret"]
+        redirect(conn, 303, "https://jobs.example.org/async/42")
+      end)
+
+      expect_request("GET", "/async/42", fn conn ->
+        assert conn.host == "jobs.example.org"
+        assert Plug.Conn.get_req_header(conn, "authorization") == []
+        phase_document(conn, "PENDING")
+      end)
+
+      expect_request("POST", "/async/42/phase", fn conn ->
+        assert Plug.Conn.get_req_header(conn, "authorization") == []
+        redirect(conn, 303, "https://jobs.example.org/async/42")
+      end)
+
+      expect_request("GET", "/async/42", fn conn ->
+        assert Plug.Conn.get_req_header(conn, "authorization") == []
+        respond(conn, 200, "text/html", "<html></html>")
+      end)
+
+      expect_request("DELETE", "/async/42", fn conn ->
+        assert Plug.Conn.get_req_header(conn, "authorization") == []
+        redirect(conn, 303, "https://jobs.example.org/async")
+      end)
+
+      assert {:error, %Error{type: :decode_error}} =
+               submit(req_options: [headers: [authorization: "Bearer secret"]] ++ @req_options)
+    end
+
+    test "doesn't read an http:// job on another host after https://, and leaves it there" do
+      expect_request("POST", "/tap/async", &redirect(&1, 303, "http://jobs.example.org/async/42"))
+
+      assert submit() ==
+               {:error,
+                %Error{
+                  type: :decode_error,
+                  message:
+                    "the service lists the new job at an http:// URL, which isn't read after " <>
+                      "https://: http://jobs.example.org/async/42",
+                  status: nil
+                }}
+    end
+
+    test "creates nothing to delete when the 303 points to the list of jobs" do
+      # An empty Location resolves to the URL the query went to.
+      for {location, resolved} <- [
+            {"", @service_url <> "/async"},
+            {@service_url <> "/async", @service_url <> "/async"},
+            {"/tap/async/", @service_url <> "/async/"}
+          ] do
+        expect_request("POST", "/tap/async", &redirect(&1, 303, location))
+
+        assert submit() ==
+                 {:error,
+                  %Error{
+                    type: :http_error,
+                    message:
+                      "expected a 303 to the new job (UWS 1.1 §2.2.3.1), got one to the list " <>
+                        "of jobs: " <> resolved,
+                    status: 303
+                  }}
+      end
     end
 
     test "returns the error document a service sends instead of a job" do
@@ -439,10 +512,23 @@ defmodule SpaceTAP.JobTest do
                 %Error{
                   type: :decode_error,
                   message:
-                    "the job is at an https:// URL and lists its result at an http:// one: " <>
-                      "http://results.example.org/42.csv",
+                    "the job lists its result at an http:// URL, which isn't read after " <>
+                      "https://: http://results.example.org/42.csv",
                   status: nil
                 }}
+    end
+
+    test "compares the hosts without regard to case (RFC 3986 §3.2.2)" do
+      expect_request("GET", "/tap/async/42/results/result", fn conn ->
+        assert conn.scheme == :https
+        assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer secret"]
+        respond(conn, 200, "text/csv", fixture("gavo", "hipparcos.csv"))
+      end)
+
+      job = %{completed(:csv) | result_url: "http://TAP.Example.org/tap/async/42/results/result"}
+
+      assert {:ok, %Result{}} =
+               result(job, req_options: [auth: {:bearer, "secret"}] ++ @req_options)
     end
 
     test "keeps credentials from another host, as Req does on a redirect, but not other headers" do

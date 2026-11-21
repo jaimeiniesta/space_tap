@@ -41,6 +41,10 @@ _Avoid_: status (which names the query status of a VOTable), health, uptime
 The base URL of a TAP service, to which endpoint names such as `/sync` are appended. TAP 1.1 calls it the *access URL*.
 _Avoid_: endpoint, sync URL
 
+**Listed URL**:
+A URL a TAP service gives in a response for the client to read next: the job URL in the 303 that creates a job, the result URL in a job document, and the availability URL in the capabilities. SpaceTAP reads every listed URL by one rule: never over `http://` after `https://`, and with credentials only on the host it was given (ADR 0015).
+_Avoid_: link, redirect (which the web server sends, and Req follows)
+
 ### Queries and results
 
 **ADQL**:

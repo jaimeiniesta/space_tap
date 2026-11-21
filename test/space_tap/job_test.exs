@@ -62,6 +62,7 @@ defmodule SpaceTAP.JobTest do
                {:ok,
                 %Job{
                   url: @job_url,
+                  service_url: @service_url,
                   phase: :completed,
                   format: :csv,
                   error_summary: nil,
@@ -166,6 +167,40 @@ defmodule SpaceTAP.JobTest do
 
       assert {:error, %Error{type: :decode_error}} =
                submit(req_options: [headers: [authorization: "Bearer secret"]] ++ @req_options)
+    end
+
+    test "keeps the service URL in the job, so wait/2, result/2 and delete/2 send no credentials to another host either" do
+      auth = [auth: {:bearer, "secret"}]
+
+      expect_request(
+        "POST",
+        "/tap/async",
+        &redirect(&1, 303, "https://jobs.example.org/async/42")
+      )
+
+      expect_request("GET", "/async/42", &phase_document(&1, "EXECUTING"))
+
+      assert {:ok, %Job{service_url: @service_url, phase: :executing} = job} =
+               submit(req_options: auth ++ @req_options)
+
+      for {method, path, respond} <- [
+            {"GET", "/async/42", &phase_document(&1, "COMPLETED")},
+            {"GET", "/async/42/results/result",
+             &respond(&1, 200, "text/csv", fixture("gavo", "hipparcos.csv"))},
+            {"DELETE", "/async/42", &redirect(&1, 303, "https://jobs.example.org/async")}
+          ] do
+        expect_request(method, path, fn conn ->
+          assert conn.host == "jobs.example.org"
+          assert Plug.Conn.get_req_header(conn, "authorization") == []
+          respond.(conn)
+        end)
+      end
+
+      assert {:ok, %Job{service_url: @service_url, phase: :completed} = job} =
+               Job.wait(job, req_options: auth ++ @req_options)
+
+      assert {:ok, %Result{}} = Job.result(job, req_options: auth ++ @req_options)
+      assert :ok = Job.delete(job, req_options: auth ++ @req_options)
     end
 
     test "doesn't read an http:// job on another host after https://, and leaves it there" do
@@ -301,12 +336,37 @@ defmodule SpaceTAP.JobTest do
                {:ok,
                 %Job{
                   url: @job_url,
+                  service_url: nil,
                   phase: :completed,
                   format: :csv,
                   error_summary: nil,
                   result_url:
                     "https://ws-cadc.canfar.net/minoc/files/tmp:argus/result_y374m4kk4ey22u8g.xml"
                 }}
+    end
+
+    test "sends the credentials to the job, whose URL the client gave, in wait/2 and delete/2 too" do
+      auth = [auth: {:bearer, "secret"}]
+
+      for {method, path, respond} <- [
+            {"GET", "/async/42", &phase_document(&1, "EXECUTING")},
+            {"GET", "/async/42", &phase_document(&1, "COMPLETED")},
+            {"DELETE", "/async/42", &redirect(&1, 303, "https://jobs.example.org/async")}
+          ] do
+        expect_request(method, path, fn conn ->
+          assert conn.host == "jobs.example.org"
+          assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer secret"]
+          respond.(conn)
+        end)
+      end
+
+      assert {:ok, %Job{service_url: nil, phase: :executing} = job} =
+               Job.get("https://jobs.example.org/async/42", req_options: auth ++ @req_options)
+
+      assert {:ok, %Job{service_url: nil, phase: :completed} = job} =
+               Job.wait(job, req_options: auth ++ @req_options)
+
+      assert :ok = Job.delete(job, req_options: auth ++ @req_options)
     end
 
     test "keeps the format it is given, which the job document can't be trusted for" do

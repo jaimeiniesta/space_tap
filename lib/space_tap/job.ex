@@ -38,7 +38,7 @@ defmodule SpaceTAP.Job do
   alias SpaceTAP.{Error, HTTP, Result, UWS, VOTable}
 
   @enforce_keys [:url, :phase, :format]
-  defstruct [:url, :phase, :format, :error_summary, :result_url]
+  defstruct [:url, :service_url, :phase, :format, :error_summary, :result_url]
 
   # The phases the service moves a job on from (UWS 1.1 §2.1.3): a queued or
   # executing job runs, a suspended one is resumed, and an unknown one may
@@ -82,6 +82,11 @@ defmodule SpaceTAP.Job do
   A job, as its job document described it when it was last read:
 
     * `:url` - the URL of the job, where the service's redirects led.
+    * `:service_url` - the base URL of the service `submit/3` created the
+      job at, as it was given, or `nil` for a job `get/2` read from its URL.
+      The credentials of each call go to the job only on the scheme, host
+      and port of the URL the client gave: this one, or the job's own for a
+      job from `get/2`.
     * `:phase` - its phase.
     * `:format` - the format its result was asked for in, `:csv` or
       `:votable`, which decides how the result is read.
@@ -92,6 +97,7 @@ defmodule SpaceTAP.Job do
   """
   @type t :: %__MODULE__{
           url: String.t(),
+          service_url: String.t() | nil,
           phase: phase(),
           format: :csv | :votable,
           error_summary: String.t() | nil,
@@ -130,7 +136,8 @@ defmodule SpaceTAP.Job do
   another host isn't read, nor deleted: it is a `:decode_error` that names
   it. On another host, scheme or port, the `authorization` header and Req's
   `:auth` option aren't sent, as Req does when a redirect leads to another
-  host.
+  host: not by `submit/3`, and not by `wait/2`, `result/2` or `delete/2`,
+  which know the service from the job's `:service_url`.
 
   ## Options
 
@@ -164,7 +171,7 @@ defmodule SpaceTAP.Job do
         with {:ok, listed_url} <- job_location(response, url),
              {:ok, job_url, req_options} <-
                HTTP.listed(req_options, url, listed_url, "the service lists the new job") do
-          run(job_url, opts[:format], req_options)
+          run(service_url, job_url, opts[:format], req_options)
         end
 
       # Only a 303 points to a job. Another redirect is the web server's,
@@ -240,7 +247,8 @@ defmodule SpaceTAP.Job do
       requests, so a request under way may end a few seconds after it.
     * `:req_options` - a keyword list of options for `Req.new/1`. A request
       that asks the service to wait gets a `:receive_timeout` long enough for
-      it, whatever this one says.
+      it, whatever this one says. Its credentials go to the job as in
+      `submit/3`: not to one on another host than its `:service_url`.
 
   An unknown option, or a `:timeout` that isn't what the list says, raises
   `ArgumentError`.
@@ -250,7 +258,7 @@ defmodule SpaceTAP.Job do
     opts = Keyword.validate!(opts, timeout: :infinity, req_options: [])
 
     state = %{
-      req_options: HTTP.req_options(opts[:req_options]),
+      req_options: credentials(job, HTTP.req_options(opts[:req_options])),
       timeout: opts[:timeout],
       deadline: deadline(opts[:timeout]),
       pause: @first_pause
@@ -276,7 +284,8 @@ defmodule SpaceTAP.Job do
   Archive does, the result is read with `https://`, and from another host it
   isn't read. On another host, such as CADC's `ws-cadc.canfar.net`, the
   `authorization` header and Req's `:auth` option aren't sent, as Req does
-  when a redirect leads to another host.
+  when a redirect leads to another host, nor to the result of a job on
+  another host than its `:service_url`.
 
   Raises `ArgumentError` for a job that hasn't stopped: wait for it with
   `wait/2` first.
@@ -288,7 +297,7 @@ defmodule SpaceTAP.Job do
   @spec result(t(), [option()]) :: {:ok, Result.t()} | {:error, Error.t()}
   def result(%__MODULE__{} = job, opts \\ []) do
     opts = Keyword.validate!(opts, req_options: [])
-    read_result(job, HTTP.req_options(opts[:req_options]))
+    read_result(job, credentials(job, HTTP.req_options(opts[:req_options])))
   end
 
   @doc """
@@ -302,12 +311,14 @@ defmodule SpaceTAP.Job do
 
   ## Options
 
-    * `:req_options` - a keyword list of options for `Req.new/1`.
+    * `:req_options` - a keyword list of options for `Req.new/1`, whose
+      credentials go to the job as in `submit/3`: not to one on another host
+      than its `:service_url`.
   """
   @spec delete(t(), [option()]) :: :ok | {:error, Error.t()}
-  def delete(%__MODULE__{url: url}, opts \\ []) do
+  def delete(%__MODULE__{url: url} = job, opts \\ []) do
     opts = Keyword.validate!(opts, req_options: [])
-    req_options = HTTP.req_options(opts[:req_options])
+    req_options = credentials(job, HTTP.req_options(opts[:req_options]))
 
     # UWS 1.1 §2.2.3.2 deletes a job with DELETE, or with a POST of
     # ACTION=DELETE, which is all NED (403), KOA (500) and the NASA
@@ -374,12 +385,12 @@ defmodule SpaceTAP.Job do
   # SpaceTAP can't read or start is deleted, since the error doesn't give
   # its URL, and nothing else could delete it before the service destroys
   # it, which IRSA never does.
-  defp run(job_url, format, req_options) do
+  defp run(service_url, job_url, format, req_options) do
     {url, response} = HTTP.run(req_options, method: :get, url: job_url)
 
     result =
       with {:ok, job} <- read_job(response, url, format) do
-        start(job, req_options)
+        start(%{job | service_url: service_url}, req_options)
       end
 
     case result do
@@ -387,7 +398,7 @@ defmodule SpaceTAP.Job do
         {:ok, job}
 
       {:error, _error} ->
-        job = %__MODULE__{url: url, phase: :unknown, format: format}
+        job = %__MODULE__{url: url, service_url: service_url, phase: :unknown, format: format}
         _deleted = delete(job, req_options: req_options)
         result
     end
@@ -411,6 +422,15 @@ defmodule SpaceTAP.Job do
   end
 
   defp start(job, _req_options), do: {:ok, job}
+
+  # The credentials of a call go to the job only on the scheme, host and
+  # port of the URL the client gave (ADR 0015): the service URL of
+  # submit/3, which read the job by the rule for listed URLs, or the job
+  # URL itself for a job from get/2.
+  defp credentials(%__MODULE__{service_url: nil}, req_options), do: req_options
+
+  defp credentials(job, req_options),
+    do: HTTP.credentials(req_options, job.service_url, job.url)
 
   defp deadline(timeout) do
     case timeout!(timeout) do
@@ -525,7 +545,7 @@ defmodule SpaceTAP.Job do
 
   defp refresh(job, req_options, options) do
     with {:ok, next} <- request(req_options, job.format, options) do
-      {:ok, %{next | url: job.url}}
+      {:ok, %{next | url: job.url, service_url: job.service_url}}
     end
   end
 

@@ -14,3 +14,4 @@ Until 0.4.0 the rule applied to the result and to the availability (ADR 0010 and
 
 - `SpaceTAP.Job.submit/3`, `SpaceTAP.Job.result/2` and `SpaceTAP.availability/2` describe the rule the same way, and a change to it is made once.
 - `SpaceTAP.availability/2` resolves a relative availability URL against the URL the redirects to `/capabilities` led to, the base of the document it read (RFC 3986 §5.1.3), while the rule starts from the service URL, which is where the credentials belong.
+- A `SpaceTAP.Job` keeps the service URL `submit/3` was given, in `service_url`, since `wait/2`, `result/2` and `delete/2` are separate calls with `:req_options` of their own: they send the credentials to the job by the same rule, through the credentials half of it, `SpaceTAP.HTTP.credentials/3`, and `SpaceTAP.async_query/3` sends none to a job on another host in any of its requests. A job `get/2` reads has no `service_url`: the client gave the job URL, and the credentials go to it.

@@ -74,17 +74,16 @@ defmodule SpaceTAP.HTTP do
   end
 
   # The body decides before the status: TAP 1.1 §3.3 lets a service send an
-  # error document with 200 as well as 4xx or 5xx. read_xml reads an XML
-  # body, and success gets what it read from a successful response that
-  # isn't an error document, with its media type and status.
-  @spec classify(result(), (binary() -> term()), (term(), String.t() | nil, integer() -> result)) ::
-          result | {:error, Error.t()}
-        when result: term()
-  def classify({:error, exception}, _read_xml, _success) do
+  # error document with 200 as well as 4xx or 5xx. A successful response
+  # that isn't an error document is given as read: the body, as read_xml
+  # read it when its media type is XML, with the media type and the status.
+  @spec classify(result(), (binary() -> term())) ::
+          {:ok, term(), String.t() | nil, integer()} | {:error, Error.t()}
+  def classify({:error, exception}, _read_xml) do
     error(:transport_error, Exception.message(exception), nil)
   end
 
-  def classify({:ok, %Req.Response{status: status, body: body} = response}, read_xml, success) do
+  def classify({:ok, %Req.Response{status: status, body: body} = response}, read_xml) do
     media_type = media_type(response)
 
     case read_body(media_type, body, read_xml) do
@@ -101,7 +100,7 @@ defmodule SpaceTAP.HTTP do
         error(:service_error, text |> String.trim() |> service_error_message(), status)
 
       body when status in 200..299 ->
-        success.(body, media_type, status)
+        {:ok, body, media_type, status}
 
       body ->
         error(:http_error, http_error_message(body, media_type), status)
@@ -113,7 +112,9 @@ defmodule SpaceTAP.HTTP do
   # may come with any.
   @spec read_result(result(), :csv | :votable) :: {:ok, Result.t()} | {:error, Error.t()}
   def read_result(response, format) do
-    classify(response, &{:votable, VOTable.parse(&1)}, &result(&1, format, &2, &3))
+    with {:ok, body, media_type, status} <- classify(response, &{:votable, VOTable.parse(&1)}) do
+      result(body, format, media_type, status)
+    end
   end
 
   # Reads a VOSI document, /capabilities or /availability, with `read`,

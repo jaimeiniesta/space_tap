@@ -180,10 +180,10 @@ defmodule SpaceTAP.Job do
         HTTP.error(:http_error, message, status)
 
       response ->
-        HTTP.classify(response, &read_job/1, fn _body, media_type, status ->
+        with {:ok, _body, media_type, status} <- HTTP.classify(response, &parse_job/1) do
           message = "expected a redirect to the new job, got #{media_type || "no Content-Type"}"
           HTTP.error(:decode_error, message, status)
-        end)
+        end
     end
   end
 
@@ -378,7 +378,7 @@ defmodule SpaceTAP.Job do
     {url, response} = HTTP.run(req_options, method: :get, url: job_url)
 
     result =
-      with {:ok, job} <- HTTP.classify(response, &read_job/1, &job(&1, url, format, &2, &3)) do
+      with {:ok, job} <- read_job(response, url, format) do
         start(job, req_options)
       end
 
@@ -531,11 +531,18 @@ defmodule SpaceTAP.Job do
 
   defp request(req_options, format, options) do
     {url, response} = HTTP.run(req_options, options)
-    HTTP.classify(response, &read_job/1, &job(&1, url, format, &2, &3))
+    read_job(response, url, format)
+  end
+
+  # The job a response describes, read at `url`.
+  defp read_job(response, url, format) do
+    with {:ok, body, media_type, status} <- HTTP.classify(response, &parse_job/1) do
+      job(body, url, format, media_type, status)
+    end
   end
 
   # An XML body is a job document, or an error document instead of one.
-  defp read_job(body) do
+  defp parse_job(body) do
     case UWS.parse(body) do
       {:ok, document} ->
         {:job, document}
@@ -573,8 +580,9 @@ defmodule SpaceTAP.Job do
   defp accepted({:ok, %Req.Response{status: status}}) when status in 300..399, do: :ok
 
   defp accepted(response) do
-    HTTP.classify(response, &{:votable, VOTable.parse(&1)}, fn _body, _media_type, _status ->
+    with {:ok, _body, _media_type, _status} <-
+           HTTP.classify(response, &{:votable, VOTable.parse(&1)}) do
       :ok
-    end)
+    end
   end
 end

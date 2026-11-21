@@ -31,6 +31,7 @@ defmodule SpaceTAP.Test.Services do
           optional(:csv_result) => expected(),
           optional(:async_csv_result) => expected(),
           optional(:metadata) => {String.t(), String.t(), String.t()},
+          optional(:tables_error) => {:error, SpaceTAP.Error.type(), pos_integer(), String.t()},
           required(:syntax_error) => {String.t(), expected()}
         }
 
@@ -41,6 +42,8 @@ defmodule SpaceTAP.Test.Services do
       result:
         {"SELECT TOP 5 source_id, designation, ra, dec, parallax, phot_g_mean_mag FROM gaiadr3.gaia_source WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1 AND parallax IS NOT NULL AND phot_g_mean_mag IS NOT NULL ORDER BY phot_g_mean_mag",
          {:ok, ["source_id", "designation", "ra", "dec", "parallax", "phot_g_mean_mag"], 5}},
+      metadata: {"gaiadr3", "gaiadr3.gaia_source", "source_id"},
+      tables_error: {:error, :service_error, 500, "missing FROM-clause entry for table"},
       syntax_error:
         {"SELEC TOP 3 source_id FROM gaiadr3.gaia_source",
          {:error, :service_error, 400, "Cannot parse query 'SELEC TOP 3 source_id"}}
@@ -206,10 +209,9 @@ defmodule SpaceTAP.Test.Services do
   # The services whose TAP_SCHEMA was checked, with `metadata` naming the
   # schema and the table of their TAP_SCHEMA fixtures and a column of that
   # table. VizieR and SIMBAD get theirs when CDS answers again: it was down
-  # when the others were captured, on 2026-11-18. Gaia has none because
-  # tables/2 fails there, as its fixtures README explains: its
-  # TAP_SCHEMA.tables has descriptions that aren't ASCII, and any WHERE on
-  # that table gives HTTP 500.
+  # when the others were captured, on 2026-11-18. `tables_error` is the error
+  # tables/2 gives for that schema instead of its tables: Gaia answers any
+  # WHERE on TAP_SCHEMA.tables with HTTP 500, as its fixtures README explains.
   @spec with_metadata() :: [t()]
   def with_metadata, do: Enum.filter(@services, &Map.has_key?(&1, :metadata))
 

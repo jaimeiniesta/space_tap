@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-21
+
 ### Added
 
 - `SpaceTAP.Result.to_dataframe/1`, which turns a result into an `Explorer.DataFrame`. Explorer is an optional dependency: add `{:explorer, "~> 0.13"}` to use it. Each column of a VOTable result gets the dtype of its field at the same width, such as `{:f, 32}` for a `float`, and an array a list; every column of a CSV result is a string. A column name the service repeats gets a number after it, `ra2`, as in PyVO (`docs/adr/0011-to-dataframe-takes-the-types-of-the-fields.md`).
@@ -64,7 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A README with usage, errors, the limits of CSV results and the TAP services SpaceTAP has been checked against, and HexDocs with the SpaceTAP icon.
 - Livebooks that run SpaceTAP against Gaia, GAVO, the NASA Exoplanet Archive and other TAP services, with tables and charts, each with a "Run in Livebook" button on HexDocs.
 
-[Unreleased]: https://github.com/jaimeiniesta/space_tap/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/jaimeiniesta/space_tap/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/jaimeiniesta/space_tap/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jaimeiniesta/space_tap/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/jaimeiniesta/space_tap/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jaimeiniesta/space_tap/compare/v0.1.0...v0.2.0

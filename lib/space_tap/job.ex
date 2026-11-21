@@ -260,11 +260,11 @@ defmodule SpaceTAP.Job do
   seconds.
 
   The result never comes over `http://` for a job at an `https://` URL. When
-  the service lists an `http://` URL on the job's host, as GAVO does, the
-  result is read with `https://`, and from another host it isn't read. On
-  another host, such as CADC's `ws-cadc.canfar.net`, the `authorization`
-  header and Req's `:auth` option aren't sent, as Req does when a redirect
-  leads to another host.
+  the service lists an `http://` URL on the job's host, as the NASA Exoplanet
+  Archive does, the result is read with `https://`, and from another host it
+  isn't read. On another host, such as CADC's `ws-cadc.canfar.net`, the
+  `authorization` header and Req's `:auth` option aren't sent, as Req does
+  when a redirect leads to another host.
 
   Raises `ArgumentError` for a job that hasn't stopped: wait for it with
   `wait/2` first.
@@ -438,8 +438,8 @@ defmodule SpaceTAP.Job do
     HTTP.error(:decode_error, "the job is COMPLETED and lists no result", nil)
   end
 
-  # GAVO lists http:// URLs on its own host, which it serves with https://
-  # too, and the NASA Exoplanet Archive redirects them to https://.
+  # The NASA Exoplanet Archive lists http:// URLs on its own host, which it
+  # redirects to https://, and GAVO listed them until November 2026.
   defp read_result(%__MODULE__{phase: :completed} = job, req_options) do
     case HTTP.secure(job.url, job.result_url) do
       {:ok, url} ->

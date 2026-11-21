@@ -252,10 +252,11 @@ defmodule SpaceTAP.Job do
     state = %{
       req_options: HTTP.req_options(opts[:req_options]),
       timeout: opts[:timeout],
-      deadline: deadline(opts[:timeout])
+      deadline: deadline(opts[:timeout]),
+      pause: @first_pause
     }
 
-    poll(job, state, @first_pause)
+    poll(job, state)
   end
 
   @doc """
@@ -420,47 +421,59 @@ defmodule SpaceTAP.Job do
 
   defp now, do: System.monotonic_time(:millisecond)
 
+  # The milliseconds left, or :infinity.
   defp remaining(:infinity), do: :infinity
   defp remaining(deadline), do: max(deadline - now(), 0)
 
   # A job that has stopped is read once, without WAIT: GAVO blocks a PENDING
-  # job for the whole WAIT, although only the client can start it.
-  defp poll(%{phase: phase} = job, state, pause) when phase not in @moving do
-    with {:ok, next} <- read(job, state, nil), do: next_poll(job, next, state, nil, pause)
+  # job for the whole WAIT, although only the client can start it. One that
+  # another client has started meanwhile is waited for.
+  defp poll(%{phase: phase} = job, state) when phase not in @moving do
+    with {:ok, next} <- read(job, state.req_options, nil) do
+      if next.phase in @moving, do: poll(next, state), else: {:ok, next}
+    end
   end
 
-  defp poll(job, state, pause) do
+  # One turn for a job the service moves on: a :timeout once the time has
+  # run out, or a request with WAIT, the seconds left at most.
+  defp poll(job, state) do
     case remaining(state.deadline) do
       0 ->
         HTTP.error(:timeout, "the job is still #{name(job.phase)} after #{state.timeout} ms", nil)
 
       remaining ->
-        wait = min(@wait, div_seconds(remaining))
-        started = now()
-
-        with {:ok, next} <- read(job, state, wait) do
-          next_poll(job, next, state, {wait, now() - started}, pause)
-        end
+        ask(job, state, wait_seconds(remaining))
     end
   end
 
-  defp div_seconds(:infinity), do: @wait
-  defp div_seconds(milliseconds), do: div(milliseconds, 1000)
-
-  defp next_poll(_job, %{phase: phase} = next, _state, _wait, _pause) when phase not in @moving do
-    {:ok, next}
-  end
+  defp wait_seconds(:infinity), do: @wait
+  defp wait_seconds(milliseconds), do: min(@wait, div(milliseconds, 1000))
 
   # A service that answers before the WAIT is over, and not because the
-  # phase changed, ignored it, and is asked again after a pause, never
-  # longer than the time left.
-  defp next_poll(job, next, state, {wait, elapsed}, pause)
-       when next.phase == job.phase and (wait == 0 or elapsed < wait * 1000) do
-    Process.sleep(min(pause, remaining(state.deadline)))
-    poll(next, state, min(round(pause * 1.5), @max_pause))
+  # phase changed, ignored it, and is asked again after a pause, 1.5 times
+  # longer each time and never longer than the time left; so is one asked
+  # without WAIT, under a second from the deadline. A change of phase is
+  # asked about at once.
+  defp ask(job, state, wait) do
+    started = now()
+
+    with {:ok, next} <- read(job, state.req_options, wait) do
+      cond do
+        next.phase not in @moving ->
+          {:ok, next}
+
+        next.phase == job.phase and (wait == 0 or now() - started < wait * 1000) ->
+          Process.sleep(pause(state))
+          poll(next, %{state | pause: min(round(state.pause * 1.5), @max_pause)})
+
+        true ->
+          poll(next, %{state | pause: @first_pause})
+      end
+    end
   end
 
-  defp next_poll(_job, next, state, _wait, _pause), do: poll(next, state, @first_pause)
+  defp pause(%{deadline: :infinity, pause: pause}), do: pause
+  defp pause(%{deadline: deadline, pause: pause}), do: min(pause, remaining(deadline))
 
   defp read_result(%__MODULE__{phase: phase}, _req_options) when phase in @moving do
     raise ArgumentError,
@@ -490,17 +503,19 @@ defmodule SpaceTAP.Job do
 
   defp name(phase), do: phase |> Atom.to_string() |> String.upcase()
 
-  # The job keeps its URL: the request went to one with WAIT in it. Asked to
-  # block, GAVO answers 5 to 7 seconds after the WAIT is over.
-  defp read(job, state, nil) do
-    refresh(job, state.req_options, method: :get, url: job.url)
+  # Without WAIT for a job that has stopped, or with less than a second
+  # left, since WAIT takes whole seconds (UWS 1.1 §2.2.1.2). The job keeps
+  # its URL: the request went to one with WAIT in it. Asked to block, GAVO
+  # answers 5 to 7 seconds after the WAIT is over.
+  defp read(job, req_options, wait) when wait in [nil, 0] do
+    refresh(job, req_options, method: :get, url: job.url)
   end
 
-  defp read(job, state, wait) do
+  defp read(job, req_options, wait) do
     receive_timeout =
-      max(Keyword.get(state.req_options, :receive_timeout, @receive_timeout), (wait + 30) * 1000)
+      max(Keyword.get(req_options, :receive_timeout, @receive_timeout), (wait + 30) * 1000)
 
-    refresh(job, state.req_options,
+    refresh(job, req_options,
       method: :get,
       url: job.url,
       params: [WAIT: wait],

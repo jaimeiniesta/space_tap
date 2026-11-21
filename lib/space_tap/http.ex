@@ -56,8 +56,13 @@ defmodule SpaceTAP.HTTP do
     options =
       [user_agent: @user_agent, decode_body: false, http_errors: :return, into: nil] ++ options
 
+    # Each request is sent once, unless the caller asks Req to retry: Req
+    # would retry a GET that fails with a 5xx or a timeout three times,
+    # waiting as long as a Retry-After header says
+    # (docs/adr/0016-each-request-is-sent-once.md).
     {request, response} =
       req_options
+      |> Keyword.put_new(:retry, false)
       |> Keyword.merge(options)
       |> Req.new()
       |> Req.Request.run_request()

@@ -182,6 +182,34 @@ defmodule SpaceTAPAvailabilityTest do
               }}
   end
 
+  test "asks once, without Req's retries, unless :req_options turns them on" do
+    stub_documents(capabilities("https://tap.example.org/tap/availability"), "",
+      availability_status: 503
+    )
+
+    assert {:error, %Error{type: :http_error, status: 503}} =
+             availability("https://tap.example.org/tap")
+
+    assert_received {:request, %Plug.Conn{request_path: "/tap/capabilities"}}
+    assert_received {:request, %Plug.Conn{request_path: "/tap/availability"}}
+    refute_received {:request, _conn}
+
+    # Req's default: three retries, with no delay here.
+    assert {:error, %Error{type: :http_error, status: 503}} =
+             availability("https://tap.example.org/tap",
+               req_options:
+                 [retry: :safe_transient, retry_delay: 0, retry_log_level: false] ++ @req_options
+             )
+
+    assert_received {:request, %Plug.Conn{request_path: "/tap/capabilities"}}
+
+    for _attempt <- 1..4 do
+      assert_received {:request, %Plug.Conn{request_path: "/tap/availability"}}
+    end
+
+    refute_received {:request, _conn}
+  end
+
   test "reads available as an xsd:boolean" do
     for {text, available} <- [{"true", true}, {" 1 ", true}, {"false", false}, {"0", false}] do
       stub_documents(

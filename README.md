@@ -100,6 +100,11 @@ Enum.map(result.rows, fn row -> Map.new(Enum.zip(result.columns, row)) end)
   SpaceTAP.query(service_url, adql, req_options: [receive_timeout: 60_000])
   ```
 
+  SpaceTAP sends each request once. Req would retry a `GET` that fails with a
+  5xx or a timeout three times, waiting as long as a `Retry-After` header
+  says, which can hold `availability/2` for minutes at a service in
+  maintenance; to have that, pass `retry: :safe_transient`, Req's default.
+
   SpaceTAP sets the TAP request itself, but some Req options, such as
   `:headers`, can still change it. See `SpaceTAP.query/3`.
 

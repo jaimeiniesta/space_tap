@@ -2,11 +2,12 @@ defmodule SpaceTAP.VOSI do
   @moduledoc false
 
   # Reads two VOSI documents (VOSI 1.1): the capabilities of a service, for
-  # the URL of its availability, and the availability itself. An element
-  # counts by its role, as SpaceTAP.XML reads it, so only where the standard
-  # puts it.
+  # the URL of its availability, and the availability itself, which
+  # read_availability/2 asks the service for, one after the other. An
+  # element counts by its role, as SpaceTAP.XML reads it, so only where the
+  # standard puts it.
 
-  alias SpaceTAP.{Availability, XML}
+  alias SpaceTAP.{Availability, Error, HTTP, XML}
 
   @behaviour XML
 
@@ -20,6 +21,26 @@ defmodule SpaceTAP.VOSI do
     "backAt" => :back_at,
     "note" => :note
   }
+
+  # The availability of the service at `service_url`, with the caller's Req
+  # options. Its URL comes from the capabilities, at /capabilities under the
+  # service URL (DALI 1.1 §2.5), and is read by the rule for listed URLs
+  # from the service, which is where the credentials belong (ADR 0014, ADR
+  # 0015). A relative URL in the capabilities is relative to where the
+  # redirects led (RFC 3986 §5.1.3).
+  @spec read_availability(String.t(), keyword()) ::
+          {:ok, Availability.t()} | {:error, Error.t()}
+  def read_availability(service_url, req_options) do
+    capabilities_url = String.trim_trailing(service_url, "/") <> "/capabilities"
+    {capabilities_url, response} = HTTP.fetch(req_options, capabilities_url)
+
+    with {:ok, listed_url} <- HTTP.read_vosi(response, &availability_url/1),
+         listed_url = capabilities_url |> URI.merge(listed_url) |> URI.to_string(),
+         {:ok, url, req_options} <-
+           HTTP.listed(req_options, service_url, listed_url, "the service lists its availability") do
+      req_options |> HTTP.run(method: :get, url: url) |> HTTP.read_vosi(&availability/1)
+    end
+  end
 
   # The URL of the availability, the accessURL of the capability whose
   # standardID is that of VOSI availability (VOSI 1.1 §4): DALI 1.1 §2

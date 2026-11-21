@@ -18,72 +18,81 @@ defmodule SpaceTAP.TAPSchema do
 
   alias SpaceTAP.{ADQL, Column, Error, HTTP, Result, Table}
 
-  @spec tables_query(String.t() | nil) :: String.t()
-  def tables_query(nil), do: "SELECT * FROM TAP_SCHEMA.tables"
-
-  def tables_query(schema),
-    do: tables_query(nil) <> " WHERE schema_name = " <> ADQL.literal(schema)
-
-  @spec columns_query(String.t()) :: String.t()
-  def columns_query(table_name),
-    do: "SELECT * FROM TAP_SCHEMA.columns WHERE table_name = " <> ADQL.literal(table_name)
-
-  # `status` is the HTTP status of the response, for a :decode_error.
-  @spec tables(Result.t(), pos_integer() | nil) :: {:ok, [Table.t()]} | {:error, Error.t()}
-  def tables(result, status) do
-    read(result, status, "tables", "table_name", "table_index", fn row ->
-      {:ok,
-       %Table{
-         schema: row["schema_name"],
-         name: row["table_name"],
-         type: row["table_type"],
-         description: row["description"],
-         utype: row["utype"]
-       }}
-    end)
+  # The tables of the service at `service_url`, those of the :schema in
+  # `opts` when it names one, read with its :maxrec and :req_options.
+  @spec tables(String.t(), keyword()) :: {:ok, [Table.t()]} | {:error, Error.t()}
+  def tables(service_url, opts) do
+    with {:ok, result} <- query(service_url, tables_query(opts[:schema]), opts),
+         do: read(result, "tables", "table_name", "table_index", &table/1)
   end
 
-  @spec columns(Result.t(), pos_integer() | nil) :: {:ok, [Column.t()]} | {:error, Error.t()}
-  def columns(result, status) do
-    read(result, status, "columns", "column_name", "column_index", fn row ->
-      with {:ok, indexed} <- flag(row, "indexed"),
-           {:ok, principal} <- flag(row, "principal"),
-           {:ok, std} <- flag(row, "std") do
-        {:ok,
-         %Column{
-           name: row["column_name"],
-           datatype: row["datatype"],
-           arraysize: arraysize(row["arraysize"]),
-           xtype: row["xtype"],
-           unit: row["unit"],
-           ucd: row["ucd"],
-           utype: row["utype"],
-           description: row["description"],
-           indexed: indexed,
-           principal: principal,
-           std: std
-         }}
-      end
-    end)
+  # The columns of the table `table_name` of the service at `service_url`.
+  @spec columns(String.t(), String.t(), keyword()) :: {:ok, [Column.t()]} | {:error, Error.t()}
+  def columns(service_url, table_name, opts) do
+    with {:ok, result} <- query(service_url, columns_query(table_name), opts),
+         do: read(result, "columns", "column_name", "column_index", &column/1)
   end
 
   #####################
   # Private functions #
   #####################
 
+  defp table(row) do
+    {:ok,
+     %Table{
+       schema: row["schema_name"],
+       name: row["table_name"],
+       type: row["table_type"],
+       description: row["description"],
+       utype: row["utype"]
+     }}
+  end
+
+  defp column(row) do
+    with {:ok, indexed} <- flag(row, "indexed"),
+         {:ok, principal} <- flag(row, "principal"),
+         {:ok, std} <- flag(row, "std") do
+      {:ok,
+       %Column{
+         name: row["column_name"],
+         datatype: row["datatype"],
+         arraysize: arraysize(row["arraysize"]),
+         xtype: row["xtype"],
+         unit: row["unit"],
+         ucd: row["ucd"],
+         utype: row["utype"],
+         description: row["description"],
+         indexed: indexed,
+         principal: principal,
+         std: std
+       }}
+    end
+  end
+
+  # A sync query in VOTable (ADR 0013), so that each value has its type.
+  defp query(service_url, adql, opts) do
+    HTTP.sync(service_url, adql,
+      format: :votable,
+      maxrec: opts[:maxrec],
+      req_options: opts[:req_options]
+    )
+  end
+
+  defp tables_query(nil), do: "SELECT * FROM TAP_SCHEMA.tables"
+
+  defp tables_query(schema),
+    do: tables_query(nil) <> " WHERE schema_name = " <> ADQL.literal(schema)
+
+  defp columns_query(table_name),
+    do: "SELECT * FROM TAP_SCHEMA.columns WHERE table_name = " <> ADQL.literal(table_name)
+
   # Each row becomes a map from the lower-case name of each column to its
   # value. The rows go in the order of `index_name`, which TAP 1.1 §4.2 and
   # §4.3 give "to recommend ordering for clients", and those without one
   # last, in the order they came: TAP 1.0 has no such column, so ORDER BY
-  # could fail.
-  defp read(
-         %Result{columns: columns, rows: rows} = result,
-         status,
-         table,
-         name,
-         index_name,
-         build
-       ) do
+  # could fail. A result without what the list needs is a :decode_error
+  # about the result, not the response, so it carries no HTTP status.
+  defp read(%Result{columns: columns, rows: rows} = result, table, name, index_name, build) do
     names = Enum.map(columns, &String.downcase/1)
 
     if result.overflow do
@@ -100,10 +109,10 @@ defmodule SpaceTAP.TAPSchema do
       |> build_all(build, [])
       |> case do
         {:ok, items} -> {:ok, items}
-        {:error, message} -> HTTP.error(:decode_error, "TAP_SCHEMA.#{table}#{message}", status)
+        {:error, message} -> HTTP.error(:decode_error, "TAP_SCHEMA.#{table}#{message}", nil)
       end
     else
-      HTTP.error(:decode_error, "TAP_SCHEMA.#{table} has no #{name} column", status)
+      HTTP.error(:decode_error, "TAP_SCHEMA.#{table} has no #{name} column", nil)
     end
   end
 

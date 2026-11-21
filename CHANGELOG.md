@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SpaceTAP sends each request once: it sets Req's `retry: false` unless `:req_options` sets `:retry` (`docs/adr/0016-each-request-is-sent-once.md`). Before, Req retried a `GET` that failed with a 408, 429, 500, 502, 503 or 504, or with a transport timeout, three times with a growing delay, waiting as long as a `Retry-After` header said, so `SpaceTAP.availability/2` at a service in maintenance answered seconds or minutes later, and `SpaceTAP.Job.wait/2` could run past its `:timeout` and return the service's error instead of `:timeout`.
 - `SpaceTAP.Job.wait/2` asks without `WAIT` when less than a second of its `:timeout` is left, where it sent `WAIT=0`, since `WAIT` takes the seconds to block for and none were left.
 - A VOTable result is read with what each `FIELD` says about its cells, the shape of its `arraysize`, its `null` value and the bytes of an element, read once per field where it was read for every cell: a BINARY2 result of 100,000 rows reads about 10 % faster, and the `null` value of a field is parsed once rather than once per cell.
+- The `:decode_error` of `SpaceTAP.tables/2` and `SpaceTAP.columns/3` for a result without the column they read, or with a flag that isn't 0 or 1, has `status: nil`: it is about the result, not the response, whose 200 it carried.
 
 ### Fixed
 
@@ -25,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SpaceTAP.availability/2` resolves a relative availability URL against the URL the redirects to `/capabilities` led to, the base of the document (RFC 3986 §5.1.3), rather than against the URL it asked.
 - A VOTable, a job document or a VOSI document that begins with a UTF-8 byte order mark, which XML 1.0 §4.3.3 allows, is read. It was a `:decode_error`, since Saxy doesn't take the mark. No known service sends one.
 - A `char` string of more than 64 bytes read from a BINARY or BINARY2 stream is a binary of its own. It was a reference into the decoded stream, which it kept in memory, all of it, for as long as the string lived, as when a caller keeps one description of a result and drops the rest.
+- A CSV body that is a blank line, or starts with one, is a `:decode_error`, since it has no header row with the column names (TAP 1.1 §3.2). It was a result with one column named `""`.
 
 ## [0.4.0] - 2026-11-21
 

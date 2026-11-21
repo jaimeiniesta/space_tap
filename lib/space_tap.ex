@@ -15,7 +15,7 @@ defmodule SpaceTAP do
   and works with TAP 1.0 services.
   """
 
-  alias SpaceTAP.{Availability, Column, Error, HTTP, Job, Result, Table, TAPSchema, VOSI}
+  alias SpaceTAP.{Availability, Column, Error, HTTP, Job, Options, Result, Table, TAPSchema, VOSI}
 
   @typedoc "An option for `query/3` or `async_query/3`."
   @type option ::
@@ -94,9 +94,7 @@ defmodule SpaceTAP do
   """
   @spec query(String.t(), String.t(), [option()]) :: {:ok, Result.t()} | {:error, Error.t()}
   def query(service_url, adql, opts \\ []) when is_binary(service_url) and is_binary(adql) do
-    opts = Keyword.validate!(opts, [:maxrec, format: :csv, req_options: []])
-    {result, _status} = sync(service_url, adql, opts)
-    result
+    HTTP.sync(service_url, adql, Options.validate!(opts, [:format, :maxrec, :req_options]))
   end
 
   @doc """
@@ -141,9 +139,8 @@ defmodule SpaceTAP do
           {:ok, Result.t()} | {:error, Error.t()}
   def async_query(service_url, adql, opts \\ [])
       when is_binary(service_url) and is_binary(adql) do
-    opts = Keyword.validate!(opts, [:maxrec, format: :csv, req_options: [], timeout: :infinity])
+    opts = Options.validate!(opts, [:format, :maxrec, :req_options, :timeout])
     {timeout, opts} = Keyword.pop(opts, :timeout)
-    timeout = Job.timeout!(timeout)
     job_opts = Keyword.take(opts, [:req_options])
 
     with {:ok, job} <- Job.submit(service_url, adql, opts) do
@@ -194,14 +191,7 @@ defmodule SpaceTAP do
   """
   @spec tables(String.t(), [tables_option()]) :: {:ok, [Table.t()]} | {:error, Error.t()}
   def tables(service_url, opts \\ []) when is_binary(service_url) do
-    opts = Keyword.validate!(opts, [:schema, :maxrec, req_options: []])
-    adql = opts[:schema] |> schema!() |> TAPSchema.tables_query()
-    query_opts = [format: :votable, maxrec: opts[:maxrec], req_options: opts[:req_options]]
-
-    case sync(service_url, adql, query_opts) do
-      {{:ok, result}, status} -> TAPSchema.tables(result, status)
-      {error, _status} -> error
-    end
+    TAPSchema.tables(service_url, Options.validate!(opts, [:schema, :maxrec, :req_options]))
   end
 
   @doc """
@@ -237,13 +227,7 @@ defmodule SpaceTAP do
           {:ok, [Column.t()]} | {:error, Error.t()}
   def columns(service_url, table_name, opts \\ [])
       when is_binary(service_url) and is_binary(table_name) do
-    opts = Keyword.validate!(opts, req_options: [])
-    adql = TAPSchema.columns_query(table_name)
-
-    case sync(service_url, adql, format: :votable, req_options: opts[:req_options]) do
-      {{:ok, result}, status} -> TAPSchema.columns(result, status)
-      {error, _status} -> error
-    end
+    TAPSchema.columns(service_url, table_name, Options.validate!(opts, [:req_options]))
   end
 
   @doc """
@@ -279,50 +263,7 @@ defmodule SpaceTAP do
   @spec availability(String.t(), [availability_option()]) ::
           {:ok, Availability.t()} | {:error, Error.t()}
   def availability(service_url, opts \\ []) when is_binary(service_url) do
-    opts = Keyword.validate!(opts, req_options: [])
-    req_options = HTTP.req_options(opts[:req_options])
-    capabilities_url = String.trim_trailing(service_url, "/") <> "/capabilities"
-
-    # A relative URL in the capabilities is relative to where the redirects
-    # led (RFC 3986 §5.1.3), and the rule for reading it starts from the
-    # service, which is where the credentials belong.
-    {capabilities_url, response} = HTTP.run(req_options, method: :get, url: capabilities_url)
-
-    with {:ok, listed_url} <- HTTP.read_vosi(response, &VOSI.availability_url/1),
-         listed_url = capabilities_url |> URI.merge(listed_url) |> URI.to_string(),
-         {:ok, url, req_options} <-
-           HTTP.listed(req_options, service_url, listed_url, "the service lists its availability") do
-      {_url, response} = HTTP.run(req_options, method: :get, url: url)
-      HTTP.read_vosi(response, &VOSI.availability/1)
-    end
+    opts = Options.validate!(opts, [:req_options])
+    VOSI.read_availability(service_url, opts[:req_options])
   end
-
-  #####################
-  # Private functions #
-  #####################
-
-  # Sends a sync query, and returns its result with the HTTP status of the
-  # response, nil when none arrived.
-  defp sync(service_url, adql, opts) do
-    form = HTTP.query_form(adql, opts[:format], opts[:maxrec])
-    url = String.trim_trailing(service_url, "/") <> "/sync"
-
-    {_url, response} =
-      opts[:req_options]
-      |> HTTP.req_options()
-      |> HTTP.run(method: :post, url: url, form: form)
-
-    status =
-      case response do
-        {:ok, %Req.Response{status: status}} -> status
-        {:error, _exception} -> nil
-      end
-
-    {HTTP.read_result(response, opts[:format]), status}
-  end
-
-  defp schema!(schema) when is_binary(schema) or is_nil(schema), do: schema
-
-  defp schema!(schema),
-    do: raise(ArgumentError, "expected :schema to be a string, got: #{inspect(schema)}")
 end

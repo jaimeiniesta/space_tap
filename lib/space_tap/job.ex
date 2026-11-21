@@ -35,7 +35,7 @@ defmodule SpaceTAP.Job do
   Errors come as `{:error, %SpaceTAP.Error{}}`, as from `SpaceTAP.query/3`.
   """
 
-  alias SpaceTAP.{Error, HTTP, Result, UWS, VOTable}
+  alias SpaceTAP.{Error, HTTP, Options, Result, UWS, VOTable}
 
   @enforce_keys [:url, :phase, :format]
   defstruct [:url, :service_url, :phase, :format, :error_summary, :result_url]
@@ -153,9 +153,9 @@ defmodule SpaceTAP.Job do
   """
   @spec submit(String.t(), String.t(), [option()]) :: {:ok, t()} | {:error, Error.t()}
   def submit(service_url, adql, opts \\ []) when is_binary(service_url) and is_binary(adql) do
-    opts = Keyword.validate!(opts, [:maxrec, format: :csv, req_options: []])
+    opts = Options.validate!(opts, [:format, :maxrec, :req_options])
     form = HTTP.query_form(adql, opts[:format], opts[:maxrec])
-    req_options = HTTP.req_options(opts[:req_options])
+    req_options = opts[:req_options]
     url = String.trim_trailing(service_url, "/") <> "/async"
 
     # The service answers 303 with the URL of the job (UWS 1.1 §2.2.3.1),
@@ -163,10 +163,7 @@ defmodule SpaceTAP.Job do
     # what comes next fails, and is read as any URL a service lists: with
     # https:// when the service gives http:// on its own host, as the NASA
     # Exoplanet Archive does, and without credentials on another host.
-    {_url, response} =
-      HTTP.run(req_options, method: :post, url: url, form: form, redirect: false)
-
-    case response do
+    case HTTP.run(req_options, method: :post, url: url, form: form, redirect: false) do
       {:ok, %Req.Response{status: 303} = response} ->
         with {:ok, listed_url} <- job_location(response, url),
              {:ok, job_url, req_options} <-
@@ -209,13 +206,8 @@ defmodule SpaceTAP.Job do
   """
   @spec get(String.t(), [option()]) :: {:ok, t()} | {:error, Error.t()}
   def get(job_url, opts \\ []) when is_binary(job_url) do
-    opts = Keyword.validate!(opts, format: :csv, req_options: [])
-
-    # Nothing is sent with the format, but one SpaceTAP can't read raises
-    # here, as it does in submit/3.
-    _format = HTTP.format(opts[:format])
-
-    request(HTTP.req_options(opts[:req_options]), opts[:format], method: :get, url: job_url)
+    opts = Options.validate!(opts, [:format, :req_options])
+    request(opts[:req_options], opts[:format], job_url, [])
   end
 
   @doc """
@@ -255,10 +247,10 @@ defmodule SpaceTAP.Job do
   """
   @spec wait(t(), [option()]) :: {:ok, t()} | {:error, Error.t()}
   def wait(%__MODULE__{} = job, opts \\ []) do
-    opts = Keyword.validate!(opts, timeout: :infinity, req_options: [])
+    opts = Options.validate!(opts, [:timeout, :req_options])
 
     state = %{
-      req_options: credentials(job, HTTP.req_options(opts[:req_options])),
+      req_options: credentials(job, opts[:req_options]),
       timeout: opts[:timeout],
       deadline: deadline(opts[:timeout]),
       pause: @first_pause
@@ -296,8 +288,8 @@ defmodule SpaceTAP.Job do
   """
   @spec result(t(), [option()]) :: {:ok, Result.t()} | {:error, Error.t()}
   def result(%__MODULE__{} = job, opts \\ []) do
-    opts = Keyword.validate!(opts, req_options: [])
-    read_result(job, credentials(job, HTTP.req_options(opts[:req_options])))
+    opts = Options.validate!(opts, [:req_options])
+    read_result(job, credentials(job, opts[:req_options]))
   end
 
   @doc """
@@ -317,40 +309,22 @@ defmodule SpaceTAP.Job do
   """
   @spec delete(t(), [option()]) :: :ok | {:error, Error.t()}
   def delete(%__MODULE__{url: url} = job, opts \\ []) do
-    opts = Keyword.validate!(opts, req_options: [])
-    req_options = credentials(job, HTTP.req_options(opts[:req_options]))
+    opts = Options.validate!(opts, [:req_options])
+    req_options = credentials(job, opts[:req_options])
 
     # UWS 1.1 §2.2.3.2 deletes a job with DELETE, or with a POST of
     # ACTION=DELETE, which is all NED (403), KOA (500) and the NASA
     # Exoplanet Archive (502) accept. Both answer 303 to the list of jobs,
     # which isn't followed: GAVO's lists hundreds.
     case HTTP.run(req_options, method: :delete, url: url, redirect: false) do
-      {_url, {:ok, %Req.Response{status: status}}} when status >= 400 ->
-        {_url, response} =
-          HTTP.run(req_options,
-            method: :post,
-            url: url,
-            form: [ACTION: "DELETE"],
-            redirect: false
-          )
+      {:ok, %Req.Response{status: status}} when status >= 400 ->
+        req_options
+        |> HTTP.run(method: :post, url: url, form: [ACTION: "DELETE"], redirect: false)
+        |> accepted()
 
-        accepted(response)
-
-      {_url, response} ->
+      response ->
         accepted(response)
     end
-  end
-
-  # Raises for a :timeout wait/2 can't use, which SpaceTAP.async_query/3
-  # checks before it creates a job.
-  @doc false
-  @spec timeout!(term()) :: timeout()
-  def timeout!(timeout) when timeout == :infinity or (is_integer(timeout) and timeout >= 0),
-    do: timeout
-
-  def timeout!(timeout) do
-    raise ArgumentError,
-          "expected :timeout to be a non-negative integer or :infinity, got: #{inspect(timeout)}"
   end
 
   #####################
@@ -386,7 +360,7 @@ defmodule SpaceTAP.Job do
   # its URL, and nothing else could delete it before the service destroys
   # it, which IRSA never does.
   defp run(service_url, job_url, format, req_options) do
-    {url, response} = HTTP.run(req_options, method: :get, url: job_url)
+    {url, response} = HTTP.fetch(req_options, job_url)
 
     result =
       with {:ok, job} <- read_job(response, url, format) do
@@ -413,12 +387,10 @@ defmodule SpaceTAP.Job do
   defp start(%__MODULE__{phase: :pending, url: url} = job, req_options) do
     phase_url = url |> URI.parse() |> URI.append_path("/phase") |> URI.to_string()
 
-    {_url, response} =
+    response =
       HTTP.run(req_options, method: :post, url: phase_url, form: [PHASE: "RUN"], redirect: false)
 
-    with :ok <- accepted(response) do
-      refresh(job, req_options, method: :get, url: url)
-    end
+    with :ok <- accepted(response), do: refresh(job, req_options, [])
   end
 
   defp start(job, _req_options), do: {:ok, job}
@@ -432,12 +404,8 @@ defmodule SpaceTAP.Job do
   defp credentials(job, req_options),
     do: HTTP.credentials(req_options, job.service_url, job.url)
 
-  defp deadline(timeout) do
-    case timeout!(timeout) do
-      :infinity -> :infinity
-      timeout -> now() + timeout
-    end
-  end
+  defp deadline(:infinity), do: :infinity
+  defp deadline(timeout), do: now() + timeout
 
   defp now, do: System.monotonic_time(:millisecond)
 
@@ -510,8 +478,7 @@ defmodule SpaceTAP.Job do
   defp read_result(%__MODULE__{phase: :completed} = job, req_options) do
     with {:ok, url, req_options} <-
            HTTP.listed(req_options, job.url, job.result_url, "the job lists its result") do
-      {_url, response} = HTTP.run(req_options, method: :get, url: url)
-      HTTP.read_result(response, job.format)
+      req_options |> HTTP.run(method: :get, url: url) |> HTTP.read_result(job.format)
     end
   end
 
@@ -527,30 +494,25 @@ defmodule SpaceTAP.Job do
   # left, since WAIT takes whole seconds (UWS 1.1 §2.2.1.2). The job keeps
   # its URL: the request went to one with WAIT in it. Asked to block, GAVO
   # answers 5 to 7 seconds after the WAIT is over.
-  defp read(job, req_options, wait) when wait in [nil, 0] do
-    refresh(job, req_options, method: :get, url: job.url)
-  end
+  defp read(job, req_options, wait) when wait in [nil, 0], do: refresh(job, req_options, [])
 
   defp read(job, req_options, wait) do
     receive_timeout =
       max(Keyword.get(req_options, :receive_timeout, @receive_timeout), (wait + 30) * 1000)
 
-    refresh(job, req_options,
-      method: :get,
-      url: job.url,
-      params: [WAIT: wait],
-      receive_timeout: receive_timeout
-    )
+    refresh(job, req_options, params: [WAIT: wait], receive_timeout: receive_timeout)
   end
 
+  # Reads the job again at its URL, with `options` for the request.
   defp refresh(job, req_options, options) do
-    with {:ok, next} <- request(req_options, job.format, options) do
+    with {:ok, next} <- request(req_options, job.format, job.url, options) do
       {:ok, %{next | url: job.url, service_url: job.service_url}}
     end
   end
 
-  defp request(req_options, format, options) do
-    {url, response} = HTTP.run(req_options, options)
+  # The job at `url`, read where the redirects led, which is its URL.
+  defp request(req_options, format, url, options) do
+    {url, response} = HTTP.fetch(req_options, url, options)
     read_job(response, url, format)
   end
 

@@ -13,64 +13,48 @@ defmodule SpaceTAP.HTTP do
   @type result :: {:ok, Req.Response.t()} | {:error, Exception.t()}
 
   # The parameters of a query, the same for a sync query and for the job of
-  # an async one (TAP 1.1 §2.7, §5.1.1). REQUEST is required by TAP 1.0
-  # (§2.3.1) and ignored by TAP 1.1 (§2.7). TAP 1.1 services must accept
-  # FORMAT as RESPONSEFORMAT (§2.7.3), and parameter values are case
-  # sensitive (DALI 1.1 §3.1).
-  @spec query_form(String.t(), term(), term()) :: keyword()
+  # an async one (TAP 1.1 §2.7, §5.1.1), from options SpaceTAP.Options has
+  # checked. REQUEST is required by TAP 1.0 (§2.3.1) and ignored by TAP 1.1
+  # (§2.7). TAP 1.1 services must accept FORMAT as RESPONSEFORMAT (§2.7.3),
+  # and parameter values are case sensitive (DALI 1.1 §3.1). MAXREC goes
+  # only when given, and 0 is sent (DALI 1.1 §3.4.4).
+  @spec query_form(String.t(), :csv | :votable, non_neg_integer() | nil) :: keyword()
   def query_form(adql, format, maxrec) do
-    [REQUEST: "doQuery", LANG: "ADQL", FORMAT: format(format), QUERY: adql] ++ maxrec(maxrec)
-  end
-
-  @spec format(term()) :: String.t()
-  def format(format) when format in [:csv, :votable], do: Atom.to_string(format)
-
-  def format(format) do
-    raise ArgumentError, "expected :format to be :csv or :votable, got: #{inspect(format)}"
+    [REQUEST: "doQuery", LANG: "ADQL", FORMAT: Atom.to_string(format), QUERY: adql] ++
+      maxrec(maxrec)
   end
 
   defp maxrec(nil), do: []
-  defp maxrec(maxrec) when is_integer(maxrec) and maxrec >= 0, do: [MAXREC: maxrec]
+  defp maxrec(maxrec), do: [MAXREC: maxrec]
 
-  defp maxrec(maxrec) do
-    raise ArgumentError, "expected :maxrec to be a non-negative integer, got: #{inspect(maxrec)}"
-  end
+  # A sync query (TAP 1.1 §2.1): one POST to /sync under the service URL,
+  # whose response is the result, read in the format asked for.
+  @spec sync(String.t(), String.t(), keyword()) :: {:ok, Result.t()} | {:error, Error.t()}
+  def sync(service_url, adql, opts) do
+    form = query_form(adql, opts[:format], opts[:maxrec])
+    url = String.trim_trailing(service_url, "/") <> "/sync"
 
-  @spec req_options(term()) :: keyword()
-  def req_options(req_options) do
-    if Keyword.keyword?(req_options) do
-      req_options
-    else
-      raise ArgumentError,
-            "expected :req_options to be a keyword list, got: #{inspect(req_options)}"
-    end
+    opts[:req_options]
+    |> run(method: :post, url: url, form: form)
+    |> read_result(opts[:format])
   end
 
   # Runs a request with the caller's :req_options and SpaceTAP's own
-  # options, which win. Gives the URL the redirects led to as well, which
-  # Req keeps in the request it returns.
-  @spec run(keyword(), keyword()) :: {String.t(), result()}
+  # options, which win.
+  @spec run(keyword(), keyword()) :: result()
   def run(req_options, options) do
-    # classify/3 reads the raw body of every response itself, so Req must
-    # not decode it, stream it elsewhere or raise on an error status.
-    options =
-      [user_agent: @user_agent, decode_body: false, http_errors: :return, into: nil] ++ options
+    {_request, response} = request(req_options, options)
+    response
+  end
 
-    # Each request is sent once, unless the caller asks Req to retry: Req
-    # would retry a GET that fails with a 5xx or a timeout three times,
-    # waiting as long as a Retry-After header says
-    # (docs/adr/0016-each-request-is-sent-once.md).
-    {request, response} =
-      req_options
-      |> Keyword.put_new(:retry, false)
-      |> Keyword.merge(options)
-      |> Req.new()
-      |> Req.Request.run_request()
-
-    case response do
-      %Req.Response{} -> {URI.to_string(request.url), {:ok, response}}
-      exception -> {URI.to_string(request.url), {:error, exception}}
-    end
+  # GETs `url` as run/2 would, and gives the URL the redirects led to as
+  # well, which Req keeps in the request it returns: the base of the
+  # document in the response, against which a relative URL it lists
+  # resolves (RFC 3986 §5.1.3), and the URL of a job.
+  @spec fetch(keyword(), String.t(), keyword()) :: {String.t(), result()}
+  def fetch(req_options, url, options \\ []) do
+    {request, response} = request(req_options, [method: :get, url: url] ++ options)
+    {URI.to_string(request.url), response}
   end
 
   # The body decides before the status: TAP 1.1 §3.3 lets a service send an
@@ -194,6 +178,33 @@ defmodule SpaceTAP.HTTP do
   @spec error(Error.type(), String.t(), integer() | nil) :: {:error, Error.t()}
   def error(type, message, status) do
     {:error, %Error{type: type, message: message, status: status}}
+  end
+
+  #####################
+  # Private functions #
+  #####################
+
+  defp request(req_options, options) do
+    # classify/2 reads the raw body of every response itself, so Req must
+    # not decode it, stream it elsewhere or raise on an error status.
+    options =
+      [user_agent: @user_agent, decode_body: false, http_errors: :return, into: nil] ++ options
+
+    # Each request is sent once, unless the caller asks Req to retry: Req
+    # would retry a GET that fails with a 5xx or a timeout three times,
+    # waiting as long as a Retry-After header says
+    # (docs/adr/0016-each-request-is-sent-once.md).
+    {request, response} =
+      req_options
+      |> Keyword.put_new(:retry, false)
+      |> Keyword.merge(options)
+      |> Req.new()
+      |> Req.Request.run_request()
+
+    case response do
+      %Req.Response{} -> {request, {:ok, response}}
+      exception -> {request, {:error, exception}}
+    end
   end
 
   # A successful response that isn't an error document holds a result in the

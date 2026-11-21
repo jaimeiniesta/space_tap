@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SpaceTAP.Job.submit/3` doesn't read or delete the list of jobs when the 303 points there, as it does with an empty `Location`: that is an `:http_error`, since a `POST` to delete at the list would create a job.
 - The host of a URL a service lists is compared with the service's without regard to case (RFC 3986 §3.2.2), so `http://TAP.example.org/...` from `https://tap.example.org` is read with `https://` too.
 - `SpaceTAP.availability/2` resolves a relative availability URL against the URL the redirects to `/capabilities` led to, the base of the document (RFC 3986 §5.1.3), rather than against the URL it asked.
+- A VOTable, a job document or a VOSI document that begins with a UTF-8 byte order mark, which XML 1.0 §4.3.3 allows, is read. It was a `:decode_error`, since Saxy doesn't take the mark. No known service sends one.
 
 ## [0.4.0] - 2026-11-21
 

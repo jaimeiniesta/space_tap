@@ -10,12 +10,12 @@ defmodule SpaceTAP.UWS do
   # namespace instead of the uws prefix, Gaia says version 1.0 and IRSA, the
   # NASA Exoplanet Archive and KOA say none, and their times come in
   # different zones or in none. So only what SpaceTAP uses is required, and
-  # nothing else is checked: names are matched without their prefix, as in
-  # SpaceTAP.VOTable, and neither the namespace nor the version is read.
-
-  @behaviour Saxy.Handler
+  # nothing else is checked: an element counts by its role, as SpaceTAP.XML
+  # reads it, and neither the namespace nor the version is read.
 
   alias SpaceTAP.{Job, XML}
+
+  @behaviour XML
 
   @type job :: %{phase: Job.phase(), error_summary: String.t() | nil, result: String.t() | nil}
 
@@ -25,86 +25,58 @@ defmodule SpaceTAP.UWS do
             &{&1 |> Atom.to_string() |> String.upcase(), &1}
           )
 
-  # The elements whose text is read.
-  @text_roles [:phase, :message]
-
   @spec parse(binary()) :: {:ok, job()} | {:error, String.t()}
   def parse(xml) when is_binary(xml) do
-    document = %{stack: [], text: [], job: false, phases: [], messages: [], results: []}
+    document = %{job: false, phases: [], messages: [], results: []}
 
     with {:ok, document} <- XML.parse(xml, __MODULE__, document), do: decode(document)
   end
 
-  @impl Saxy.Handler
-  def handle_event(:start_element, {name, attributes}, %{stack: stack} = document) do
-    role = role(parent(stack), XML.local_name(name), attributes)
-    document = %{document | stack: [role | stack]}
-    {:ok, start(role, attributes, document)}
-  end
-
-  def handle_event(:characters, chars, %{stack: [role | _roles], text: text} = document)
-      when role in @text_roles do
-    {:ok, %{document | text: [text, chars]}}
-  end
-
-  def handle_event(:end_element, _name, %{stack: [role | roles]} = document) do
-    {:ok, finish(role, %{document | stack: roles})}
-  end
-
-  def handle_event(_event, _data, document), do: {:ok, document}
-
-  #####################
-  # Private functions #
-  #####################
-
-  # The role of an element follows from its name and the role of its parent,
-  # so an element only counts where UWS 1.1 §2.2.1.1 puts it: a phase is the
+  # An element only counts where UWS 1.1 §2.2.1.1 puts it: a phase is the
   # job's only as a child of the job.
-  defp parent([role | _roles]), do: role
-  defp parent([]), do: nil
-
-  defp role(nil, "job", _attributes), do: :job
-  defp role(:job, "phase", _attributes), do: :phase
-  defp role(:job, "errorSummary", _attributes), do: :error_summary
-  defp role(:error_summary, "message", _attributes), do: :message
-  defp role(:job, "results", _attributes), do: :results
+  @impl XML
+  def role(nil, "job", _attributes), do: :job
+  def role(:job, "phase", _attributes), do: :phase
+  def role(:job, "errorSummary", _attributes), do: :error_summary
+  def role(:error_summary, "message", _attributes), do: :message
+  def role(:job, "results", _attributes), do: :results
 
   # A job may list other results besides the one TAP names result (TAP 1.1
   # §2.2), such as the diag and rowcount of CADC, so the result is found by
   # its id.
-  defp role(:results, "result", attributes) do
-    if attribute(attributes, "id") == "result", do: :result, else: :other
+  def role(:results, "result", attributes) do
+    if XML.attribute(attributes, "id") == "result", do: :result, else: :other
   end
 
-  defp role(_parent, _name, _attributes), do: :other
+  def role(_parent, _name, _attributes), do: :other
 
-  # Attributes are matched by local name too, since the href of a result is
-  # an XLink attribute, usually written xlink:href.
-  defp attribute(attributes, name) do
-    Enum.find_value(attributes, fn {key, value} -> XML.local_name(key) == name && value end)
+  @impl XML
+  def text_roles, do: [:phase, :message]
+
+  @impl XML
+  def start(:job, _attributes, document), do: %{document | job: true}
+
+  # The href of a result is an XLink attribute, usually written xlink:href.
+  def start(:result, attributes, document) do
+    %{document | results: [XML.attribute(attributes, "href") | document.results]}
   end
 
-  defp start(:job, _attributes, document), do: %{document | job: true}
-
-  defp start(:result, attributes, document) do
-    %{document | results: [attribute(attributes, "href") | document.results]}
-  end
-
-  defp start(role, _attributes, document) when role in @text_roles,
-    do: %{document | text: []}
-
-  defp start(_role, _attributes, document), do: document
-
-  defp finish(:phase, document), do: %{document | phases: [text(document) | document.phases]}
-
-  defp finish(:message, document),
-    do: %{document | messages: [text(document) | document.messages]}
-
-  defp finish(_role, document), do: document
+  def start(_role, _attributes, document), do: document
 
   # Gaia writes its messages in CDATA sections and KOA with character
   # references; Saxy hands both over as text.
-  defp text(document), do: document.text |> IO.iodata_to_binary() |> String.trim()
+  @impl XML
+  def finish(:phase, text, document),
+    do: %{document | phases: [String.trim(text) | document.phases]}
+
+  def finish(:message, text, document),
+    do: %{document | messages: [String.trim(text) | document.messages]}
+
+  def finish(_role, _text, document), do: document
+
+  #####################
+  # Private functions #
+  #####################
 
   defp decode(%{job: false}), do: {:error, "expected a UWS job document"}
 

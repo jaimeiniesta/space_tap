@@ -51,6 +51,22 @@ defmodule SpaceTAP.XML do
       {:ok, state} -> {:ok, state.document}
       {:error, exception} -> {:error, "invalid XML: " <> Exception.message(exception)}
     end
+  rescue
+    # Saxy 1.7 has no clause for the end of the document, or for a byte that
+    # isn't UTF-8, inside a comment or a processing instruction of the
+    # prolog, where its streaming parser would ask for more: it raises
+    # instead of returning the error. The raise is Saxy's when its parser is
+    # the frame it comes from; one from a reader is left alone.
+    exception in [CaseClauseError, FunctionClauseError] ->
+      case __STACKTRACE__ do
+        [{Saxy.Parser.Binary, _function, _arity, _location} | _frames] ->
+          {:error,
+           "invalid XML: the document ends, or holds a byte that isn't UTF-8, inside a " <>
+             "comment or a processing instruction before the root element"}
+
+        _frames ->
+          reraise exception, __STACKTRACE__
+      end
   catch
     {:entity, name} -> {:error, "invalid XML: &#{name}; is not a predefined entity"}
   end
@@ -88,14 +104,19 @@ defmodule SpaceTAP.XML do
   @spec entity(String.t()) :: no_return()
   def entity(name), do: throw({:entity, name})
 
-  # The value of an attribute, matched by local name as elements are: the
-  # href of a result is an XLink attribute, usually written xlink:href. Most
-  # elements, such as a TD, have no attributes.
+  # The value of an attribute, by its name, or by its local name when none
+  # has that name, as elements are matched: the href of a result is an XLink
+  # attribute, usually written xlink:href, while an xsi:type next to a type
+  # must not stand in for it. Most elements, such as a TD, have no
+  # attributes.
   @spec attribute(attributes(), String.t()) :: String.t() | nil
   def attribute([], _name), do: nil
 
   def attribute(attributes, name) do
-    Enum.find_value(attributes, fn {key, value} -> local_name(key) == name && value end)
+    case List.keyfind(attributes, name, 0) do
+      {_name, value} -> value
+      nil -> Enum.find_value(attributes, fn {key, value} -> local_name(key) == name && value end)
+    end
   end
 
   # What follows the first colon, found without compiling a pattern for each

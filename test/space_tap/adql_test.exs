@@ -49,7 +49,7 @@ defmodule SpaceTAP.ADQLTest do
     end
 
     test "raises for a value ADQL has no literal for" do
-      for value <- [:infinity, :neg_infinity, true, false, :pleiades, %{}, {1, 2}] do
+      for value <- [:infinity, :neg_infinity, true, false, :pleiades, %{}, {1, 2}, [1 | 2]] do
         assert_raise ArgumentError,
                      ~r/ADQL has no literal for #{Regex.escape(inspect(value))}/,
                      fn ->

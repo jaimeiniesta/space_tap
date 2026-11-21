@@ -65,8 +65,14 @@ defmodule SpaceTAP.ADQL do
   def literal([]),
     do: raise(ArgumentError, "ADQL has no literal for an empty list: IN needs at least one value")
 
-  def literal(values) when is_list(values),
-    do: "(" <> Enum.map_join(values, ", ", &scalar/1) <> ")"
+  # An improper list, such as [1 | 2], holds no values to write.
+  def literal(values) when is_list(values) do
+    if List.improper?(values) do
+      raise ArgumentError, "ADQL has no literal for #{inspect(values)}"
+    else
+      "(" <> Enum.map_join(values, ", ", &scalar/1) <> ")"
+    end
+  end
 
   def literal(value), do: scalar(value)
 

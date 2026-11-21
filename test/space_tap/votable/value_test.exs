@@ -284,6 +284,28 @@ defmodule SpaceTAP.VOTable.ValueTest do
       assert {:error, _} = parse("AppleKiwi", :char, arraysize: "5x*")
     end
 
+    test "takes up to 16 dimensions, and rejects an arraysize with more, whose nesting would cost as much as the elements times the dimensions" do
+      sixteen = Enum.map_join(1..15, "x", fn _ -> "1" end) <> "x*"
+      seventeen = "1x" <> sixteen
+
+      assert parse("1 2", :int, arraysize: sixteen) == {:ok, nest_15([1, 2])}
+
+      assert parse("1 2", :int, arraysize: seventeen) ==
+               {:error, ~s(field "col": #{inspect(seventeen)} is not a valid arraysize)}
+
+      assert {:error, _} = parse_bytes(<<0::32>>, :int, arraysize: seventeen)
+    end
+
+    test "rejects a dimension of more than 10 digits, before parsing it" do
+      assert {:error, message} = parse("1", :int, arraysize: "9999999999")
+      assert message =~ "doesn't fit arraysize"
+
+      for arraysize <- ["99999999999", String.duplicate("9", 2_000_000) <> "*"] do
+        assert parse("1", :int, arraysize: arraysize) ==
+                 {:error, ~s(field "col": #{inspect(arraysize)} is not a valid arraysize)}
+      end
+    end
+
     test "rejects an arraysize that §2.2 doesn't define" do
       assert parse("1", :int, arraysize: "3x") ==
                {:error, ~s(field "col": "3x" is not a valid arraysize)}
@@ -375,6 +397,16 @@ defmodule SpaceTAP.VOTable.ValueTest do
       for text <- ["1.5", "1e3", "abc", "1 2", "- 1", "0x", "0xg", "0X1F", "-0x1", "1_000"] do
         assert {:error, _} = parse(text, :int), "expected #{inspect(text)} to be rejected"
       end
+    end
+
+    test "rejects more characters than the datatype's range takes, before parsing them, however many" do
+      assert parse("-9223372036854775808", :long) == {:ok, -9_223_372_036_854_775_808}
+      assert {:error, _} = parse("-09223372036854775808", :long)
+
+      huge = String.duplicate("9", 2_000_000)
+      assert parse(huge, :long) == {:error, ~s(field "col": #{inspect(huge)} is not a valid long)}
+      assert {:error, _} = parse("1 " <> huge, :int, arraysize: "*")
+      assert {:error, _} = parse("1", :long, null: huge)
     end
   end
 
@@ -703,4 +735,8 @@ defmodule SpaceTAP.VOTable.ValueTest do
 
   defp prepare(datatype, attributes),
     do: Value.prepare(struct!(Field, [name: "col", datatype: datatype] ++ attributes))
+
+  # The values of a "1x1x...x1x*" array of 15 fixed dimensions of 1: each
+  # value in a list of its own, 15 lists deep.
+  defp nest_15(values), do: Enum.map(values, &Enum.reduce(1..15, &1, fn _, v -> [v] end))
 end

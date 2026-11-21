@@ -51,10 +51,11 @@ defmodule SpaceTAP.XMLTest do
       assert Items.parse(xml) == {:ok, %{kinds: [nil, nil], items: ["", "one  two"]}}
     end
 
-    test "matches attributes by their local name too" do
-      xml = ~s(<list xmlns:x="urn:x"><item x:kind="a" kind="b">one</item></list>)
+    test "matches an attribute by its name, and by its local name when none has that name" do
+      xml =
+        ~s(<list xmlns:x="urn:x"><item x:kind="a" kind="b">one</item><item x:kind="c"/></list>)
 
-      assert Items.parse(xml) == {:ok, %{kinds: ["a"], items: ["one"]}}
+      assert Items.parse(xml) == {:ok, %{kinds: ["c", "b"], items: ["", "one"]}}
     end
 
     test "gives the reader's document back when the document holds nothing for it" do
@@ -81,6 +82,25 @@ defmodule SpaceTAP.XMLTest do
 
       # A UTF-16 document, which must begin with its mark, isn't read.
       assert {:error, "invalid XML: " <> _reason} = Items.parse(<<0xFF, 0xFE>> <> "<list/>")
+    end
+
+    test "rejects a document cut inside the prolog, or with a byte there that isn't UTF-8, which Saxy 1.7 stops at without saying" do
+      for xml <- [
+            "<?a",
+            "<!--",
+            "<!-- x --",
+            "<?xml version=\"1.0\"?>\n<?xml-stylesheet href=\"x\"",
+            "<!DOCTYPE list><?p",
+            <<"<!--", 0xFF, "-->">>,
+            <<"<?p ", 0xFF, "?><list/>">>
+          ] do
+        assert {:error, "invalid XML: " <> _reason} = Items.parse(xml),
+               "expected #{inspect(xml)} to be rejected"
+      end
+
+      assert {:error, "invalid XML: " <> _reason} = UWS.parse("<?a")
+      assert {:error, "invalid XML: " <> _reason} = VOTable.parse("<!--")
+      assert {:error, "invalid XML: " <> _reason} = VOSI.availability("<?xml-stylesheet href='x'")
     end
 
     test "rejects invalid XML, and entities XML doesn't predefine" do

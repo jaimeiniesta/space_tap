@@ -155,6 +155,18 @@ defmodule SpaceTAPAvailabilityTest do
     assert message =~ "lists no ivo://ivoa.net/std/VOSI#availability capability"
   end
 
+  test "is a :decode_error, with no second request, when the availability capability has no accessURL or a blank one" do
+    for access_url <- ["", "  "] do
+      stub_documents(capabilities(access_url), availability_xml(true))
+
+      assert {:error, %Error{type: :decode_error, message: message, status: 200}} =
+               availability("https://tap.example.org/tap")
+
+      assert message =~
+               "lists the ivo://ivoa.net/std/VOSI#availability capability without an accessURL"
+    end
+  end
+
   # The body decides before the status (ADR 0001).
   test "reads an availability document that says the service is down, whatever its status" do
     document = """

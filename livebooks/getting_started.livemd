@@ -196,7 +196,7 @@ By now the job is `:queued` or `:executing`, or already `:completed` if the quer
 {:ok, job} = SpaceTAP.Job.wait(job, timeout: :timer.minutes(5))
 ```
 
-A `:completed` job lists the URL of its result, and `result/2` reads it as `query/3` reads a sync result. GAVO lists an `http://` URL, which SpaceTAP reads with `https://`:
+A `:completed` job lists the URL of its result, and `result/2` reads it as `query/3` reads a sync result. An `http://` URL on the service's host is read with `https://`, as the NASA Exoplanet Archive lists one:
 
 ```elixir
 {:ok, result} = SpaceTAP.Job.result(job)

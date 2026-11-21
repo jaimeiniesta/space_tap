@@ -188,8 +188,9 @@ defmodule SpaceTAPIntegrationTest do
       assert {:ok, %Job{phase: :completed, result_url: result_url} = job} =
                Job.wait(job, @async_options)
 
-      # GAVO lists http:// URLs, which result/2 reads with https://.
-      assert result_url =~ ~r{^http://dc\.g-vo\.org/}
+      # GAVO lists the result on its own host: with http:// until November
+      # 2026, which result/2 reads with https://, and with https:// since.
+      assert result_url =~ ~r{^https?://dc\.g-vo\.org/}
       assert {:ok, %Result{rows: rows}} = Job.result(job)
       assert length(rows) == 5
 

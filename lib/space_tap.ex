@@ -82,12 +82,17 @@ defmodule SpaceTAP do
       `:receive_timeout` to wait longer than Req's default 15 seconds.
       SpaceTAP sets `:method`, `:url`, `:form`, `:user_agent`,
       `:decode_body`, `:http_errors` and `:into` itself, and ignores them
-      here, and sends each request once: it sets `retry: false` unless
-      `:retry` is here, since Req would otherwise retry a `GET` that fails
-      with a 5xx or a timeout three times, waiting as long as a
-      `Retry-After` header says. Other options go to Req as given, and some
-      change the request: a `user-agent` in `:headers` replaces SpaceTAP's,
-      and `:params` adds parameters to the URL.
+      here, as well as `:redirect` in the requests that create, start and
+      delete a job, and `:params` and `:receive_timeout` in those that wait
+      for one (see `SpaceTAP.Job.wait/2`). It sends each request once: it
+      sets `retry: false` unless `:retry` is here, since Req would otherwise
+      retry a `GET` that fails with a 5xx or a timeout three times, waiting
+      as long as a `Retry-After` header says. Other options go to Req as
+      given, and some change the request: a `user-agent` in `:headers`
+      replaces SpaceTAP's, and `:params` adds parameters to the URL.
+      Credentials go here, as `:auth` or an `authorization` header, not in
+      `service_url`: user information in the URL reaches its first request
+      only.
 
   An unknown option, or a `:format`, `:maxrec` or `:req_options` that isn't
   what the list above says, raises `ArgumentError`.
@@ -124,8 +129,11 @@ defmodule SpaceTAP do
   running. When the service won't delete it, the result or error is
   returned all the same, and the job stays on the service until the
   service destroys it, which IRSA never does. So does the job of a process
-  that dies while it waits. To keep a job, for example to read its result
-  in TOPCAT or to wait longer, use the steps in `SpaceTAP.Job`.
+  that dies while it waits, and one SpaceTAP won't read, because the
+  service lists it at an `http://` URL on another host, or at one that
+  isn't `http://` or `https://` (see `SpaceTAP.Job.submit/3`). To keep a
+  job, for example to read its result in TOPCAT or to wait longer, use the
+  steps in `SpaceTAP.Job`.
 
   ## Options
 

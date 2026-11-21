@@ -38,7 +38,7 @@ defmodule SpaceTAP.Job do
   alias SpaceTAP.{Error, HTTP, Options, Result, UWS, VOTable}
 
   @enforce_keys [:url, :phase, :format]
-  defstruct [:url, :service_url, :phase, :format, :error_summary, :result_url]
+  defstruct [:url, :given_url, :phase, :format, :error_summary, :result_url]
 
   # The phases the service moves a job on from (UWS 1.1 §2.1.3): a queued or
   # executing job runs, a suspended one is resumed, and an unknown one may
@@ -82,11 +82,10 @@ defmodule SpaceTAP.Job do
   A job, as its job document described it when it was last read:
 
     * `:url` - the URL of the job, where the service's redirects led.
-    * `:service_url` - the base URL of the service `submit/3` created the
-      job at, as it was given, or `nil` for a job `get/2` read from its URL.
-      The credentials of each call go to the job only on the scheme, host
-      and port of the URL the client gave: this one, or the job's own for a
-      job from `get/2`.
+    * `:given_url` - the URL the client gave: the base URL of the service
+      for a job `submit/3` created, or the job URL for one `get/2` read.
+      The credentials of each call go to the job only on its scheme, host
+      and port, also when the service's redirects led the job elsewhere.
     * `:phase` - its phase.
     * `:format` - the format its result was asked for in, `:csv` or
       `:votable`, which decides how the result is read.
@@ -97,14 +96,14 @@ defmodule SpaceTAP.Job do
   """
   @type t :: %__MODULE__{
           url: String.t(),
-          service_url: String.t() | nil,
+          given_url: String.t() | nil,
           phase: phase(),
           format: :csv | :votable,
           error_summary: String.t() | nil,
           result_url: String.t() | nil
         }
 
-  @typedoc "An option for `submit/3`, `get/2`, `wait/2` or `delete/2`."
+  @typedoc "An option for `submit/3`, `get/2`, `wait/2`, `result/2` or `delete/2`."
   @type option ::
           {:format, :csv | :votable}
           | {:maxrec, non_neg_integer()}
@@ -134,10 +133,12 @@ defmodule SpaceTAP.Job do
   When the service answers with an `http://` URL on its own host, as the
   NASA Exoplanet Archive does, the job is read with `https://`, and one on
   another host isn't read, nor deleted: it is a `:decode_error` that names
-  it. On another host, scheme or port, the `authorization` header and Req's
+  it, and so is a job at a URL that isn't `http://` or `https://`. On
+  another host, scheme or port, the `authorization` header and Req's
   `:auth` option aren't sent, as Req does when a redirect leads to another
-  host: not by `submit/3`, and not by `wait/2`, `result/2` or `delete/2`,
-  which know the service from the job's `:service_url`.
+  host: not by `submit/3`, also when the service's redirects lead the job
+  elsewhere, and not by `wait/2`, `result/2` or `delete/2`, which know the
+  service from the job's `:given_url`.
 
   ## Options
 
@@ -197,6 +198,11 @@ defmodule SpaceTAP.Job do
   Use it to follow a job from another process, or later on, with the URL
   of a job `submit/3` returned.
 
+  The job keeps `job_url` as its `:given_url`: the credentials of
+  `:req_options`, here and in the later calls about the job, go to it on
+  the scheme, host and port of `job_url` only, not to wherever the service
+  may redirect it.
+
   ## Options
 
     * `:format` - the format the job's result was asked for in, `:csv` (the
@@ -207,7 +213,9 @@ defmodule SpaceTAP.Job do
   @spec get(String.t(), [option()]) :: {:ok, t()} | {:error, Error.t()}
   def get(job_url, opts \\ []) when is_binary(job_url) do
     opts = Options.validate!(opts, [:format, :req_options])
-    request(opts[:req_options], opts[:format], job_url, [])
+
+    with {:ok, job} <- request(opts[:req_options], opts[:format], job_url, []),
+         do: {:ok, %{job | given_url: job_url}}
   end
 
   @doc """
@@ -236,11 +244,14 @@ defmodule SpaceTAP.Job do
       without a `:timeout` the wait lasts as long as the job, queue
       included. When the time runs out, `wait/2` returns a `:timeout` error
       and leaves the job on the service. The time is checked between
-      requests, so a request under way may end a few seconds after it.
+      requests, so a request under way may end after it: up to about 30
+      seconds after, the time a service may take to answer once the `WAIT`
+      it was asked for is over.
     * `:req_options` - a keyword list of options for `Req.new/1`. A request
-      that asks the service to wait gets a `:receive_timeout` long enough for
-      it, whatever this one says. Its credentials go to the job as in
-      `submit/3`: not to one on another host than its `:service_url`.
+      that asks the service to wait sets `:params` to its `WAIT`, and gets a
+      `:receive_timeout` of the `WAIT` plus 30 seconds at least, whatever
+      this one says. Its credentials go to the job as in `submit/3`: on the
+      scheme, host and port of its `:given_url` only.
 
   An unknown option, or a `:timeout` that isn't what the list says, raises
   `ArgumentError`.
@@ -274,12 +285,14 @@ defmodule SpaceTAP.Job do
   The result never comes over `http://` for a job at an `https://` URL. When
   the service lists an `http://` URL on the job's host, as the NASA Exoplanet
   Archive does, the result is read with `https://`, and from another host it
-  isn't read. On another host, such as CADC's `ws-cadc.canfar.net`, the
-  `authorization` header and Req's `:auth` option aren't sent, as Req does
-  when a redirect leads to another host, nor to the result of a job on
-  another host than its `:service_url`.
+  isn't read, nor is one at a URL that isn't `http://` or `https://`. On
+  another host, such as CADC's `ws-cadc.canfar.net`, the `authorization`
+  header and Req's `:auth` option aren't sent, as Req does when a redirect
+  leads to another host, nor to the result of a job on another host than
+  its `:given_url`.
 
-  Raises `ArgumentError` for a job that hasn't stopped: wait for it with
+  Raises `ArgumentError` for a job the service may still move on, one that
+  is `:queued`, `:executing`, `:suspended` or `:unknown`: wait for it with
   `wait/2` first.
 
   ## Options
@@ -304,8 +317,8 @@ defmodule SpaceTAP.Job do
   ## Options
 
     * `:req_options` - a keyword list of options for `Req.new/1`, whose
-      credentials go to the job as in `submit/3`: not to one on another host
-      than its `:service_url`.
+      credentials go to the job as in `submit/3`: on the scheme, host and
+      port of its `:given_url` only.
   """
   @spec delete(t(), [option()]) :: :ok | {:error, Error.t()}
   def delete(%__MODULE__{url: url} = job, opts \\ []) do
@@ -343,7 +356,7 @@ defmodule SpaceTAP.Job do
       [location | _locations] ->
         job_url = list_url |> URI.merge(location) |> URI.to_string()
 
-        if String.trim_trailing(job_url, "/") == list_url do
+        if list_of_jobs?(job_url, list_url) do
           message =
             "expected a 303 to the new job (UWS 1.1 §2.2.3.1), got one to the list of jobs: " <>
               job_url
@@ -355,7 +368,21 @@ defmodule SpaceTAP.Job do
     end
   end
 
-  # Reads the new job, where the redirects end, which is its URL. A job
+  # A URL is the list of jobs whatever the case of its host (RFC 3986
+  # §3.2.2), and with or without a trailing slash.
+  defp list_of_jobs?(job_url, list_url) do
+    job = URI.parse(String.trim_trailing(job_url, "/"))
+    list = URI.parse(list_url)
+    {job.scheme, host(job), job.port, job.path} == {list.scheme, host(list), list.port, list.path}
+  end
+
+  defp host(%URI{host: nil}), do: nil
+  defp host(%URI{host: host}), do: String.downcase(host)
+
+  # Reads the new job, where the redirects end, which is its URL, and starts
+  # it with the credentials the rule allows there: the GET took them to the
+  # URL of the 303, on the service's origin, and Req dropped them on any
+  # redirect that left it, so the requests that follow drop them too. A job
   # SpaceTAP can't read or start is deleted, since the error doesn't give
   # its URL, and nothing else could delete it before the service destroys
   # it, which IRSA never does.
@@ -364,7 +391,8 @@ defmodule SpaceTAP.Job do
 
     result =
       with {:ok, job} <- read_job(response, url, format) do
-        start(%{job | service_url: service_url}, req_options)
+        job = %{job | given_url: service_url}
+        start(job, credentials(job, req_options))
       end
 
     case result do
@@ -372,7 +400,7 @@ defmodule SpaceTAP.Job do
         {:ok, job}
 
       {:error, _error} ->
-        job = %__MODULE__{url: url, service_url: service_url, phase: :unknown, format: format}
+        job = %__MODULE__{url: url, given_url: service_url, phase: :unknown, format: format}
         _deleted = delete(job, req_options: req_options)
         result
     end
@@ -396,13 +424,14 @@ defmodule SpaceTAP.Job do
   defp start(job, _req_options), do: {:ok, job}
 
   # The credentials of a call go to the job only on the scheme, host and
-  # port of the URL the client gave (ADR 0015): the service URL of
-  # submit/3, which read the job by the rule for listed URLs, or the job
-  # URL itself for a job from get/2.
-  defp credentials(%__MODULE__{service_url: nil}, req_options), do: req_options
+  # port of the URL the client gave (ADR 0015), the job's given_url: the
+  # service URL of submit/3, or the job URL given to get/2, which the
+  # service may have redirected elsewhere. A job built by hand has none, and
+  # its own URL counts as given.
+  defp credentials(%__MODULE__{given_url: nil}, req_options), do: req_options
 
   defp credentials(job, req_options),
-    do: HTTP.credentials(req_options, job.service_url, job.url)
+    do: HTTP.credentials(req_options, job.given_url, job.url)
 
   defp deadline(:infinity), do: :infinity
   defp deadline(timeout), do: now() + timeout
@@ -441,7 +470,9 @@ defmodule SpaceTAP.Job do
   # phase changed, ignored it, and is asked again after a pause, 1.5 times
   # longer each time and never longer than the time left; so is one asked
   # without WAIT, under a second from the deadline. A change of phase is
-  # asked about at once.
+  # asked about at once: it is news, and a service whose answers alternate
+  # between two moving phases, as two nodes behind a balancer might, is
+  # one no service has shown.
   defp ask(job, state, wait) do
     started = now()
 
@@ -506,7 +537,7 @@ defmodule SpaceTAP.Job do
   # Reads the job again at its URL, with `options` for the request.
   defp refresh(job, req_options, options) do
     with {:ok, next} <- request(req_options, job.format, job.url, options) do
-      {:ok, %{next | url: job.url, service_url: job.service_url}}
+      {:ok, %{next | url: job.url, given_url: job.given_url}}
     end
   end
 

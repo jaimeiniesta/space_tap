@@ -67,6 +67,13 @@ defmodule SpaceTAP.CSVTest do
       assert message =~ "header"
     end
 
+    test "fails on a blank first line, which is no header either, rather than naming a column \"\"" do
+      for body <- ["\n", "\r\n", "\n\n", "\n1\n"] do
+        assert {:error, message} = CSV.parse(body), "expected #{inspect(body)} to fail"
+        assert message =~ "header"
+      end
+    end
+
     test "fails when a row has a different number of fields than the header" do
       assert {:error, message} = CSV.parse("a,b\n1,2\n3,4,5\n")
       assert message =~ "data row 2 has 3 fields, expected 2"

@@ -9,8 +9,11 @@ defmodule SpaceTAP.CSV do
 
   @spec parse(binary()) :: {:ok, Result.t()} | {:error, String.t()}
   def parse(body) when is_binary(body) do
+    # A blank first line comes as a row with one empty field: no header
+    # either, rather than a column named "".
     case Parser.parse_string(body, skip_headers: false) do
-      [] -> {:error, "empty CSV body, expected a header row with the column names"}
+      [] -> no_header("an empty CSV body")
+      [[""] | _rows] -> no_header("a blank line")
       [columns | rows] -> build(columns, rows)
     end
   rescue
@@ -20,6 +23,8 @@ defmodule SpaceTAP.CSV do
   #####################
   # Private functions #
   #####################
+
+  defp no_header(got), do: {:error, "expected a header row with the column names, got #{got}"}
 
   # RFC 4180 §2.4: every row has the same number of fields.
   defp build(columns, rows) do

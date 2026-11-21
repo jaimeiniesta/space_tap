@@ -125,10 +125,10 @@ defmodule SpaceTAPTAPSchemaTest do
                 ]}
     end
 
-    test "is a :decode_error when the result has no table_name column" do
+    test "is a :decode_error, about the result rather than the response, when it has no table_name column" do
       stub_service(fixture("gaia", "ok.xml"))
 
-      assert {:error, %Error{type: :decode_error, message: message, status: 200}} = tables()
+      assert {:error, %Error{type: :decode_error, message: message, status: nil}} = tables()
       assert message =~ "TAP_SCHEMA.tables has no table_name column"
     end
 

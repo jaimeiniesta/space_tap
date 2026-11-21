@@ -28,12 +28,12 @@ defmodule SpaceTAP.VOTable do
   # but that would change a setting of the calling process, which SpaceTAP
   # leaves alone.
 
-  @behaviour Saxy.Handler
-
   alias SpaceTAP.Field
   alias SpaceTAP.VOTable.Binary
   alias SpaceTAP.VOTable.Value
   alias SpaceTAP.XML
+
+  @behaviour XML
 
   @type table :: %{fields: [Field.t()], rows: [[term()]], overflow: boolean()}
 
@@ -45,14 +45,9 @@ defmodule SpaceTAP.VOTable do
 
   @statuses ["OK", "ERROR", "OVERFLOW"]
 
-  # The elements whose text is read.
-  @text_roles [:status, :description, :td, :stream]
-
   @spec parse(binary()) :: {:ok, table()} | {:query_error, String.t()} | {:error, String.t()}
   def parse(xml) when is_binary(xml) do
     document = %{
-      stack: [],
-      text: [],
       results: 0,
       statuses: [],
       tables: 0,
@@ -71,91 +66,58 @@ defmodule SpaceTAP.VOTable do
     with {:ok, document} <- XML.parse(xml, __MODULE__, document), do: decode(document)
   end
 
-  @impl Saxy.Handler
-  def handle_event(:start_element, {name, attributes}, %{stack: stack} = document) do
-    role = role(parent(stack), XML.local_name(name), attributes)
-    document = %{document | stack: [role | stack]}
-    {:ok, start(role, attributes, document)}
-  end
-
-  def handle_event(:characters, chars, %{stack: [role | _roles], text: text} = document)
-      when role in @text_roles do
-    {:ok, %{document | text: [text, chars]}}
-  end
-
-  def handle_event(:end_element, _name, %{stack: [role | roles]} = document) do
-    {:ok, finish(role, %{document | stack: roles})}
-  end
-
-  def handle_event(_event, _data, document), do: {:ok, document}
-
-  #####################
-  # Private functions #
-  #####################
-
-  # The role of an element follows from its name and the role of its parent,
-  # so an element only counts where VOTable puts it: a DESCRIPTION is a
-  # field's only inside a FIELD of the result's TABLE, not inside a PARAM.
-  # Element names are matched without their namespace prefix, which changes
-  # with the VOTable version.
-  defp parent([role | _roles]), do: role
-  defp parent([]), do: nil
-
-  defp role(nil, "VOTABLE", _attributes), do: :votable
+  # An element only counts where VOTable puts it: a DESCRIPTION is a field's
+  # only inside a FIELD of the result's TABLE, not inside a PARAM.
+  @impl XML
+  def role(nil, "VOTABLE", _attributes), do: :votable
 
   # The result of the query is in the RESOURCE of type results (DALI §4.4).
   # Others, such as the DataLink service descriptors Gaia adds after it, are
   # skipped.
-  defp role(:votable, "RESOURCE", attributes) do
-    if attribute(attributes, "type") == "results", do: :results, else: :other
+  def role(:votable, "RESOURCE", attributes) do
+    if XML.attribute(attributes, "type") == "results", do: :results, else: :other
   end
 
   # Services add other INFOs, such as the query (DALI §4.4.3), so the status
   # is found by name.
-  defp role(:results, "INFO", attributes) do
-    if attribute(attributes, "name") == "QUERY_STATUS", do: :status, else: :other
+  def role(:results, "INFO", attributes) do
+    if XML.attribute(attributes, "name") == "QUERY_STATUS", do: :status, else: :other
   end
 
-  defp role(:results, "TABLE", _attributes), do: :table
-  defp role(:table, "FIELD", _attributes), do: :field
-  defp role(:field, "DESCRIPTION", _attributes), do: :description
-  defp role(:field, "VALUES", _attributes), do: :values
-  defp role(:table, "DATA", _attributes), do: :data
-  defp role(:data, "TABLEDATA", _attributes), do: :tabledata
-  defp role(:data, "BINARY", _attributes), do: :binary
-  defp role(:data, "BINARY2", _attributes), do: :binary2
-  defp role(:data, "FITS", _attributes), do: :fits
-  defp role(:tabledata, "TR", _attributes), do: :tr
-  defp role(:tr, "TD", _attributes), do: :td
+  def role(:results, "TABLE", _attributes), do: :table
+  def role(:table, "FIELD", _attributes), do: :field
+  def role(:field, "DESCRIPTION", _attributes), do: :description
+  def role(:field, "VALUES", _attributes), do: :values
+  def role(:table, "DATA", _attributes), do: :data
+  def role(:data, "TABLEDATA", _attributes), do: :tabledata
+  def role(:data, "BINARY", _attributes), do: :binary
+  def role(:data, "BINARY2", _attributes), do: :binary2
+  def role(:data, "FITS", _attributes), do: :fits
+  def role(:tabledata, "TR", _attributes), do: :tr
+  def role(:tr, "TD", _attributes), do: :td
 
-  defp role(serialization, "STREAM", _attributes) when serialization in [:binary, :binary2],
+  def role(serialization, "STREAM", _attributes) when serialization in [:binary, :binary2],
     do: :stream
 
-  defp role(_parent, _name, _attributes), do: :other
+  def role(_parent, _name, _attributes), do: :other
 
-  # Most elements, such as a TD, have no attributes.
-  defp attribute([], _name), do: nil
+  @impl XML
+  def text_roles, do: [:status, :description, :td, :stream]
 
-  defp attribute(attributes, name) do
-    case List.keyfind(attributes, name, 0) do
-      {^name, value} -> value
-      nil -> nil
-    end
-  end
-
-  defp start(:results, _attributes, document), do: %{document | results: document.results + 1}
-  defp start(:table, _attributes, document), do: %{document | tables: document.tables + 1}
+  @impl XML
+  def start(:results, _attributes, document), do: %{document | results: document.results + 1}
+  def start(:table, _attributes, document), do: %{document | tables: document.tables + 1}
 
   # The value of a status is OK, ERROR or OVERFLOW, and its content is the
   # message (DALI §4.4).
-  defp start(:status, attributes, document) do
-    status = {attribute(attributes, "value"), ""}
-    %{document | statuses: [status | document.statuses], text: []}
+  def start(:status, attributes, document) do
+    status = {XML.attribute(attributes, "value"), ""}
+    %{document | statuses: [status | document.statuses]}
   end
 
   # The FIELDs of a TABLE come before its DATA (VOTable 1.5 §3.8), whose
   # rows are read as they come, so a FIELD after it is an error.
-  defp start(:field, attributes, document) do
+  def start(:field, attributes, document) do
     %{
       document
       | fields: [Map.new(attributes) | document.fields],
@@ -164,13 +126,13 @@ defmodule SpaceTAP.VOTable do
   end
 
   # The null attribute of VALUES marks a cell with no data (§4.7).
-  defp start(:values, attributes, %{fields: [field | fields]} = document) do
-    %{document | fields: [Map.put(field, "null", attribute(attributes, "null")) | fields]}
+  def start(:values, attributes, %{fields: [field | fields]} = document) do
+    %{document | fields: [Map.put(field, "null", XML.attribute(attributes, "null")) | fields]}
   end
 
   # The fields TABLEDATA rows are read with, all known by now. One SpaceTAP
   # can't read leaves the rows unread, and table/1 returns its error.
-  defp start(:tabledata, _attributes, document) do
+  def start(:tabledata, _attributes, document) do
     columns =
       case fields(Enum.reverse(document.fields), []) do
         {:ok, fields} -> {fields, length(fields)}
@@ -181,45 +143,43 @@ defmodule SpaceTAP.VOTable do
   end
 
   # The child of DATA says how the rows are written (ADR 0005).
-  defp start(serialization, _attributes, document)
-       when serialization in [:tabledata, :binary, :binary2, :fits],
-       do: %{document | data: serialization}
+  def start(serialization, _attributes, document)
+      when serialization in [:tabledata, :binary, :binary2, :fits],
+      do: %{document | data: serialization}
 
-  defp start(:tr, _attributes, document), do: %{document | row: []}
+  def start(:tr, _attributes, document), do: %{document | row: []}
 
   # VOTable 1.5 lets a TD hold its value in base64 (§5.1).
-  defp start(:td, attributes, document),
-    do: %{document | text: [], encoding: attribute(attributes, "encoding")}
+  def start(:td, attributes, document),
+    do: %{document | encoding: XML.attribute(attributes, "encoding")}
 
   # A STREAM holds the rows in its content or points to them with href (§5.6).
-  defp start(:stream, attributes, document) do
-    stream = {attribute(attributes, "href"), attribute(attributes, "encoding"), []}
-    %{document | stream: stream, text: []}
+  def start(:stream, attributes, document) do
+    stream = {XML.attribute(attributes, "href"), XML.attribute(attributes, "encoding"), ""}
+    %{document | stream: stream}
   end
 
-  defp start(:description, _attributes, document), do: %{document | text: []}
-  defp start(_role, _attributes, document), do: document
+  def start(_role, _attributes, document), do: document
 
-  defp finish(:status, %{statuses: [{value, _message} | statuses]} = document) do
-    message = document.text |> IO.iodata_to_binary() |> String.trim()
-    %{document | statuses: [{value, message} | statuses]}
+  @impl XML
+  def finish(:status, text, %{statuses: [{value, _message} | statuses]} = document) do
+    %{document | statuses: [{value, String.trim(text)} | statuses]}
   end
 
   # astropy trims a description too: KOA writes each one in a CDATA section
   # with a space at each end.
-  defp finish(:description, %{fields: [field | fields]} = document) do
-    description = document.text |> IO.iodata_to_binary() |> String.trim()
-    %{document | fields: [Map.put(field, "description", description) | fields]}
+  def finish(:description, text, %{fields: [field | fields]} = document) do
+    %{document | fields: [Map.put(field, "description", String.trim(text)) | fields]}
   end
 
-  defp finish(:td, %{encoding: nil} = document) do
-    %{document | row: [IO.iodata_to_binary(document.text) | document.row]}
+  def finish(:td, text, %{encoding: nil} = document) do
+    %{document | row: [text | document.row]}
   end
 
-  defp finish(:td, document),
+  def finish(:td, _text, document),
     do: %{document | row: [{:encoding, document.encoding} | document.row]}
 
-  defp finish(:tr, %{columns: {fields, count}, row_error: nil} = document) do
+  def finish(:tr, _text, %{columns: {fields, count}, row_error: nil} = document) do
     number = document.row_count + 1
 
     case text_row(Enum.reverse(document.row), fields, count, number) do
@@ -229,12 +189,16 @@ defmodule SpaceTAP.VOTable do
   end
 
   # After an error, or without fields to read them with, rows are skipped.
-  defp finish(:tr, document), do: document
+  def finish(:tr, _text, document), do: document
 
-  defp finish(:stream, %{stream: {href, encoding, _text}} = document),
-    do: %{document | stream: {href, encoding, document.text}}
+  def finish(:stream, text, %{stream: {href, encoding, _text}} = document),
+    do: %{document | stream: {href, encoding, text}}
 
-  defp finish(_role, document), do: document
+  def finish(_role, _text, document), do: document
+
+  #####################
+  # Private functions #
+  #####################
 
   defp decode(%{results: 0}), do: {:error, ~s(the document has no RESOURCE of type "results")}
 
@@ -359,7 +323,7 @@ defmodule SpaceTAP.VOTable do
     do: {:error, "a STREAM with an href is not supported"}
 
   defp stream({nil, "base64", text}, _serialization) do
-    case text |> IO.iodata_to_binary() |> Base.decode64(ignore: :whitespace) do
+    case Base.decode64(text, ignore: :whitespace) do
       {:ok, bytes} -> {:ok, bytes}
       :error -> {:error, "the STREAM is not valid base64"}
     end

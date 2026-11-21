@@ -2,19 +2,16 @@ defmodule SpaceTAP.VOSI do
   @moduledoc false
 
   # Reads two VOSI documents (VOSI 1.1): the capabilities of a service, for
-  # the URL of its availability, and the availability itself. As in
-  # SpaceTAP.UWS, names are matched without their namespace prefix, which
-  # changes from one service to another, and an element only counts where
-  # the standard puts it.
-
-  @behaviour Saxy.Handler
+  # the URL of its availability, and the availability itself. An element
+  # counts by its role, as SpaceTAP.XML reads it, so only where the standard
+  # puts it.
 
   alias SpaceTAP.{Availability, XML}
 
+  @behaviour XML
+
   # IVOA identifiers are case insensitive.
   @availability_id "ivo://ivoa.net/std/vosi#availability"
-
-  @text_roles [:access_url, :available, :up_since, :down_at, :back_at, :note]
 
   @availability_roles %{
     "available" => :available,
@@ -38,52 +35,44 @@ defmodule SpaceTAP.VOSI do
     with {:ok, document} <- parse(xml), do: decode_availability(document)
   end
 
-  @impl Saxy.Handler
-  def handle_event(:start_element, {name, attributes}, %{stack: stack} = document) do
-    role = role(parent(stack), XML.local_name(name), attributes)
-    document = %{document | stack: [role | stack], text: []}
-    {:ok, if(stack == [], do: %{document | root: role}, else: document)}
+  @impl XML
+  def role(nil, "capabilities", _attributes), do: :capabilities
+
+  def role(:capabilities, "capability", attributes) do
+    id = XML.attribute(attributes, "standardID")
+    if id && String.downcase(id) == @availability_id, do: :availability_capability, else: :other
   end
 
-  def handle_event(:characters, chars, %{stack: [role | _roles], text: text} = document)
-      when role in @text_roles do
-    {:ok, %{document | text: [text, chars]}}
-  end
+  def role(:availability_capability, "interface", _attributes), do: :interface
+  def role(:interface, "accessURL", _attributes), do: :access_url
+  def role(nil, "availability", _attributes), do: :availability
+  def role(:availability, name, _attributes), do: Map.get(@availability_roles, name, :other)
+  def role(_parent, _name, _attributes), do: :other
 
-  def handle_event(:end_element, _name, %{stack: [role | roles]} = document)
-      when role in @text_roles do
-    value = document.text |> IO.iodata_to_binary() |> String.trim()
-    values = Map.update(document.values, role, [value], &(&1 ++ [value]))
-    {:ok, %{document | stack: roles, values: values}}
-  end
+  @impl XML
+  def text_roles, do: [:access_url, :available, :up_since, :down_at, :back_at, :note]
 
-  def handle_event(:end_element, _name, %{stack: [_role | roles]} = document) do
-    {:ok, %{document | stack: roles}}
-  end
+  # The root says which of the two documents this is.
+  @impl XML
+  def start(root, _attributes, document) when root in [:capabilities, :availability],
+    do: %{document | root: root}
 
-  def handle_event(_event, _data, document), do: {:ok, document}
+  def start(_role, _attributes, document), do: document
+
+  # The values of each role with text, trimmed, in the order they came.
+  @impl XML
+  def finish(_role, nil, document), do: document
+
+  def finish(role, text, document) do
+    value = String.trim(text)
+    %{document | values: Map.update(document.values, role, [value], &(&1 ++ [value]))}
+  end
 
   #####################
   # Private functions #
   #####################
 
-  defp parse(xml), do: XML.parse(xml, __MODULE__, %{stack: [], text: [], root: nil, values: %{}})
-
-  defp parent([role | _roles]), do: role
-  defp parent([]), do: nil
-
-  defp role(nil, "capabilities", _attributes), do: :capabilities
-
-  defp role(:capabilities, "capability", attributes) do
-    id = Enum.find_value(attributes, fn {key, value} -> key == "standardID" && value end)
-    if id && String.downcase(id) == @availability_id, do: :availability_capability, else: :other
-  end
-
-  defp role(:availability_capability, "interface", _attributes), do: :interface
-  defp role(:interface, "accessURL", _attributes), do: :access_url
-  defp role(nil, "availability", _attributes), do: :availability
-  defp role(:availability, name, _attributes), do: Map.get(@availability_roles, name, :other)
-  defp role(_parent, _name, _attributes), do: :other
+  defp parse(xml), do: XML.parse(xml, __MODULE__, %{root: nil, values: %{}})
 
   defp access_url(%{root: :capabilities, values: %{access_url: [url | _urls]}}), do: {:ok, url}
 

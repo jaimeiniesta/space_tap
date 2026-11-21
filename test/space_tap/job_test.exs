@@ -62,7 +62,7 @@ defmodule SpaceTAP.JobTest do
                {:ok,
                 %Job{
                   url: @job_url,
-                  service_url: @service_url,
+                  given_url: @service_url,
                   phase: :completed,
                   format: :csv,
                   error_summary: nil,
@@ -180,7 +180,7 @@ defmodule SpaceTAP.JobTest do
 
       expect_request("GET", "/async/42", &phase_document(&1, "EXECUTING"))
 
-      assert {:ok, %Job{service_url: @service_url, phase: :executing} = job} =
+      assert {:ok, %Job{given_url: @service_url, phase: :executing} = job} =
                submit(req_options: auth ++ @req_options)
 
       for {method, path, respond} <- [
@@ -196,11 +196,72 @@ defmodule SpaceTAP.JobTest do
         end)
       end
 
-      assert {:ok, %Job{service_url: @service_url, phase: :completed} = job} =
+      assert {:ok, %Job{given_url: @service_url, phase: :completed} = job} =
                Job.wait(job, req_options: auth ++ @req_options)
 
       assert {:ok, %Result{}} = Job.result(job, req_options: auth ++ @req_options)
       assert :ok = Job.delete(job, req_options: auth ++ @req_options)
+    end
+
+    test "sends no credentials to the job where the service's redirects lead, in PHASE=RUN and the read after it" do
+      expect_request("POST", "/tap/async", &redirect(&1, 303, @job_url))
+
+      # The job URL of the 303 is on the service's host, so the credentials go
+      # with the GET, and Req drops them on the redirect it answers with.
+      expect_request("GET", "/tap/async/42", fn conn ->
+        assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer secret"]
+        redirect(conn, 302, "https://jobs.example.org/async/42")
+      end)
+
+      for {method, path, respond} <- [
+            {"GET", "/async/42", &phase_document(&1, "PENDING")},
+            {"POST", "/async/42/phase", &redirect(&1, 303, "https://jobs.example.org/async/42")},
+            {"GET", "/async/42", &phase_document(&1, "QUEUED")}
+          ] do
+        expect_request(method, path, fn conn ->
+          assert conn.host == "jobs.example.org"
+          assert Plug.Conn.get_req_header(conn, "authorization") == []
+          respond.(conn)
+        end)
+      end
+
+      assert {:ok,
+              %Job{
+                url: "https://jobs.example.org/async/42",
+                given_url: @service_url,
+                phase: :queued
+              }} =
+               submit(req_options: [auth: {:bearer, "secret"}] ++ @req_options)
+    end
+
+    test "sends no credentials over http:// either, when the service's redirect of the job drops to it" do
+      expect_request("POST", "/tap/async", &redirect(&1, 303, @job_url))
+
+      expect_request("GET", "/tap/async/42", fn conn ->
+        assert conn.scheme == :https
+        redirect(conn, 302, "http://tap.example.org/tap/async/42")
+      end)
+
+      expect_request("GET", "/tap/async/42", fn conn ->
+        assert conn.scheme == :http
+        assert Plug.Conn.get_req_header(conn, "authorization") == []
+        phase_document(conn, "PENDING")
+      end)
+
+      expect_request("POST", "/tap/async/42/phase", fn conn ->
+        assert conn.scheme == :http
+        assert Plug.Conn.get_req_header(conn, "authorization") == []
+        redirect(conn, 303, "http://tap.example.org/tap/async/42")
+      end)
+
+      expect_request("GET", "/tap/async/42", fn conn ->
+        assert conn.scheme == :http
+        assert Plug.Conn.get_req_header(conn, "authorization") == []
+        phase_document(conn, "QUEUED")
+      end)
+
+      assert {:ok, %Job{url: "http://tap.example.org/tap/async/42", phase: :queued}} =
+               submit(req_options: [auth: {:bearer, "secret"}] ++ @req_options)
     end
 
     test "doesn't read an http:// job on another host after https://, and leaves it there" do
@@ -222,7 +283,8 @@ defmodule SpaceTAP.JobTest do
       for {location, resolved} <- [
             {"", @service_url <> "/async"},
             {@service_url <> "/async", @service_url <> "/async"},
-            {"/tap/async/", @service_url <> "/async/"}
+            {"/tap/async/", @service_url <> "/async/"},
+            {"https://TAP.example.org/tap/async", "https://TAP.example.org/tap/async"}
           ] do
         expect_request("POST", "/tap/async", &redirect(&1, 303, location))
 
@@ -336,7 +398,7 @@ defmodule SpaceTAP.JobTest do
                {:ok,
                 %Job{
                   url: @job_url,
-                  service_url: nil,
+                  given_url: @job_url,
                   phase: :completed,
                   format: :csv,
                   error_summary: nil,
@@ -360,12 +422,49 @@ defmodule SpaceTAP.JobTest do
         end)
       end
 
-      assert {:ok, %Job{service_url: nil, phase: :executing} = job} =
+      assert {:ok, %Job{given_url: "https://jobs.example.org/async/42", phase: :executing} = job} =
                Job.get("https://jobs.example.org/async/42", req_options: auth ++ @req_options)
 
-      assert {:ok, %Job{service_url: nil, phase: :completed} = job} =
+      assert {:ok, %Job{given_url: "https://jobs.example.org/async/42", phase: :completed} = job} =
                Job.wait(job, req_options: auth ++ @req_options)
 
+      assert :ok = Job.delete(job, req_options: auth ++ @req_options)
+    end
+
+    test "keeps the URL the client gave, so wait/2, result/2 and delete/2 send no credentials to a job the service redirected elsewhere" do
+      auth = [auth: {:bearer, "secret"}]
+
+      expect_request("GET", "/tap/async/42", fn conn ->
+        assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer secret"]
+        redirect(conn, 302, "https://jobs.example.org/async/42")
+      end)
+
+      for {method, path, respond} <- [
+            {"GET", "/async/42", &phase_document(&1, "EXECUTING")},
+            {"GET", "/async/42", &phase_document(&1, "COMPLETED")},
+            {"GET", "/async/42/results/result",
+             &respond(&1, 200, "text/csv", fixture("gavo", "hipparcos.csv"))},
+            {"DELETE", "/async/42", &redirect(&1, 303, "https://jobs.example.org/async")}
+          ] do
+        expect_request(method, path, fn conn ->
+          assert conn.host == "jobs.example.org"
+          assert Plug.Conn.get_req_header(conn, "authorization") == []
+          respond.(conn)
+        end)
+      end
+
+      assert {:ok,
+              %Job{
+                url: "https://jobs.example.org/async/42",
+                given_url: @job_url,
+                phase: :executing
+              } =
+                job} = get(req_options: auth ++ @req_options)
+
+      assert {:ok, %Job{given_url: @job_url, phase: :completed} = job} =
+               Job.wait(job, req_options: auth ++ @req_options)
+
+      assert {:ok, %Result{}} = Job.result(job, req_options: auth ++ @req_options)
       assert :ok = Job.delete(job, req_options: auth ++ @req_options)
     end
 
@@ -646,6 +745,35 @@ defmodule SpaceTAP.JobTest do
       assert {:error,
               %Error{type: :decode_error, message: "the job is COMPLETED and lists no result"}} =
                result(job(:completed))
+    end
+
+    test "is a :decode_error, with no request, for a result URL with a scheme other than http or https" do
+      for url <- ["ftp://tap.example.org/result", "file:///etc/hosts", "mailto:x@example.org"] do
+        assert result(%{completed(:csv) | result_url: url}) ==
+                 {:error,
+                  %Error{
+                    type: :decode_error,
+                    message:
+                      "the job lists its result at a URL that isn't http:// or https://, " <>
+                        "which isn't read: " <> url,
+                    status: nil
+                  }}
+      end
+    end
+
+    test "is a :decode_error, with no request, for a result URL with user information in it, which the message leaves out" do
+      url = "https://user:secret@tap.example.org/tap/async/42/results/result"
+
+      assert result(%{completed(:csv) | result_url: url}) ==
+               {:error,
+                %Error{
+                  type: :decode_error,
+                  message:
+                    "the job lists its result at a URL with user information in it " <>
+                      "(RFC 9110 §4.2.4), which isn't read: " <>
+                      "https://tap.example.org/tap/async/42/results/result",
+                  status: nil
+                }}
     end
 
     test "raises for a job that hasn't stopped" do

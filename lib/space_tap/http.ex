@@ -141,22 +141,18 @@ defmodule SpaceTAP.HTTP do
   # after https://: an http:// URL on the host of `from_url` is read with
   # https://, which GAVO and the NASA Exoplanet Archive serve, and one on
   # another host isn't read, which `what`, such as "the job lists its
-  # result", explains. Credentials stay with the scheme, host and port of
-  # `from_url`, as Req keeps them from a redirect that leaves them (its
-  # :redirect_trusted option).
+  # result", explains. Nor is a URL with another scheme, which Req would
+  # raise on, or with user information in it, which a recipient treats as
+  # an error (RFC 9110 §4.2.4) and Req would turn into Basic auth.
+  # Credentials stay with the scheme, host and port of `from_url`, as Req
+  # keeps them from a redirect that leaves them (its :redirect_trusted
+  # option).
   @spec listed(keyword(), String.t(), String.t(), String.t()) ::
           {:ok, String.t(), keyword()} | {:error, Error.t()}
   def listed(req_options, from_url, url, what) do
     case secure(from_url, url) do
-      {:ok, url} ->
-        {:ok, url, credentials(req_options, from_url, url)}
-
-      :insecure ->
-        error(
-          :decode_error,
-          "#{what} at an http:// URL, which isn't read after https://: #{url}",
-          nil
-        )
+      {:ok, url} -> {:ok, url, credentials(req_options, from_url, url)}
+      {:refused, reason, url} -> error(:decode_error, "#{what} at #{reason}: #{url}", nil)
     end
   end
 
@@ -299,11 +295,21 @@ defmodule SpaceTAP.HTTP do
     if media_type == "", do: nil, else: media_type
   end
 
+  # The URL to read, or the reason it isn't read, with the URL to name: one
+  # with user information is named without it, so that no password is
+  # written in a message.
   defp secure(from_url, url) do
     from = URI.parse(from_url)
     to = URI.parse(url)
 
     cond do
+      to.scheme not in ["http", "https"] ->
+        {:refused, "a URL that isn't http:// or https://, which isn't read", url}
+
+      to.userinfo != nil ->
+        {:refused, "a URL with user information in it (RFC 9110 §4.2.4), which isn't read",
+         URI.to_string(%{to | userinfo: nil})}
+
       from.scheme != "https" or to.scheme != "http" ->
         {:ok, url}
 
@@ -311,7 +317,7 @@ defmodule SpaceTAP.HTTP do
         {:ok, URI.to_string(%{to | scheme: "https", port: 443})}
 
       true ->
-        :insecure
+        {:refused, "an http:// URL, which isn't read after https://", url}
     end
   end
 

@@ -13,13 +13,20 @@ defmodule SpaceTAP.Options do
   # The options a function takes, with the default of each one not given.
   @spec validate!(keyword(), [name()]) :: keyword()
   def validate!(opts, names) do
-    opts = Keyword.validate!(opts, Keyword.take(@defaults, names))
+    opts = opts |> keyword!() |> Keyword.validate!(Keyword.take(@defaults, names))
     for {name, value} <- opts, do: {name, check!(name, value)}
   end
 
   #####################
   # Private functions #
   #####################
+
+  defp keyword!(opts) do
+    if Keyword.keyword?(opts),
+      do: opts,
+      else:
+        raise(ArgumentError, "expected the options to be a keyword list, got: #{inspect(opts)}")
+  end
 
   # The format of a result, sent as FORMAT (TAP 1.1 §2.7.3).
   defp check!(:format, format) when format in [:csv, :votable], do: format

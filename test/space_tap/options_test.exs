@@ -12,6 +12,12 @@ defmodule SpaceTAP.OptionsTest do
                [format: :csv, maxrec: 5]
     end
 
+    test "raises for options that aren't a keyword list" do
+      assert_raise ArgumentError,
+                   "expected the options to be a keyword list, got: %{format: :csv}",
+                   fn -> Options.validate!(%{format: :csv}, [:format]) end
+    end
+
     test "raises for an option the function doesn't take, as Keyword.validate!/2 does" do
       assert_raise ArgumentError, ~r/unknown keys \[:timeout\]/, fn ->
         Options.validate!([timeout: 1000], [:format, :req_options])

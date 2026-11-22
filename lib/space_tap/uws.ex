@@ -102,16 +102,17 @@ defmodule SpaceTAP.UWS do
   end
 
   # TAP 1.1 §2.2 requires the result of a job that ran: "the result resource
-  # must exist".
-  defp job(:completed, _message, result) when result in [nil, ""] do
-    {:error, "the job is COMPLETED and its document lists no result"}
-  end
-
-  # An empty message or href says nothing.
+  # must exist". An empty or blank message or href says nothing.
   defp job(phase, message, result) do
-    {:ok, %{phase: phase, error_summary: present(message), result: present(result)}}
+    case present(result) do
+      nil when phase == :completed ->
+        {:error, "the job is COMPLETED and its document lists no result"}
+
+      result ->
+        {:ok, %{phase: phase, error_summary: present(message), result: result}}
+    end
   end
 
-  defp present(""), do: nil
-  defp present(value), do: value
+  defp present(nil), do: nil
+  defp present(value), do: if(String.trim(value) == "", do: nil, else: value)
 end

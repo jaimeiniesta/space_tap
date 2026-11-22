@@ -27,6 +27,17 @@ defmodule SpaceTAP.VOTable.Value do
   # hexadigits it may have (§6).
   @integer_bits %{unsignedByte: 8, short: 16, int: 32, long: 64}
 
+  # The characters an integer takes at most, the sign and the 19 digits of
+  # a long, and the digits of a dimension, those of an int: a longer text
+  # is read by no datatype, and Integer.parse/1 would take millions of
+  # digits, and raise SystemLimitError beyond them.
+  @integer_characters 20
+  @dimension_digits 10
+
+  # §2.2 bounds the number of dimensions nowhere, but nest/2 costs the
+  # elements times the dimensions, and no service writes more than three.
+  @max_dimensions 16
+
   # The bytes of one element of each datatype in BINARY and BINARY2 (§2.1),
   # which are also the units a string is counted in: a char is ASCII (§6),
   # one byte, and a unicodeChar a UTF-16 unit of two (ADR 0007).
@@ -272,13 +283,15 @@ defmodule SpaceTAP.VOTable.Value do
   defp shape(%Field{arraysize: nil}), do: {:ok, :scalar}
 
   defp shape(%Field{arraysize: arraysize} = field) do
-    {fixed, [last]} = arraysize |> String.split("x") |> Enum.split(-1)
+    dimensions = String.split(arraysize, "x")
+    {fixed, [last]} = Enum.split(dimensions, -1)
 
-    with {:ok, fixed} <- dimensions(fixed),
+    with true <- length(dimensions) <= @max_dimensions,
+         {:ok, fixed} <- dimensions(fixed),
          {:ok, last} <- last_dimension(last) do
       {:ok, {fixed, last}}
     else
-      :error ->
+      _invalid ->
         {:error, "field #{inspect(field.name)}: #{inspect(arraysize)} is not a valid arraysize"}
     end
   end
@@ -301,7 +314,8 @@ defmodule SpaceTAP.VOTable.Value do
   end
 
   defp size(text) do
-    with {digits, ""} when digits != "" <- split_digits(text),
+    with {digits, ""} when digits != "" and byte_size(digits) <= @dimension_digits <-
+           split_digits(text),
          size when size > 0 <- String.to_integer(digits) do
       {:ok, size}
     else
@@ -363,6 +377,8 @@ defmodule SpaceTAP.VOTable.Value do
       _other -> :error
     end
   end
+
+  defp integer(text, _bits, _datatype) when byte_size(text) > @integer_characters, do: :error
 
   # The hexadecimal representation gives the bits the BINARY serialization
   # would hold, so 0xFFFF is -1 in a short, as it would be there: §6 gives the

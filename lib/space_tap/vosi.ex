@@ -73,10 +73,14 @@ defmodule SpaceTAP.VOSI do
   @impl XML
   def text_roles, do: [:access_url, :available, :up_since, :down_at, :back_at, :note]
 
-  # The root says which of the two documents this is.
+  # The root says which of the two documents this is, and the availability
+  # capability is noted, so that one without an accessURL is told from none.
   @impl XML
   def start(root, _attributes, document) when root in [:capabilities, :availability],
     do: %{document | root: root}
+
+  def start(:availability_capability, _attributes, document),
+    do: %{document | availability_capability: true}
 
   def start(_role, _attributes, document), do: document
 
@@ -93,9 +97,20 @@ defmodule SpaceTAP.VOSI do
   # Private functions #
   #####################
 
-  defp parse(xml), do: XML.parse(xml, __MODULE__, %{root: nil, values: %{}})
+  defp parse(xml),
+    do: XML.parse(xml, __MODULE__, %{root: nil, availability_capability: false, values: %{}})
 
-  defp access_url(%{root: :capabilities, values: %{access_url: [url | _urls]}}), do: {:ok, url}
+  # The first accessURL of the capability, which may be blank: KOA writes
+  # some elements with spaces around their text.
+  defp access_url(%{root: :capabilities, values: %{access_url: [url | _urls]}} = document) do
+    if url == "", do: access_url(%{document | values: %{}}), else: {:ok, url}
+  end
+
+  defp access_url(%{root: :capabilities, availability_capability: true}),
+    do:
+      {:error,
+       "the capabilities document lists the ivo://ivoa.net/std/VOSI#availability capability " <>
+         "without an accessURL"}
 
   defp access_url(%{root: :capabilities}),
     do:

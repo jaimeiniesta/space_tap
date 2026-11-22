@@ -62,6 +62,12 @@ defmodule SpaceTAP.CSVTest do
                CSV.parse(fixture("maxrec_0.csv"))
     end
 
+    test "drops a UTF-8 byte order mark before the header, as the XML readers do" do
+      for body <- ["﻿a,b\n1,2\n", "﻿\"a\",b\n1,2\n"] do
+        assert CSV.parse(body) == {:ok, %Result{columns: ["a", "b"], rows: [["1", "2"]]}}
+      end
+    end
+
     test "fails on an empty body, which has no header" do
       assert {:error, message} = CSV.parse("")
       assert message =~ "header"

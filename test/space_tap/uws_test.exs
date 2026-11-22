@@ -161,6 +161,7 @@ defmodule SpaceTAP.UWSTest do
             "<results/>",
             ~s(<results><result id="diag" href="d"/></results>),
             ~s(<results><result id="result" href=""/></results>),
+            ~s(<results><result id="result" href="  "/></results>),
             ~s(<results><result id="result"/></results>)
           ] do
         assert UWS.parse("<job><phase>COMPLETED</phase>#{results}</job>") ==

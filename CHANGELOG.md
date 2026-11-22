@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-22
+
 ### Added
 
 - `SpaceTAP.Job` has `given_url`, the URL the client gave, the service URL for `submit/3` and the job URL for `get/2`, which every request about the job keeps the credentials of its `:req_options` with: a job on another host, scheme or port, also one the service's own redirects led to, gets neither the `authorization` header nor Req's `:auth` option from `submit/3`, `wait/2`, `result/2` or `delete/2`.
@@ -35,6 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A VOTable, a job document or a VOSI document that begins with a UTF-8 byte order mark, which XML 1.0 §4.3.3 allows, is read. It was a `:decode_error`, since Saxy doesn't take the mark. No known service sends one.
 - A `char` string of more than 64 bytes read from a BINARY or BINARY2 stream is a binary of its own. It was a reference into the decoded stream, which it kept in memory, all of it, for as long as the string lived, as when a caller keeps one description of a result and drops the rest.
 - A CSV body that is a blank line, or starts with one, is a `:decode_error`, since it has no header row with the column names (TAP 1.1 §3.2). It was a result with one column named `""`.
+- The README of the livebooks said they install `{:space_tap, "~> 0.1.0"}`; they install `~> 0.4.0`.
+- The logo of the README loads from GitHub, so hex.pm shows it: hex.pm renders the README from the package, which doesn't hold `assets/`.
+- The docs of `SpaceTAP.Error` say that plain text is an `:http_error` with an error status other than 400, not with any status, since with a 2xx it is read as CSV, and when a `:decode_error` has `status: nil`; the example of `SpaceTAP.Job` lists its result with `https://`, as GAVO does since November 2026.
 
 ## [0.4.0] - 2026-11-21
 
@@ -95,7 +100,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A README with usage, errors, the limits of CSV results and the TAP services SpaceTAP has been checked against, and HexDocs with the SpaceTAP icon.
 - Livebooks that run SpaceTAP against Gaia, GAVO, the NASA Exoplanet Archive and other TAP services, with tables and charts, each with a "Run in Livebook" button on HexDocs.
 
-[Unreleased]: https://github.com/jaimeiniesta/space_tap/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/jaimeiniesta/space_tap/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/jaimeiniesta/space_tap/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/jaimeiniesta/space_tap/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jaimeiniesta/space_tap/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/jaimeiniesta/space_tap/compare/v0.2.0...v0.2.1

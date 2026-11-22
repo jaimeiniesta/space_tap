@@ -21,7 +21,7 @@ defmodule SpaceTAP.Job do
       #=> {:ok, %SpaceTAP.Job{url: "https://dc.g-vo.org/__system__/tap/run/async/bjk2rbdl", phase: :queued, format: :votable, ...}}
 
       {:ok, job} = SpaceTAP.Job.wait(job)
-      #=> {:ok, %SpaceTAP.Job{phase: :completed, result_url: "http://dc.g-vo.org/__system__/tap/run/async/bjk2rbdl/results/result", ...}}
+      #=> {:ok, %SpaceTAP.Job{phase: :completed, result_url: "https://dc.g-vo.org/__system__/tap/run/async/bjk2rbdl/results/result", ...}}
 
       SpaceTAP.Job.result(job)
       #=> {:ok, %SpaceTAP.Result{columns: ["hipno", "ra", "dec", "vmag"], rows: [...], ...}}
@@ -408,10 +408,11 @@ defmodule SpaceTAP.Job do
 
   # A service may start a job from the request that creates it, but GAVO,
   # ESO and CADC don't, so SpaceTAP starts it with a request of its own, and
-  # only while it is PENDING, the one phase a client may change it in (DALI
-  # 1.1 §2.1). UWS 1.1 §2.2.3.5 answers it with a 303 to the job, but the
-  # Gaia archive's points to <job>/phase, so the 303 isn't followed and the
-  # job is read at its own URL.
+  # only while it is PENDING: job parameters may only be POSTed while the
+  # job is PENDING (DALI 1.1 §2.1), and PHASE is read as one. UWS 1.1
+  # §2.2.3.5 answers it with a 303 to the job, but the Gaia archive's points
+  # to <job>/phase, so the 303 isn't followed and the job is read at its own
+  # URL.
   defp start(%__MODULE__{phase: :pending, url: url} = job, req_options) do
     phase_url = url |> URI.parse() |> URI.append_path("/phase") |> URI.to_string()
 

@@ -1,7 +1,7 @@
 defmodule SpaceTAP.MixProject do
   use Mix.Project
 
-  @version "0.4.0"
+  @version "0.4.1"
   @source_url "https://github.com/jaimeiniesta/space_tap"
 
   def project do
@@ -23,8 +23,10 @@ defmodule SpaceTAP.MixProject do
     ]
   end
 
+  # Dialyzer runs in the test environment, as it does in CI, so that it
+  # checks the modules in test/support too, which only compile there.
   def cli do
-    [preferred_envs: ["test.release": :test, "test.services": :test]]
+    [preferred_envs: [dialyzer: :test, "test.release": :test, "test.services": :test]]
   end
 
   # Run "mix help compile.app" to learn about applications.
@@ -64,10 +66,9 @@ defmodule SpaceTAP.MixProject do
   end
 
   # The core PLTs (OTP and Elixir) go in _build with the project PLT, so the
-  # CI cache of _build keeps them all. In the test environment the modules in
-  # test/support are compiled too, and SpaceTAP.PyVO imports ExUnit.Assertions.
-  # :extra_return and :missing_return check every @spec against what the
-  # function returns.
+  # CI cache of _build keeps them all. SpaceTAP.PyVO, in test/support, imports
+  # ExUnit.Assertions. :extra_return and :missing_return check every @spec
+  # against what the function returns.
   defp dialyzer do
     [
       plt_core_path: "_build/#{Mix.env()}",
@@ -76,16 +77,15 @@ defmodule SpaceTAP.MixProject do
     ]
   end
 
-  # The README shows the full logo from assets/, so ExDoc copies that
-  # directory; the sidebar and favicon use the icon alone. ExDoc publishes each
-  # livebook next to its page, and the page's "Run in Livebook" button opens
-  # that copy.
+  # The sidebar and favicon use the icon alone; the README loads the full logo
+  # from GitHub, since hex.pm renders the README from the package, which
+  # doesn't hold assets/. ExDoc publishes each livebook next to its page, and
+  # the page's "Run in Livebook" button opens that copy.
   defp docs do
     [
       main: "readme",
       extras: ["README.md": [title: "Overview"], "CHANGELOG.md": []] ++ livebooks(),
       groups_for_extras: [Livebooks: livebooks()],
-      assets: %{"assets" => "assets"},
       logo: "assets/space_tap_icon.svg",
       favicon: "assets/space_tap_icon.svg",
       source_ref: "v#{@version}"

@@ -15,7 +15,7 @@ services, with tables and charts.
 ## Running them
 
 Open a notebook in Livebook, or use the "Run in Livebook" button on its HexDocs
-page. Each one installs SpaceTAP from Hex with `{:space_tap, "~> 0.1.0"}`, plus
+page. Each one installs SpaceTAP from Hex with `{:space_tap, "~> 0.4.0"}`, plus
 [Kino](https://hexdocs.pm/kino) for tables and
 [Kino VegaLite](https://hexdocs.pm/kino_vega_lite) for charts. To run the code
 you have instead, open the notebook from this folder and replace that line with

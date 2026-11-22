@@ -13,6 +13,13 @@
 # DR3 at ARI Heidelberg, which offers both serializations, because the ESA
 # archive was too overloaded to answer when the benchmark first ran, on
 # 5 November 2026.
+#
+# It ran against the code of that day, recorded with the choice at commit
+# 3bf72af (docs/adr/0008-read-votable-with-saxy.md), and reads the three files
+# below as they were then. SpaceTAP.VOTable has since moved to the shared
+# reader in SpaceTAP.XML, so it doesn't run against the current code: check
+# that commit out to run it again. bench/votable_parse.exs measures the
+# reader as it is now.
 
 Mix.install([{:saxy, "1.7.0"}])
 

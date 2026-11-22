@@ -2,7 +2,7 @@ defmodule SpaceTAP.UWS do
   @moduledoc false
 
   # Reads a job document: the XML a TAP service returns for the URL of an
-  # async job, which TAP 1.1 §2.2 runs as a UWS job (UWS 1.1 §2.2.1.1).
+  # async job, which TAP 1.1 §2.2 runs as a UWS job (UWS 1.1 §2.2.2.2).
   # SpaceTAP reads three things from it: the phase, the message of the error
   # summary, and where the result is.
   #
@@ -32,7 +32,7 @@ defmodule SpaceTAP.UWS do
     with {:ok, document} <- XML.parse(xml, __MODULE__, document), do: decode(document)
   end
 
-  # An element only counts where UWS 1.1 §2.2.1.1 puts it: a phase is the
+  # An element only counts where UWS 1.1 §2.2.2.2 puts it: a phase is the
   # job's only as a child of the job.
   @impl XML
   def role(nil, "job", _attributes), do: :job

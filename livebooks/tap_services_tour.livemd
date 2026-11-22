@@ -83,7 +83,7 @@ Kino.DataTable.new(responses,
 )
 ```
 
-The whole batch takes about as long as the slowest service, not the sum of all of them. VizieR publishes tens of thousands of catalogues, so the chart needs a logarithmic scale:
+The whole batch takes about as long as the slowest service, not the sum of all of them. VizieR publishes tens of thousands of tables, so the chart needs a logarithmic scale:
 
 ```elixir
 answered = Enum.filter(responses, &(&1["outcome"] == "ok"))

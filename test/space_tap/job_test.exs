@@ -536,6 +536,24 @@ defmodule SpaceTAP.JobTest do
       assert_received {:request, "GET", "/tap/async/42", %{"WAIT" => "30"}}
     end
 
+    test "gives the service 30 seconds past the WAIT to answer, whatever :receive_timeout says" do
+      # The service as Req's adapter, which sees the options of the request.
+      adapter = [adapter: SpaceTAP.Test.AsyncService]
+
+      assert {:ok, %Job{phase: :completed}} =
+               Job.wait(job(:executing), req_options: adapter ++ [receive_timeout: 1_000])
+
+      assert_received {:request, %Req.Request{options: options}}
+      assert options.params == [WAIT: 30]
+      assert options.receive_timeout == 60_000
+
+      # A longer one is kept.
+      assert {:ok, %Job{phase: :completed}} =
+               Job.wait(job(:executing), req_options: adapter ++ [receive_timeout: 120_000])
+
+      assert_received {:request, %Req.Request{options: %{receive_timeout: 120_000}}}
+    end
+
     test "keeps asking while the service may move the job on, as it does a suspended or unknown one" do
       for phase <- ["SUSPENDED", "UNKNOWN", "EXECUTING", "COMPLETED"] do
         expect_request("GET", "/tap/async/42", &phase_document(&1, phase))

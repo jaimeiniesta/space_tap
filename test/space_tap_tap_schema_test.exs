@@ -288,7 +288,7 @@ defmodule SpaceTAPTAPSchemaTest do
     test "is a :decode_error when a flag isn't 0 or 1" do
       stub_service(votable([{"column_name", "char"}, {"indexed", "int"}], [["ra", "2"]]))
 
-      assert {:error, %Error{type: :decode_error, message: message}} = columns("t")
+      assert {:error, %Error{type: :decode_error, message: message, status: nil}} = columns("t")
       assert message =~ "TAP_SCHEMA.columns: expected indexed to be 0 or 1, got: 2"
     end
 

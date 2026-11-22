@@ -106,6 +106,18 @@ defmodule SpaceTAPTest do
       assert Plug.Conn.get_req_header(conn, "x-request-id") == ["42"]
     end
 
+    test "a user-agent in :headers replaces SpaceTAP's, and :params adds parameters to the URL" do
+      stub_csv()
+
+      req_options = @req_options ++ [headers: [user_agent: "mine/1.0"], params: [VERBOSE: 1]]
+
+      assert {:ok, %Result{}} = query(req_options: req_options)
+      assert_received {:request, conn, %{"QUERY" => @adql}}
+
+      assert Plug.Conn.get_req_header(conn, "user-agent") == ["mine/1.0"]
+      assert conn.query_string == "VERBOSE=1"
+    end
+
     # Req logs each redirect.
     @tag :capture_log
     test "follows a redirect from the sync endpoint with GET" do

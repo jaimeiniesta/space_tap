@@ -11,7 +11,7 @@ A result marked as overflow (DALI 1.1 §4.4.1) gives its list with a warning in 
 - Sort with `ORDER BY table_index`: TAP 1.0 has no such column.
 - Return a `SpaceTAP.Result` of the query rather than structs: the names and the set of columns would change from one service to another, and from TAP 1.0 to 1.1.
 - An `:overflow` error, as first chosen: it makes both functions useless at MAST.
-- Ignore the overflow: a list cut short at VizieR, which has more than 27,000 catalogues, would pass unnoticed.
+- Ignore the overflow: a list cut short at VizieR, which has more than 27,000 tables, would pass unnoticed.
 
 ## Consequences
 

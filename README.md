@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/space_tap_logo.png" alt="SpaceTAP: an Elixir client for the IVOA Table Access Protocol" width="400">
+  <img src="https://raw.githubusercontent.com/jaimeiniesta/space_tap/main/assets/space_tap_logo.png" alt="SpaceTAP: an Elixir client for the IVOA Table Access Protocol" width="400">
 </p>
 
 # SpaceTAP

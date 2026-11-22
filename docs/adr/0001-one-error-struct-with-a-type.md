@@ -10,3 +10,5 @@
 ## Consequences
 
 The type comes from the response body before the HTTP status: an error document is a `:service_error` whatever the status, because TAP 1.1 §3.3 lets services report errors with 200 as well as 4xx or 5xx codes. Gaia, for example, answers invalid ADQL with HTTP 400 and a VOTable error document, even when CSV was requested.
+
+0.3.0 added a fifth type, `:timeout`, for a wait for an async job that runs out while the job stays on the service (ADR 0010).

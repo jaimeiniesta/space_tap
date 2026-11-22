@@ -106,7 +106,7 @@ defmodule SpaceTAP.Result do
   its name, `ra2`, as PyVO names it, and `columns` keeps the names the
   service sent. The units and the other metadata of each column stay in
   `fields`, and `overflow` in the result
-  (`docs/adr/0011-to-dataframe-takes-the-types-of-the-fields.md`).
+  ([ADR 0011](https://github.com/jaimeiniesta/space_tap/blob/main/docs/adr/0011-to-dataframe-takes-the-types-of-the-fields.md)).
 
   Raises `ArgumentError` when Explorer isn't installed.
   """

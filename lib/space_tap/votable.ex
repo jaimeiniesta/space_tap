@@ -141,7 +141,8 @@ defmodule SpaceTAP.VOTable do
 
   def start(:tr, _attributes, document), do: %{document | row: []}
 
-  # VOTable 1.5 lets a TD hold its value in base64 (§5.1).
+  # A TD may hold its value in base64, with the encoding attribute the schema
+  # of VOTable 1.5 gives it (§7.2 lists it, and Appendix A.5 explains it).
   def start(:td, attributes, document),
     do: %{document | encoding: XML.attribute(attributes, "encoding")}
 

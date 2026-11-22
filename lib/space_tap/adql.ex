@@ -19,7 +19,7 @@ defmodule SpaceTAP.ADQL do
       "SELECT TOP 10 source_id FROM gaiadr3.gaia_source WHERE CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', 56.75, 24.12, 1.0)) = 1"
 
   Both return text: they don't check the query or send it
-  (`docs/adr/0012-adql-helpers-write-plain-text.md`).
+  ([ADR 0012](https://github.com/jaimeiniesta/space_tap/blob/main/docs/adr/0012-adql-helpers-write-plain-text.md)).
   """
 
   @typedoc """

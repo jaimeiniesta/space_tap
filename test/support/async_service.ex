@@ -5,14 +5,38 @@ defmodule SpaceTAP.Test.AsyncService do
   # Req.Test and the stub name SpaceTAP.Job, which the tests pass to Req in
   # `req_options/0`. Each request the service gets is sent to the test
   # process as {:request, method, path, params}, with the parameters of its
-  # URL and form decoded.
+  # URL and form decoded. A test that needs the options of a request, which
+  # Req's plug doesn't see, passes this module as Req's adapter instead, in
+  # `adapter: SpaceTAP.Test.AsyncService`: see `run/1`.
 
   import ExUnit.Assertions
 
   @fixtures Path.expand("../fixtures", __DIR__)
 
+  # The result of a COMPLETED job at .../42, at <job>/results/result.
+  @results ~s(<results><result id="result" href="42/results/result"/></results>)
+
   @spec req_options() :: keyword()
   def req_options, do: [plug: {Req.Test, SpaceTAP.Job}]
+
+  # The service as Req's adapter, the step that makes the request, below
+  # the others: the request arrives with its options, such as the
+  # :receive_timeout Req's plug doesn't apply. Req runs the adapter in the
+  # process that sends the request, the test's, so the request is sent to
+  # it as {:request, %Req.Request{}}, and answered with a COMPLETED job.
+  @spec run(Req.Request.t()) :: {Req.Request.t(), Req.Response.t()}
+  def run(request) do
+    send(self(), {:request, request})
+
+    response =
+      Req.Response.new(
+        status: 200,
+        headers: [{"content-type", "text/xml"}],
+        body: "<job><phase>COMPLETED</phase>#{@results}</job>"
+      )
+
+    {request, response}
+  end
 
   # The next request the service gets: checks its method and path, and
   # answers with respond.
@@ -52,15 +76,10 @@ defmodule SpaceTAP.Test.AsyncService do
   def job_document(conn, service, name),
     do: respond(conn, 200, "text/xml", fixture(service, Path.join("jobs", name)))
 
-  # A job document with only a phase, and for COMPLETED the result, at
-  # <job>/results/result for a job at .../42.
+  # A job document with only a phase, and for COMPLETED the result.
   @spec phase_document(Plug.Conn.t(), String.t()) :: Plug.Conn.t()
   def phase_document(conn, phase) do
-    results =
-      if phase == "COMPLETED",
-        do: ~s(<results><result id="result" href="42/results/result"/></results>),
-        else: ""
-
+    results = if phase == "COMPLETED", do: @results, else: ""
     respond(conn, 200, "text/xml", "<job><phase>#{phase}</phase>#{results}</job>")
   end
 

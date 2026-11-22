@@ -17,14 +17,19 @@ defmodule SpaceTAP.Error do
       and whose `:status` is `nil`.
     * `:http_error` - an HTTP error status without an error document from
       the TAP service, such as an HTML page from a proxy. Plain text with
-      any status other than 400 is an HTTP error too, because a proxy or
-      web server in front of the service may have written it, and
-      `:message` is that text.
+      any error status other than 400 is an HTTP error too, because a proxy
+      or web server in front of the service may have written it, and
+      `:message` is that text; with a 2xx status, plain text is read as
+      CSV.
     * `:transport_error` - no response arrived: the connection failed or
       timed out, or the redirects never ended. `:status` is `nil`.
     * `:decode_error` - a successful response that can't be read as a
       result, such as malformed CSV, a VOTable SpaceTAP can't read, or a
-      format other than the one requested, or as a job document.
+      format other than the one requested, or as a job document. `:status`
+      is `nil` when the error is about a URL the service lists that isn't
+      read, such as an `http://` one on another host, or about what a
+      result says rather than the response, such as a COMPLETED job that
+      lists no result or a `TAP_SCHEMA` without a column SpaceTAP reads.
     * `:timeout` - the job hadn't stopped when the `:timeout` given to
       `SpaceTAP.Job.wait/2` ran out. The job stays on the service, and
       `:status` is `nil`.

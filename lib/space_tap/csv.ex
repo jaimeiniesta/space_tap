@@ -1,8 +1,10 @@
 defmodule SpaceTAP.CSV do
   @moduledoc false
 
-  # Reads the CSV body of a successful sync query. TAP 1.1 §3.2 puts the column
-  # names in the first row and defers the rest of the format to RFC 4180.
+  # Reads the CSV body of a successful sync query. TAP 1.1 §3.2 says the first
+  # row should give the column names, and defers the rest of the format to
+  # RFC 4180; SpaceTAP reads the first row as the header always, whatever the
+  # header= parameter of the media type says.
 
   alias NimbleCSV.RFC4180, as: Parser
   alias SpaceTAP.Result

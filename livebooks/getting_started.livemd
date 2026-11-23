@@ -19,7 +19,7 @@ This notebook installs SpaceTAP from Hex. Every query goes to a live service, so
 
 ## A first query
 
-The service URL is the base URL of a TAP service, what TAP calls its access URL. This one is the GAVO Data Center, the German Virtual Observatory's archive, and the query reads its copy of Gaia DR3, `gaia.dr3lite`. The Gaia archive at ESA, `https://gea.esac.esa.int/tap-server/tap`, answers the same query on `gaia.dr3lite`. The query asks for the five brightest stars within one degree of the centre of the Pleiades:
+The service URL is the base URL of a TAP service, what TAP calls its access URL. This one is the GAVO Data Center, the German Virtual Observatory's archive, and the query reads its copy of Gaia DR3, `gaia.dr3lite`. The original table is `gaiadr3.gaia_source`, in the Gaia archive at ESA, `https://gea.esac.esa.int/tap-server/tap`. The query asks for the five brightest stars within one degree of the centre of the Pleiades:
 
 ```elixir
 gavo = "https://dc.g-vo.org/tap"

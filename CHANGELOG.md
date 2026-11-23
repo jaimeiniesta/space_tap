@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The README opens with what SpaceTAP does, when to use it and how to get started: the first query, the same one with `format: :votable`, and a table of what to read next. The notes it had on the base URL and on `http://` redirects stay in the docs of `SpaceTAP.query/3` and in the Compatibility table.
+
+### Fixed
+
+- The getting-started livebook said the Gaia archive at ESA answers its query on `gaia.dr3lite`, a table only GAVO has. ESA's table is `gaiadr3.gaia_source`.
+
 ## [0.4.1] - 2026-11-22
 
 ### Added

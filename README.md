@@ -4,42 +4,40 @@
 
 # SpaceTAP
 
-SpaceTAP is an Elixir client for the IVOA [Table Access Protocol][tap] (TAP),
-the HTTP protocol astronomical archives use to expose their tables. You send a
-query written in [ADQL][adql], a dialect of SQL with functions for positions on
-the sky, and get the table back as Elixir data.
+Query astronomical archives from Elixir.
 
-Coming from Python? The
-[parity livebook](https://github.com/jaimeiniesta/space_tap/blob/main/livebooks/pyvo_parity.livemd)
-runs the same queries through [PyVO][pyvo] and SpaceTAP side by side.
+SpaceTAP is a client for the IVOA [Table Access Protocol][tap] (TAP). ESA's
+[Gaia archive][gaia] and the European Southern Observatory (ESO), among others,
+publish their tables through it: you send a query in [ADQL][adql], a dialect of
+SQL with functions for positions on the sky, and get the table back as Elixir
+data.
 
-## Installation
+## When to use it
+
+- You want data from an archive in an Elixir app, a script or a Livebook: the
+  stars of the Pleiades from ESA's Gaia catalogue, or the observations in the
+  ESO archive.
+- You would use [PyVO][pyvo] in Python and want to stay in Elixir. The
+  [parity livebook](https://github.com/jaimeiniesta/space_tap/blob/main/livebooks/pyvo_parity.livemd)
+  runs the same queries through both.
+
+TAP returns tables. Images and spectra come through other IVOA protocols,
+which SpaceTAP doesn't speak.
+
+## Getting started
 
 Add `space_tap` to the dependencies in `mix.exs`:
 
 ```elixir
-def deps do
-  [
-    {:space_tap, "~> 0.4.0"}
-  ]
-end
+{:space_tap, "~> 0.4.0"}
 ```
 
-In Livebook or a script:
+In Livebook or a script, use `Mix.install([{:space_tap, "~> 0.4.0"}])`.
 
-```elixir
-Mix.install([{:space_tap, "~> 0.4.0"}])
-```
-
-To turn results into data frames, add [Explorer][explorer] too, which SpaceTAP
-doesn't install: `{:explorer, "~> 0.13"}`.
-
-## Usage
-
-`SpaceTAP.query/3` takes the service URL of a TAP service and an ADQL query.
-This one asks the GAVO Data Center, the German Virtual Observatory's archive,
-for the five brightest stars within one degree of the centre of the Pleiades,
-from its copy of Gaia DR3:
+`SpaceTAP.query/3` takes the URL of a TAP service and a query. This one asks
+the GAVO Data Center, the German Virtual Observatory's archive, for the five
+brightest stars within one degree of the centre of the Pleiades, from its copy
+of ESA's Gaia DR3 catalogue:
 
 ```elixir
 adql = """
@@ -60,31 +58,38 @@ hd(result.rows)
 #=>  "8.118448", "3.6157947"]
 ```
 
-The [Gaia archive][gaia] at ESA, where Gaia's data comes from, answers the same
-query on `gaiadr3.gaia_source` at `https://gea.esac.esa.int/tap-server/tap`.
-There `parallax` is a `double`, a 64-bit number, so it has more digits:
-`"8.118448445799721"` rather than `"8.118448"`.
+The values are strings because SpaceTAP asks for CSV by default. Pass
+`format: :votable` to get numbers, and each column's unit and type in
+`result.fields`:
 
-The service URL is the base URL of the service, what TAP calls its access URL.
-SpaceTAP sends the query to its `/sync` endpoint, so pass the base URL even if
-you know the endpoint.
+```elixir
+{:ok, result} = SpaceTAP.query("https://dc.g-vo.org/tap", adql, format: :votable)
 
-Use the `https://` URL when the service has one. Gaia, for example, redirects
-`http://` to `https://` with a 302. Req, like curl and PyVO, follows a 301 or
-302 with a GET, as RFC 9110 allows (§15.4.2, §15.4.3), and the GET carries no
-query. The request then fails, with an error that depends on the service: Gaia
-answers with its list of async jobs, which SpaceTAP returns as a
-`:decode_error`.
+hd(result.rows)
+#=> [66526127137440128, 57.29068893293528, 24.053211829998986,
+#=>  8.118448257446289, 3.6157946586608887]
+```
 
-The result is a `SpaceTAP.Result`: `columns` holds the column names in order,
-and each row is a list with one value per column, in the same order. To work
-with maps instead:
+Each row is a list in the order of `columns`. To work with maps instead:
 
 ```elixir
 Enum.map(result.rows, fn row -> Map.new(Enum.zip(result.columns, row)) end)
 ```
 
-### Options
+What to read next:
+
+| To | Use |
+|---|---|
+| Run a query too slow for one request | `SpaceTAP.async_query/3` |
+| Work with a data frame | `SpaceTAP.Result.to_dataframe/1` |
+| List a service's tables and columns | `SpaceTAP.tables/2` and `SpaceTAP.columns/3` |
+| Write values and cone searches as ADQL | `SpaceTAP.ADQL` |
+| Ask a service whether it is up | `SpaceTAP.availability/2` |
+
+The [getting started livebook](https://github.com/jaimeiniesta/space_tap/blob/main/livebooks/getting_started.livemd)
+starts from this same query.
+
+## Options
 
 - `:format` is the format to ask the service for: `:csv`, the default, or
   `:votable`. See [CSV or VOTable](#csv-or-votable).
@@ -106,7 +111,7 @@ Enum.map(result.rows, fn row -> Map.new(Enum.zip(result.columns, row)) end)
   SpaceTAP sets the TAP request itself, but some Req options, such as
   `:headers`, can still change it. See `SpaceTAP.query/3`.
 
-### Errors
+## Errors
 
 A failed query returns `{:error, %SpaceTAP.Error{}}`, whose `:type` says what
 went wrong:
@@ -264,9 +269,10 @@ Exoplanet Archive, KOA and IRSA answer that a job is deleted and keep it.
 
 `SpaceTAP.Result.to_dataframe/1` turns a result into an
 [Explorer][explorer] data frame, which stores each column as an array of one
-type, as NumPy does, and filters, sorts and aggregates them in Rust. In
-Livebook, [Kino Explorer][kino_explorer] shows it as a table you can sort and
-filter:
+type, as NumPy does, and filters, sorts and aggregates them in Rust. SpaceTAP
+doesn't install Explorer, so add `{:explorer, "~> 0.13"}` to your dependencies.
+In Livebook, [Kino Explorer][kino_explorer] shows the data frame as a table you
+can sort and filter:
 
 ```elixir
 {:ok, result} = SpaceTAP.query("https://dc.g-vo.org/tap", adql, format: :votable)

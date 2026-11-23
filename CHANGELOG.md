@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The README opens with what SpaceTAP does, when to use it and how to get started: the first query, the same one with `format: :votable`, and a table of what to read next. The notes it had on the base URL and on `http://` redirects stay in the docs of `SpaceTAP.query/3` and in the Compatibility table.
+- The README opens with what SpaceTAP does, when to use it and how to get started: the first query, the same one with `format: :votable`, and a table of what to read next. The notes it had on the base URL and on `http://` redirects stay in the docs of `SpaceTAP.query/3` and in the Compatibility section.
+- The README's Compatibility section has a short table of what works at each service, and a section for each service with its URL and what it does differently, where one table of eight columns held both.
 
 ### Fixed
 

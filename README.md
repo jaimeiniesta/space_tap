@@ -385,36 +385,129 @@ to know whether queries work, run a small one.
 
 ## Compatibility
 
-SpaceTAP follows [TAP 1.1][tap] and works with TAP 1.0 services. It has been
-checked against these services, last on 16 November 2026, except four that
-didn't answer that day: Gaia was last checked on 13 November, IRSA on 10
-November, and VizieR and SIMBAD, both run by CDS, on 27 October, with CSV only.
-Async queries were checked on 17 November 2026 at every service but VizieR and
-SIMBAD, which didn't answer. Tables, columns and availability were checked on
-18 November 2026 at every service but Gaia, whose archive showed a downtime page
-that afternoon, and VizieR and SIMBAD, which didn't answer. Gaia's were checked
-on 21 November.
+SpaceTAP follows [TAP 1.1][tap] and works with TAP 1.0 services. It is checked
+against these:
 
-| Service | Service URL | Formats | Async | Tables | Availability | Checked by | Notes |
-|---|---|---|---|---|---|---|---|
-| [Gaia archive][gaia] (ESA) | `https://gea.esac.esa.int/tap-server/tap` | CSV, VOTable | CSV, VOTable | `columns/3` only | Yes | Services and parity tests, fixtures, livebook | Redirects `http://` to `https://`, which loses the query: use `https://`. Stops an async job of an anonymous user after 60 seconds, as `:aborted`. `tables/2` fails: some table descriptions in its `TAP_SCHEMA` have a byte that isn't ASCII, which VOTable doesn't allow in a `char`, so it is a `:decode_error`, and with `:schema` Gaia answers HTTP 500, as it does to any `WHERE` on `TAP_SCHEMA.tables`. |
-| GAVO Data Center | `https://dc.g-vo.org/tap` | CSV, VOTable | CSV, VOTable | Yes | Yes | Integration, services and parity tests, fixtures, livebooks | Runs DaCHS. Holds a copy of Gaia DR3 in `gaia.dr3lite`. Sends error documents with HTTP 500. Sends one row more than `:maxrec` asks for, and one row with `maxrec: 0`, marked as overflow. Lists its availability over `http://` and outside the service URL, which SpaceTAP reads with `https://`. |
-| NASA Exoplanet Archive | `https://exoplanetarchive.ipac.caltech.edu/TAP` | CSV, VOTable | CSV, VOTable | Yes | Yes | Services and parity tests, fixtures, livebooks | Labels CSV `text/plain`. Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a sorted result. Answers that an async job is deleted, and keeps it for 4 days. |
-| IRSA (IPAC) | `https://irsa.ipac.caltech.edu/TAP` | CSV, VOTable | VOTable only | Yes | Yes | Services and parity tests, fixtures, livebook | Sends the CSV result of an async job labelled as VOTable, so pass `format: :votable`. Answers that an async job is deleted, and keeps it. Writes a column's `arraysize` as a number, `"1"` for a single value. |
-| NED (IPAC) | `https://ned.ipac.caltech.edu/tap` | CSV, VOTable | CSV, VOTable | Yes | Yes | Services and parity tests, fixtures, livebook | Its `TAP_SCHEMA` follows TAP 1.0: columns have no `arraysize` or `xtype`, and an ADQL type such as `BIGINT` as `datatype`. |
-| KOA (Keck) | `https://koa.ipac.caltech.edu/TAP` | CSV, VOTable | CSV, VOTable | Yes | Yes | Services and parity tests, fixtures, livebook | Labels CSV `text/plain`. Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a `:service_error`. Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a sorted result. Answers that an async job is deleted, and keeps it for 4 days. Sends its capabilities and availability with no `Content-Type`, which SpaceTAP reads as XML. |
-| VizieR (CDS) | `https://tapvizier.cds.unistra.fr/TAPVizieR/tap` | CSV; VOTable not checked yet | Not checked yet | Not checked yet | Not checked yet | Services and parity tests, fixtures, livebook | |
-| SIMBAD (CDS) | `https://simbad.cds.unistra.fr/simbad/sim-tap` | CSV; VOTable not checked yet | Not checked yet | Not checked yet | Not checked yet | Services and parity tests, fixtures, livebook | |
-| ESO | `https://archive.eso.org/tap_obs` | CSV, VOTable | CSV, VOTable | Yes | Yes | Services and parity tests, fixtures, livebook | |
-| CADC | `https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus` | CSV, VOTable | CSV, VOTable | Yes | Yes | Services and parity tests, fixtures, livebook | Redirects each query to its result with a 303 (TAP 1.1 §2.1), which SpaceTAP follows. Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a `:service_error`. |
-| MAST | `https://mast.stsci.edu/vo-tap/api/v0.1/caom` | VOTable only | CSV, VOTable | Yes, with a warning | Yes | Services and parity tests, fixtures, livebook | Sends VOTable even when CSV is requested of a sync query, so pass `format: :votable`. Sends CSV as the result of an async job. Marks every VOTable result as overflow, even one with no rows, so `overflow` is always `true`, and `tables/2` and `columns/3` log a warning. |
+| Service | Sync | Async | Tables | Availability |
+|---|---|---|---|---|
+| [Gaia archive (ESA)](#gaia-archive-esa) | CSV, VOTable | CSV, VOTable | `columns/3` only | Yes |
+| [GAVO Data Center](#gavo-data-center) | CSV, VOTable | CSV, VOTable | Yes | Yes |
+| [ESO](#eso) | CSV, VOTable | CSV, VOTable | Yes | Yes |
+| [VizieR (CDS)](#vizier-and-simbad-cds) | CSV; VOTable not checked yet | Not checked yet | Not checked yet | Not checked yet |
+| [SIMBAD (CDS)](#vizier-and-simbad-cds) | CSV; VOTable not checked yet | Not checked yet | Not checked yet | Not checked yet |
+| [CADC](#cadc) | CSV, VOTable | CSV, VOTable | Yes | Yes |
+| [NASA Exoplanet Archive](#nasa-exoplanet-archive) | CSV, VOTable | CSV, VOTable | Yes | Yes |
+| [IRSA (IPAC)](#irsa-ipac) | CSV, VOTable | VOTable only | Yes | Yes |
+| [NED (IPAC)](#ned-ipac) | CSV, VOTable | CSV, VOTable | Yes | Yes |
+| [KOA (Keck)](#koa-keck) | CSV, VOTable | CSV, VOTable | Yes | Yes |
+| [MAST](#mast) | VOTable only | CSV, VOTable | Yes, with a warning | Yes |
 
-Integration, services and parity tests query the live service (see
-[Development](#development)), and fixtures are its responses, captured for the
-unit tests. The
-[tour of TAP services](https://github.com/jaimeiniesta/space_tap/blob/main/livebooks/tap_services_tour.livemd)
-livebook queries all of them. Services change, so one that worked here may
+Sync queries were last checked on 16 November 2026 (Gaia on 13 November, IRSA
+on 10 November), async queries on 17 November, and tables and availability on
+18 November (Gaia on 21 November). Services change, so one that worked then may
 behave differently today.
+
+Each service is checked by services and parity tests, which query it live (see
+[Development](#development)), and by fixtures, its responses captured for the
+unit tests. GAVO also has the integration tests. The
+[tour of TAP services](https://github.com/jaimeiniesta/space_tap/blob/main/livebooks/tap_services_tour.livemd)
+livebook queries all of them.
+
+The service URL of each one, and what it does differently:
+
+### Gaia archive (ESA)
+
+`https://gea.esac.esa.int/tap-server/tap`
+
+- Gaia DR3 is in `gaiadr3.gaia_source`, and the query of
+  [Getting started](#getting-started) runs on it too.
+- Redirects `http://` to `https://`, which loses the query: use `https://`.
+- Stops an async job of an anonymous user after 60 seconds, as `:aborted`.
+- `tables/2` fails. Some table descriptions in its `TAP_SCHEMA` have a byte
+  that isn't ASCII, which VOTable doesn't allow in a `char`, so the list is a
+  `:decode_error`. With `:schema`, Gaia answers HTTP 500, as it does to any
+  `WHERE` on `TAP_SCHEMA.tables`.
+
+### GAVO Data Center
+
+`https://dc.g-vo.org/tap`
+
+- Runs DaCHS.
+- Holds a copy of Gaia DR3 in `gaia.dr3lite`.
+- Sends error documents with HTTP 500.
+- Sends one row more than `:maxrec` asks for, and one row with `maxrec: 0`,
+  marked as overflow.
+- Lists its availability over `http://` and outside the service URL, which
+  SpaceTAP reads with `https://`.
+
+### ESO
+
+`https://archive.eso.org/tap_obs`
+
+### VizieR and SIMBAD (CDS)
+
+- VizieR: `https://tapvizier.cds.unistra.fr/TAPVizieR/tap`
+- SIMBAD: `https://simbad.cds.unistra.fr/simbad/sim-tap`
+
+Both were last checked on 27 October 2026, with sync queries in CSV only. They
+didn't answer on the later dates.
+
+### CADC
+
+`https://ws.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/argus`
+
+- Redirects each query to its result with a 303 (TAP 1.1 §2.1), which SpaceTAP
+  follows.
+- Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a
+  `:service_error`.
+
+### NASA Exoplanet Archive
+
+`https://exoplanetarchive.ipac.caltech.edu/TAP`
+
+- Labels CSV `text/plain`.
+- Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a
+  sorted result.
+- Answers that an async job is deleted, and keeps it for 4 days.
+
+### IRSA (IPAC)
+
+`https://irsa.ipac.caltech.edu/TAP`
+
+- Sends the CSV result of an async job labelled as VOTable, so pass
+  `format: :votable`.
+- Answers that an async job is deleted, and keeps it.
+- Writes a column's `arraysize` as a number, `"1"` for a single value.
+
+### NED (IPAC)
+
+`https://ned.ipac.caltech.edu/tap`
+
+- Its `TAP_SCHEMA` follows TAP 1.0: columns have no `arraysize` or `xtype`, and
+  an ADQL type such as `BIGINT` as `datatype`.
+
+### KOA (Keck)
+
+`https://koa.ipac.caltech.edu/TAP`
+
+- Labels CSV `text/plain`.
+- Sends query errors as plain text with HTTP 400, which SpaceTAP returns as a
+  `:service_error`.
+- Applies `TOP` before `ORDER BY`, so use `:maxrec` to get the first rows of a
+  sorted result.
+- Answers that an async job is deleted, and keeps it for 4 days.
+- Sends its capabilities and availability with no `Content-Type`, which
+  SpaceTAP reads as XML.
+
+### MAST
+
+`https://mast.stsci.edu/vo-tap/api/v0.1/caom`
+
+- Sends VOTable even when CSV is requested of a sync query, so pass
+  `format: :votable`.
+- Sends CSV as the result of an async job.
+- Marks every VOTable result as overflow, even one with no rows, so `overflow`
+  is always `true`, and `tables/2` and `columns/3` log a warning.
 
 ## Development
 

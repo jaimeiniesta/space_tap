@@ -9,8 +9,6 @@ the HTTP protocol astronomical archives use to expose their tables. You send a
 query written in [ADQL][adql], a dialect of SQL with functions for positions on
 the sky, and get the table back as Elixir data.
 
-It is not related to the Test Anything Protocol, which shares the acronym.
-
 Coming from Python? The
 [parity livebook](https://github.com/jaimeiniesta/space_tap/blob/main/livebooks/pyvo_parity.livemd)
 runs the same queries through [PyVO][pyvo] and SpaceTAP side by side.

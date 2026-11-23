@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The README opens with what SpaceTAP does, when to use it and how to get started: the first query, the same one with `format: :votable`, and a table of what to read next. The notes it had on the base URL and on `http://` redirects stay in the docs of `SpaceTAP.query/3` and in the Compatibility section.
 - The README's Compatibility section has a short table of what works at each service, and a section for each service with its URL and what it does differently, where one table of eight columns held both.
+- The README's sections on options, formats, async queries, data frames, tables, ADQL, availability and development are shorter: each keeps its example and what to know before using it. What one service does differently is in the Compatibility section, and the rest in the docs of each function.
 
 ### Fixed
 
